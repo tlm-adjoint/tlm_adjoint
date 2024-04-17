@@ -442,13 +442,16 @@ class _tlm_adjoint__SymbolicFloat(sp.Symbol):  # noqa: N801
         if annotate or tlm:
             if isinstance(y, numbers.Complex):
                 Assignment(self, self.new(y)).solve()
+            elif isinstance(y, Float):
+                if y is not self:
+                    Assignment(self, y).solve()
             elif isinstance(y, sp.Expr):
                 if y is not self:
                     FloatEquation(self, expr_new_x(y, self)).solve()
             else:
                 raise TypeError(f"Unexpected type: {type(y)}")
         else:
-            if isinstance(y, numbers.Complex):
+            if isinstance(y, (numbers.Complex, Float)):
                 var_assign(self, y)
             elif isinstance(y, sp.Expr):
                 deps = expr_dependencies(y)
