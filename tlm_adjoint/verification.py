@@ -422,7 +422,10 @@ def taylor_test_tlm_adjoint(forward, M, adjoint_order, *, seed=1.0e-2,
         dM_test = dMs[-1]
         dMs = dMs[:-1]
 
+    @restore_manager
     def forward_tlm(*M, annotate=False):
+        if not annotate:
+            set_manager(manager.new("memory", {}))
         reset_manager()
         clear_caches()
 
