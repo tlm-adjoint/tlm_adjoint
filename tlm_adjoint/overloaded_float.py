@@ -102,7 +102,7 @@ class FloatSpaceInterface(SpaceInterface):
         return self.dtype
 
     def _id(self):
-        return self._tlm_adjoint__var_interface_attrs["id"]
+        return self._tlm_adjoint__space_interface_attrs["id"]
 
     def _new(self, *, name=None, space_type="primal", static=False,
              cache=None):
