@@ -1,6 +1,5 @@
 from abc import ABC, abstractmethod
 import functools
-import warnings
 
 __all__ = \
     [
@@ -301,27 +300,6 @@ class CheckpointSchedule(ABC):
             return self._iter
 
         cls.iter = iter
-
-        class CallableBool:
-            def __init__(self, value):
-                self._value = value
-
-            def __bool__(self):
-                return bool(self._value)
-
-            def __call__(self):
-                warnings.warn("is_exhausted is a property and should not "
-                              "be called",
-                              DeprecationWarning, stacklevel=2)
-                return bool(self)
-
-        @property
-        def is_exhausted(self):
-            value = orig_is_exhausted.__get__(self, type(self))
-            return CallableBool(value)
-
-        orig_is_exhausted = cls.is_exhausted
-        cls.is_exhausted = is_exhausted
 
     def __iter__(self):
         return self
