@@ -23,7 +23,6 @@ from .interface import (
     subtract_adjoint_derivative_action_base, var_assign, var_comm, var_dtype,
     var_id, var_new, var_new_conjugate_dual, var_scalar_value, var_space_type)
 
-from .alias import Alias
 from .caches import Caches
 from .equation import Equation, ZeroAssignment
 from .equations import Assignment, Axpy
@@ -40,7 +39,6 @@ try:
     from sympy.printing.numpy import NumPyPrinter
 except ImportError:
     from sympy.printing.pycode import NumPyPrinter
-import warnings
 
 
 __all__ = \
@@ -414,13 +412,7 @@ class _tlm_adjoint__SymbolicFloat(sp.Symbol):  # noqa: N801
         """The :class:`.FloatSpace` for the :class:`.SymbolicFloat`.
         """
 
-        class CallableProperty(Alias):
-            def __call__(self):
-                warnings.warn("space is a property and should not be called",
-                              DeprecationWarning, stacklevel=2)
-                return self
-
-        return CallableProperty(self._space)
+        return self._space
 
     @property
     def space_type(self):
@@ -484,13 +476,7 @@ class _tlm_adjoint__SymbolicFloat(sp.Symbol):  # noqa: N801
         :returns: The value.
         """
 
-        class CallableProperty(type(self._value)):
-            def __call__(self):  # noqa: N804
-                warnings.warn("value is a property and should not be called",
-                              DeprecationWarning, stacklevel=2)
-                return self
-
-        return CallableProperty(self._value)
+        return self._value
 
 
 # Required by Sphinx
