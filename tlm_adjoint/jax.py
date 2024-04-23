@@ -6,7 +6,6 @@ from .interface import (
     var_dtype, var_id, var_is_scalar, var_local_size, var_set_values,
     var_space_type, var_state)
 
-from .alias import WeakAlias
 from .caches import Caches
 from .equation import Equation
 from .equations import Assignment, Axpy, Conversion
@@ -653,7 +652,7 @@ class VectorEquation(Equation):
         super().drop_references()
         self._vjp = None
         if self._forward_eq is not self:
-            self._forward_eq = WeakAlias(self._forward_eq)
+            self._forward_eq = self._forward_eq._weak_alias
 
     def _jax_reverse(self, *Y):
         key = tuple((var_id(y), var_state(y)) for y in Y)

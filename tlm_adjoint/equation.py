@@ -2,11 +2,12 @@ from .interface import (
     check_space_types, is_var, var_id, var_is_alias, var_is_static, var_locked,
     var_new, var_replacement, var_update_caches, var_update_state, var_zero)
 
-from .alias import gc_disabled
+from .alias import WeakAlias, gc_disabled
 from .manager import manager as _manager
 from .manager import annotation_enabled, paused_manager, tlm_enabled
 
 from collections.abc import Sequence
+import functools
 import inspect
 import itertools
 from operator import itemgetter
@@ -76,6 +77,10 @@ class Referrer:
         """
 
         raise NotImplementedError("Method not overridden")
+
+    @functools.cached_property
+    def _weak_alias(self):
+        return WeakAlias(self)
 
 
 class Equation(Referrer):

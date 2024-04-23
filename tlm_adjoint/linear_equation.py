@@ -3,7 +3,6 @@ from .interface import (
     var_new_conjugate_dual, var_replacement, var_space, var_space_type,
     var_zero)
 
-from .alias import WeakAlias
 from .equation import Equation, Referrer, ZeroAssignment
 
 __all__ = \
@@ -143,9 +142,9 @@ class LinearEquation(Equation):
 
     def drop_references(self):
         super().drop_references()
-        self._B = tuple(map(WeakAlias, self._B))
+        self._B = tuple(b._weak_alias for b in self._B)
         if self._A is not None:
-            self._A = WeakAlias(self._A)
+            self._A = self._A._weak_alias
 
     def forward_solve(self, X, deps=None):
         if is_var(X):
