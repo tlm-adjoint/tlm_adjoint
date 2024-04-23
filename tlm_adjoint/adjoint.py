@@ -95,7 +95,7 @@ class AdjointEquationRHS:
     """
 
     def __init__(self, eq):
-        self._B = tuple(AdjointRHS(x) for x in eq.X())
+        self._B = tuple(map(AdjointRHS, eq.X()))
 
     def __getitem__(self, key):
         return self._B[key]
@@ -151,24 +151,18 @@ class AdjointBlockRHS:
         adj_block_rhs = AdjointBlockRHS(block)
         adj_eq_rhs = adj_block_rhs[k]
 
-    :class:`.AdjointRHS` objects may be accessed e.g.
-
-    .. code-block:: python
-
-        adj_rhs = adj_block_rhs[(k, m)]
-
     :arg block: A :class:`Sequence` of :class:`.Equation` objects.
     """
 
     def __init__(self, block):
-        self._B = [AdjointEquationRHS(eq) for eq in block]
+        self._block = tuple(block)
+        self._B = {}
+        self._k = len(self._block) - 1
 
     def __getitem__(self, key):
-        if isinstance(key, int):
-            return self._B[key]
-        else:
-            k, m = key
-            return self._B[k][m]
+        if key not in self._B:
+            self._B[key] = AdjointEquationRHS(self._block[key])
+        return self._B[key]
 
     def pop(self):
         """Remove and return the last :class:`.AdjointEquationRHS` in the
@@ -178,7 +172,13 @@ class AdjointBlockRHS:
             :class:`.AdjointEquationRHS`, associated with block `n`.
         """
 
-        return len(self._B) - 1, self._B.pop()
+        if self._k < 0:
+            return -1, [].pop()
+
+        k, B = self._k, self[self._k]
+        del self._B[k]
+        self._k -= 1
+        return k, B
 
     def is_empty(self):
         """Return whether there are no :class:`.AdjointEquationRHS` objects in
@@ -188,7 +188,7 @@ class AdjointBlockRHS:
             in the :class:`.AdjointBlockRHS`, and `False` otherwise.
         """
 
-        return len(self._B) == 0
+        return self._k < 0
 
 
 class AdjointModelRHS:
@@ -201,18 +201,6 @@ class AdjointModelRHS:
 
         adj_model_rhs = AdjointModelRHS(block)
         adj_block_rhs = adj_block_rhs[p]
-
-    :class:`.AdjointEquationRHS` objects may be accessed e.g.
-
-    .. code-block:: python
-
-        adj_eq_rhs = adj_block_rhs[(p, k)]
-
-    :class:`.AdjointRHS` objects may be accessed e.g.
-
-    .. code-block:: python
-
-        adj_rhs = adj_block_rhs[(p, k, m)]
 
     If the last block of adjoint equations contains no equations then it is
     automatically removed from the :class:`.AdjointModelRHS`.
@@ -235,14 +223,7 @@ class AdjointModelRHS:
         self._pop_empty()
 
     def __getitem__(self, key):
-        if isinstance(key, int):
-            return self._B[key]
-        elif len(key) == 2:
-            p, k = key
-            return self._B[p][k]
-        else:
-            p, k, m = key
-            return self._B[p][k][m]
+        return self._B[key]
 
     def pop(self):
         """Remove and return the last :class:`.AdjointEquationRHS` in the last
@@ -285,9 +266,7 @@ class TransposeComputationalGraph:
 
         # Transpose computational graph
         last_eq = {}
-        transpose_deps = {n: tuple([None for dep in eq.dependencies()]
-                                   for eq in blocks[n])
-                          for n in blocks_n}
+        transpose_deps = {n: {} for n in blocks_n}
         for n in blocks_n:
             block = blocks[n]
             for i, eq in enumerate(block):
@@ -298,7 +277,7 @@ class TransposeComputationalGraph:
                     if dep_id in last_eq:
                         p, k, m = last_eq[dep_id]
                         if p < n or k < i:
-                            transpose_deps[n][i][j] = (p, k, m)
+                            transpose_deps[(n, i, j)] = (p, k, m)
         del last_eq
 
         if prune_forward:
@@ -321,7 +300,7 @@ class TransposeComputationalGraph:
                             adj_x_n_i_j_type, (n, i, j) = last_eq[x_id]
                             if adj_x_type == adj_x_n_i_j_type:
                                 assert n > p or (n == p and i > k)
-                                transpose_deps_ics[n][i][j] = (p, k, m)
+                                transpose_deps_ics[(n, i, j)] = (p, k, m)
                         last_eq[x_id] = (adj_x_type, (p, k, dep_map[x_id]))
             del last_eq
 
@@ -341,8 +320,8 @@ class TransposeComputationalGraph:
                             active_forward[n][i] = True
                     if not active_forward[n][i]:
                         for j, dep in enumerate(eq.dependencies()):
-                            if transpose_deps_ics[n][i][j] is not None:
-                                p, k, m = transpose_deps_ics[n][i][j]
+                            if (n, i, j) in transpose_deps_ics:
+                                p, k, m = transpose_deps_ics[(n, i, j)]
                                 if active_forward[p][k]:
                                     active_forward[n][i] = True
                                     break
@@ -371,17 +350,15 @@ class TransposeComputationalGraph:
                                     break
                         if active_adjoint[n][i]:
                             for j, dep in enumerate(eq.dependencies()):
-                                if transpose_deps[n][i][j] is not None:
-                                    p, k, m = transpose_deps[n][i][j]
+                                if (n, i, j) in transpose_deps:
+                                    p, k, m = transpose_deps[(n, i, j)]
                                     active_adjoint[p][k] = True
                         elif not isinstance(eq, Instruction):
                             active[J_i][n][i] = False
 
         solved = copy.deepcopy(active)
 
-        stored_adj_ics = {J_i: {n: tuple([None for x in eq.X()]
-                                         for eq in blocks[n])
-                                for n in blocks_n} for J_i in range(len(Js))}
+        stored_adj_ics = {J_i: {} for J_i in range(len(Js))}
         adj_ics = {J_i: {} for J_i in range(len(Js))}
         for J_i in range(len(Js)):
             last_eq = {}
@@ -396,7 +373,7 @@ class TransposeComputationalGraph:
                         if x_id in last_eq:
                             adj_x_p_k_m_type, (p, k) = last_eq[x_id]
                             if adj_x_type == adj_x_p_k_m_type:
-                                stored_adj_ics[J_i][n][i][m] = (p, k)
+                                stored_adj_ics[J_i][(n, i, m)] = (p, k)
                         if x_id in adj_ic_ids:
                             adj_ics[J_i][x_id] = (n, i)
                             last_eq[x_id] = (adj_x_type, (n, i))
@@ -413,11 +390,11 @@ class TransposeComputationalGraph:
 
     def __contains__(self, key):
         n, i, j = key
-        return self._transpose_deps[n][i][j] is not None
+        return (n, i, j) in self._transpose_deps
 
     def __getitem__(self, key):
         n, i, j = key
-        p, k, m = self._transpose_deps[n][i][j]
+        p, k, m = self._transpose_deps[(n, i, j)]
         return p, k, m
 
     def is_active(self, J_i, n, i):
@@ -448,7 +425,7 @@ class TransposeComputationalGraph:
             return False
 
     def is_stored_adj_ic(self, J_i, n, i, m):
-        stored_adj_ics = self._stored_adj_ics[J_i][n][i][m]
+        stored_adj_ics = self._stored_adj_ics[J_i].get((n, i, m), None)
         if stored_adj_ics is None:
             return False
         else:
