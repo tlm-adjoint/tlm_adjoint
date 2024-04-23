@@ -30,6 +30,22 @@ def gc_disabled(fn):
     return wrapped_fn
 
 
+def _alias_cls(cls, obj_cls):
+    class Alias(cls, obj_cls):
+        pass
+    Alias.__name__ = f"{obj_cls.__name__:s}{cls.__name__:s}"
+    return Alias
+
+
+def alias_cls(cls, obj_cls):
+    if not hasattr(obj_cls, "_tlm_adjoint__alias_cls"):
+        obj_cls._tlm_adjoint__alias_cls = {}
+    key = (cls, obj_cls)
+    if key not in obj_cls._tlm_adjoint__alias_cls:
+        obj_cls._tlm_adjoint__alias_cls[key] = _alias_cls(cls, obj_cls)
+    return obj_cls._tlm_adjoint__alias_cls[key]
+
+
 class Alias:
     """An alias to an object. Holds a reference to the original object.
 
@@ -42,13 +58,7 @@ class Alias:
         super().__setattr__("_tlm_adjoint__alias", obj)
 
     def __new__(cls, obj, *args, **kwargs):
-        obj_cls = type(obj)
-
-        class Alias(cls, obj_cls):
-            pass
-
-        Alias.__name__ = f"{obj_cls.__name__:s}Alias"
-        return super().__new__(Alias)
+        return super().__new__(alias_cls(cls, type(obj)))
 
     def __getattr__(self, key):
         return getattr(self._tlm_adjoint__alias, key)
@@ -84,10 +94,4 @@ class WeakAlias:
         self.__dict__ = obj.__dict__
 
     def __new__(cls, obj, *args, **kwargs):
-        obj_cls = type(obj)
-
-        class WeakAlias(cls, obj_cls):
-            pass
-
-        WeakAlias.__name__ = f"{obj_cls.__name__:s}WeakAlias"
-        return super().__new__(WeakAlias)
+        return super().__new__(alias_cls(cls, type(obj)))
