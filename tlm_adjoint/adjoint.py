@@ -95,7 +95,7 @@ class AdjointEquationRHS:
     """
 
     def __init__(self, eq):
-        self._B = tuple(AdjointRHS(x) for x in eq.X())
+        self._B = tuple(map(AdjointRHS, eq.X()))
 
     def __getitem__(self, key):
         return self._B[key]
@@ -151,24 +151,18 @@ class AdjointBlockRHS:
         adj_block_rhs = AdjointBlockRHS(block)
         adj_eq_rhs = adj_block_rhs[k]
 
-    :class:`.AdjointRHS` objects may be accessed e.g.
-
-    .. code-block:: python
-
-        adj_rhs = adj_block_rhs[(k, m)]
-
     :arg block: A :class:`Sequence` of :class:`.Equation` objects.
     """
 
     def __init__(self, block):
-        self._B = [AdjointEquationRHS(eq) for eq in block]
+        self._block = tuple(block)
+        self._B = {}
+        self._k = len(self._block) - 1
 
     def __getitem__(self, key):
-        if isinstance(key, int):
-            return self._B[key]
-        else:
-            k, m = key
-            return self._B[k][m]
+        if key not in self._B:
+            self._B[key] = AdjointEquationRHS(self._block[key])
+        return self._B[key]
 
     def pop(self):
         """Remove and return the last :class:`.AdjointEquationRHS` in the
@@ -178,7 +172,13 @@ class AdjointBlockRHS:
             :class:`.AdjointEquationRHS`, associated with block `n`.
         """
 
-        return len(self._B) - 1, self._B.pop()
+        if self._k < 0:
+            return -1, [].pop()
+
+        k, B = self._k, self[self._k]
+        del self._B[k]
+        self._k -= 1
+        return k, B
 
     def is_empty(self):
         """Return whether there are no :class:`.AdjointEquationRHS` objects in
@@ -188,7 +188,7 @@ class AdjointBlockRHS:
             in the :class:`.AdjointBlockRHS`, and `False` otherwise.
         """
 
-        return len(self._B) == 0
+        return self._k < 0
 
 
 class AdjointModelRHS:
@@ -201,18 +201,6 @@ class AdjointModelRHS:
 
         adj_model_rhs = AdjointModelRHS(block)
         adj_block_rhs = adj_block_rhs[p]
-
-    :class:`.AdjointEquationRHS` objects may be accessed e.g.
-
-    .. code-block:: python
-
-        adj_eq_rhs = adj_block_rhs[(p, k)]
-
-    :class:`.AdjointRHS` objects may be accessed e.g.
-
-    .. code-block:: python
-
-        adj_rhs = adj_block_rhs[(p, k, m)]
 
     If the last block of adjoint equations contains no equations then it is
     automatically removed from the :class:`.AdjointModelRHS`.
@@ -235,14 +223,7 @@ class AdjointModelRHS:
         self._pop_empty()
 
     def __getitem__(self, key):
-        if isinstance(key, int):
-            return self._B[key]
-        elif len(key) == 2:
-            p, k = key
-            return self._B[p][k]
-        else:
-            p, k, m = key
-            return self._B[p][k][m]
+        return self._B[key]
 
     def pop(self):
         """Remove and return the last :class:`.AdjointEquationRHS` in the last
