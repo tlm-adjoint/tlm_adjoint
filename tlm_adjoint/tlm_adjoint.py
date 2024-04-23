@@ -1027,7 +1027,7 @@ class EquationManager:
                 "ignored", RuntimeWarning, stacklevel=2)
             return
 
-        self._blocks.append(self._block)
+        self._blocks.append(tuple(self._block))
         self._block = []
         self._checkpoint(final=False)
 
@@ -1049,8 +1049,9 @@ class EquationManager:
         self._annotation_state = AnnotationState.FINAL
         self._tlm_state = TangentLinearState.FINAL
 
-        self._blocks.append(self._block)
-        self._block = []
+        self._blocks.append(tuple(self._block))
+        self._blocks = tuple(self._blocks)
+        self._block = ()
         if self._cp_schedule.max_n is not None \
                 and len(self._blocks) < self._cp_schedule.max_n:
             warnings.warn(
