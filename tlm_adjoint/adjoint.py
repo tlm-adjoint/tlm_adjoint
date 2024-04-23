@@ -377,9 +377,7 @@ class TransposeComputationalGraph:
 
         solved = copy.deepcopy(active)
 
-        stored_adj_ics = {J_i: {n: tuple([None for x in eq.X()]
-                                         for eq in blocks[n])
-                                for n in blocks_n} for J_i in range(len(Js))}
+        stored_adj_ics = {J_i: {} for J_i in range(len(Js))}
         adj_ics = {J_i: {} for J_i in range(len(Js))}
         for J_i in range(len(Js)):
             last_eq = {}
@@ -394,7 +392,7 @@ class TransposeComputationalGraph:
                         if x_id in last_eq:
                             adj_x_p_k_m_type, (p, k) = last_eq[x_id]
                             if adj_x_type == adj_x_p_k_m_type:
-                                stored_adj_ics[J_i][n][i][m] = (p, k)
+                                stored_adj_ics[J_i][(n, i, m)] = (p, k)
                         if x_id in adj_ic_ids:
                             adj_ics[J_i][x_id] = (n, i)
                             last_eq[x_id] = (adj_x_type, (n, i))
@@ -446,7 +444,7 @@ class TransposeComputationalGraph:
             return False
 
     def is_stored_adj_ic(self, J_i, n, i, m):
-        stored_adj_ics = self._stored_adj_ics[J_i][n][i][m]
+        stored_adj_ics = self._stored_adj_ics[J_i].get((n, i, m), None)
         if stored_adj_ics is None:
             return False
         else:
