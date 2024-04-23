@@ -285,9 +285,7 @@ class TransposeComputationalGraph:
 
         # Transpose computational graph
         last_eq = {}
-        transpose_deps = {n: tuple([None for dep in eq.dependencies()]
-                                   for eq in blocks[n])
-                          for n in blocks_n}
+        transpose_deps = {n: {} for n in blocks_n}
         for n in blocks_n:
             block = blocks[n]
             for i, eq in enumerate(block):
@@ -298,7 +296,7 @@ class TransposeComputationalGraph:
                     if dep_id in last_eq:
                         p, k, m = last_eq[dep_id]
                         if p < n or k < i:
-                            transpose_deps[n][i][j] = (p, k, m)
+                            transpose_deps[(n, i, j)] = (p, k, m)
         del last_eq
 
         if prune_forward:
@@ -321,7 +319,7 @@ class TransposeComputationalGraph:
                             adj_x_n_i_j_type, (n, i, j) = last_eq[x_id]
                             if adj_x_type == adj_x_n_i_j_type:
                                 assert n > p or (n == p and i > k)
-                                transpose_deps_ics[n][i][j] = (p, k, m)
+                                transpose_deps_ics[(n, i, j)] = (p, k, m)
                         last_eq[x_id] = (adj_x_type, (p, k, dep_map[x_id]))
             del last_eq
 
@@ -341,8 +339,8 @@ class TransposeComputationalGraph:
                             active_forward[n][i] = True
                     if not active_forward[n][i]:
                         for j, dep in enumerate(eq.dependencies()):
-                            if transpose_deps_ics[n][i][j] is not None:
-                                p, k, m = transpose_deps_ics[n][i][j]
+                            if (n, i, j) in transpose_deps_ics:
+                                p, k, m = transpose_deps_ics[(n, i, j)]
                                 if active_forward[p][k]:
                                     active_forward[n][i] = True
                                     break
@@ -371,8 +369,8 @@ class TransposeComputationalGraph:
                                     break
                         if active_adjoint[n][i]:
                             for j, dep in enumerate(eq.dependencies()):
-                                if transpose_deps[n][i][j] is not None:
-                                    p, k, m = transpose_deps[n][i][j]
+                                if (n, i, j) in transpose_deps:
+                                    p, k, m = transpose_deps[(n, i, j)]
                                     active_adjoint[p][k] = True
                         elif not isinstance(eq, Instruction):
                             active[J_i][n][i] = False
@@ -413,11 +411,11 @@ class TransposeComputationalGraph:
 
     def __contains__(self, key):
         n, i, j = key
-        return self._transpose_deps[n][i][j] is not None
+        return (n, i, j) in self._transpose_deps
 
     def __getitem__(self, key):
         n, i, j = key
-        p, k, m = self._transpose_deps[n][i][j]
+        p, k, m = self._transpose_deps[(n, i, j)]
         return p, k, m
 
     def is_active(self, J_i, n, i):
