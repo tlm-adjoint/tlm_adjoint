@@ -5,7 +5,6 @@ from .interface import (
     var_local_size, var_new_conjugate_dual, var_replacement, var_scalar_value,
     var_set_values, var_zero)
 
-from .alias import WeakAlias
 from .equation import Equation, ZeroAssignment
 from .linear_equation import LinearEquation, RHS
 
@@ -313,7 +312,7 @@ class MatrixActionRHS(RHS):
 
     def drop_references(self):
         super().drop_references()
-        self._A = WeakAlias(self._A)
+        self._A = self._A._weak_alias
 
     def add_forward(self, B, deps):
         if is_var(B):
@@ -501,7 +500,7 @@ class InnerProductRHS(RHS):
         self._x = var_replacement(self._x)
         self._y = var_replacement(self._y)
         if self._M is not None:
-            self._M = WeakAlias(self._M)
+            self._M = self._M._weak_alias
 
     def add_forward(self, b, deps):
         if not var_is_scalar(b):

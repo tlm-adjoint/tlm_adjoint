@@ -3,7 +3,7 @@ from .interface import (
     var_copy, var_id, var_is_replacement, var_is_scalar, var_name)
 
 from .adjoint import AdjointCache, AdjointModelRHS, TransposeComputationalGraph
-from .alias import WeakAlias, gc_disabled
+from .alias import gc_disabled
 from .checkpoint_schedules import (
     Clear, Configure, Forward, Reverse, Read, Write, EndForward, EndReverse)
 from .checkpoint_schedules import (
@@ -645,8 +645,7 @@ class EquationManager:
 
             if self._alias_eqs:
                 self._add_equation_finalizes(eq)
-                eq_alias = WeakAlias(eq)
-                self._block.append(eq_alias)
+                self._block.append(eq._weak_alias)
             else:
                 self._block.append(eq)
             self._cp.add_equation(
@@ -708,7 +707,6 @@ class EquationManager:
     @gc_disabled
     def _add_equation_finalizes(self, eq):
         for referrer in eq.referrers():
-            assert not isinstance(referrer, WeakAlias)
             referrer_id = referrer.id
             if referrer_id not in self._finalizes:
                 @gc_disabled
@@ -719,7 +717,7 @@ class EquationManager:
                         del self._finalizes[referrer_id]
                 finalize = weakref.finalize(
                     referrer, finalize_callback,
-                    weakref.ref(self), WeakAlias(referrer), referrer_id)
+                    weakref.ref(self), referrer._weak_alias, referrer_id)
                 finalize.atexit = False
                 self._finalizes[referrer_id] = finalize
 

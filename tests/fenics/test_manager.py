@@ -1,7 +1,6 @@
 from fenics import *
 from tlm_adjoint.fenics import *
 from tlm_adjoint.fenics import manager as _manager
-from tlm_adjoint.alias import WeakAlias
 from tlm_adjoint.checkpoint_schedules.binomial import optimal_steps
 
 from .test_base import *
@@ -210,7 +209,7 @@ def test_Referrers_LinearEquation(setup_test, test_leaks):
             for dep in b.dependencies():
                 assert not var_is_replacement(dep)
 
-            linear_eq = WeakAlias(linear_eq)
+            linear_eq = linear_eq._weak_alias
 
             assert len(manager._to_drop_references) == 1
             assert not linear_eq._references_dropped
@@ -247,8 +246,8 @@ def test_Referrers_LinearEquation(setup_test, test_leaks):
             for dep in b.dependencies():
                 assert not var_is_replacement(dep)
 
-            M = WeakAlias(M)
-            b = WeakAlias(b)
+            M = M._weak_alias
+            b = b._weak_alias
 
             assert len(manager._to_drop_references) == 1
             assert not b._references_dropped
@@ -372,7 +371,7 @@ def test_Referrers_FixedPointEquation(setup_test, test_leaks):
                     assert not var_is_replacement(dep)
             del eq
 
-            fp_eq = WeakAlias(fp_eq)
+            fp_eq = fp_eq._weak_alias
 
             assert len(manager._to_drop_references) == 1
             for eq in (fp_eq, eq0, eq1):
@@ -404,8 +403,8 @@ def test_Referrers_FixedPointEquation(setup_test, test_leaks):
                     assert not var_is_replacement(dep)
             del eq
 
-            eq0 = WeakAlias(eq0)
-            eq1 = WeakAlias(eq1)
+            eq0 = eq0._weak_alias
+            eq1 = eq1._weak_alias
 
             assert len(manager._to_drop_references) == 2
             for eq in (eq0, eq1):
