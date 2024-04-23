@@ -526,9 +526,9 @@ class EquationManager:
     def function_tlm(self, x, *args):
         """
         """
-        # warnings.warn("function_tlm method is deprecated -- "
-        #               "use var_tlm instead",
-        #               DeprecationWarning, stacklevel=2)
+        warnings.warn("function_tlm method is deprecated -- "
+                      "use var_tlm instead",
+                      DeprecationWarning, stacklevel=2)
         return self.var_tlm(x, *args)
 
     def annotation_enabled(self):
