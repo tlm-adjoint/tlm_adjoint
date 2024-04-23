@@ -1609,9 +1609,9 @@ _logger.setLevel(logging.INFO)
 def is_function(x):
     ""
 
-    # warnings.warn("is_function is deprecated -- "
-    #               "use is_var instead",
-    #               DeprecationWarning, stacklevel=2)
+    warnings.warn("is_function is deprecated -- "
+                  "use is_var instead",
+                  DeprecationWarning, stacklevel=2)
     return is_var(x)
 
 
@@ -1619,9 +1619,9 @@ def _function_warning(fn):
     def wrapped_fn(*args, **kwargs):
         ""
 
-        # warnings.warn("function_ prefixed functions are deprecated -- "
-        #               "use var_ prefixed functions instead",
-        #               DeprecationWarning, stacklevel=2)
+        warnings.warn("function_ prefixed functions are deprecated -- "
+                      "use var_ prefixed functions instead",
+                      DeprecationWarning, stacklevel=2)
         return fn(*args, **kwargs)
 
     return wrapped_fn

@@ -175,9 +175,9 @@ def var_tlm(x, *args):
 def function_tlm(x, *args):
     ""
 
-    # warnings.warn("function_tlm is deprecated -- "
-    #               "use var_tlm instead",
-    #               DeprecationWarning, stacklevel=2)
+    warnings.warn("function_tlm is deprecated -- "
+                  "use var_tlm instead",
+                  DeprecationWarning, stacklevel=2)
     return manager().var_tlm(x, *args)
 
 
