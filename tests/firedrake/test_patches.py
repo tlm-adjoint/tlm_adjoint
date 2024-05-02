@@ -6,6 +6,7 @@ from tlm_adjoint.firedrake.backend_interface import (
 
 from .test_base import *
 
+import functools
 import numpy as np
 import pytest
 
@@ -64,6 +65,16 @@ def project_project(F, space, bc):
                    solver_parameters=ls_parameters_cg)
 
 
+def project_solve(F, space, bc, *, restrict=False):
+    test, trial = TestFunction(space), TrialFunction(space)
+    G = Function(space, name="G")
+
+    solve(inner(trial, test) * dx == inner(F, test) * dx, G, bcs=bc,
+          solver_parameters=ls_parameters_cg, restrict=restrict)
+
+    return G
+
+
 def project_assemble_LinearSolver(F, space, bc):
     test, trial = TestFunction(space), TrialFunction(space)
     G = Function(space, name="G")
@@ -77,12 +88,13 @@ def project_assemble_LinearSolver(F, space, bc):
     return G
 
 
-def project_LinearVariationalSolver(F, space, bc):
+def project_LinearVariationalSolver(F, space, bc, *, restrict=False):
     test, trial = TestFunction(space), TrialFunction(space)
     G = Function(space, name="G")
 
     eq = inner(trial, test) * dx == inner(F, test) * dx
-    problem = LinearVariationalProblem(eq.lhs, eq.rhs, G, bcs=bc)
+    problem = LinearVariationalProblem(eq.lhs, eq.rhs, G, bcs=bc,
+                                       restrict=restrict)
     solver = LinearVariationalSolver(
         problem, solver_parameters=ls_parameters_cg)
     solver.solve()
@@ -110,14 +122,14 @@ def project_LinearVariationalSolver_matfree(F, space, bc):
     return G
 
 
-def project_NonlinearVariationalSolver(F, space, bc):
+def project_NonlinearVariationalSolver(F, space, bc, *, restrict=False):
     test, trial = TestFunction(space), TrialFunction(space)
     G = Function(space, name="G")
 
     eq = inner(G, test) * dx - inner(F, test) * dx
     problem = NonlinearVariationalProblem(eq, G,
                                           J=inner(trial, test) * dx,
-                                          bcs=bc)
+                                          bcs=bc, restrict=restrict)
     solver = NonlinearVariationalSolver(
         problem, solver_parameters=ns_parameters_newton_cg)
     solver.solve()
@@ -127,10 +139,14 @@ def project_NonlinearVariationalSolver(F, space, bc):
 
 @pytest.mark.firedrake
 @pytest.mark.parametrize("project_fn", [project_project,
+                                        functools.partial(project_solve, restrict=False),  # noqa: E501
+                                        functools.partial(project_solve, restrict=True),  # noqa: E501
                                         project_assemble_LinearSolver,
-                                        project_LinearVariationalSolver,
+                                        functools.partial(project_LinearVariationalSolver, restrict=False),  # noqa: E501
+                                        functools.partial(project_LinearVariationalSolver, restrict=True),  # noqa: E501
                                         project_LinearVariationalSolver_matfree,  # noqa: E501
-                                        project_NonlinearVariationalSolver])
+                                        functools.partial(project_NonlinearVariationalSolver, restrict=False),  # noqa: E501
+                                        functools.partial(project_NonlinearVariationalSolver, restrict=True)])  # noqa: E501
 @seed_test
 def test_project_patches(setup_test, test_leaks,
                          project_fn):
