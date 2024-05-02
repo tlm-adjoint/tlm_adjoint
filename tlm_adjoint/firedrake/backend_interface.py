@@ -226,8 +226,8 @@ def solve(*args, **kwargs):
         return backend_solve(*args, **kwargs)
 
     eq, x, bcs, J, Jp, M, form_compiler_parameters, solver_parameters, \
-        nullspace, transpose_nullspace, near_nullspace, options_prefix = \
-        extract_args(*args, **kwargs)
+        nullspace, transpose_nullspace, near_nullspace, options_prefix, \
+        restrict = extract_args(*args, **kwargs)
     check_space_type(x, "primal")
     if bcs is None:
         bcs = ()
@@ -272,7 +272,8 @@ def solve(*args, **kwargs):
                          nullspace=nullspace,
                          transpose_nullspace=transpose_nullspace,
                          near_nullspace=near_nullspace,
-                         options_prefix=options_prefix)
+                         options_prefix=options_prefix,
+                         restrict=restrict)
 
 
 class LocalSolver:

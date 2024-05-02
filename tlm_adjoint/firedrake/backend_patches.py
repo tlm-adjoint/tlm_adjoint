@@ -626,7 +626,9 @@ def NonlinearVariationalSolver_set_transfer_manager(
 
 def NonlinearVariationalSolver_solve_post_call(
         self, return_value, *args, **kwargs):
-    var_update_state(self._problem.u)
+    var_update_state(self._problem.u_restrict)
+    if self._problem.u_restrict is not self._problem.u:
+        var_update_state(self._problem.u)
     return return_value
 
 
@@ -656,7 +658,7 @@ def NonlinearVariationalSolver_solve(
     form_compiler_parameters = self._problem.form_compiler_parameters
 
     eq = EquationSolver(
-        self._problem.F == 0, self._problem.u, self._problem.bcs,
+        self._problem.F == 0, self._problem.u_restrict, self._problem.bcs,
         J=self._problem.J, solver_parameters=solver_parameters,
         form_compiler_parameters=form_compiler_parameters,
         cache_jacobian=self._problem._constant_jacobian,
@@ -665,6 +667,12 @@ def NonlinearVariationalSolver_solve(
     eq._pre_process()
     return_value = orig_args()
     eq._post_process()
+
+    if self._problem.u_restrict is not self._problem.u:
+        eq = ExprInterpolation(self._problem.u, self._problem.u_restrict)
+        assert not eq._pre_process_required
+        eq._post_process()
+
     return return_value
 
 
