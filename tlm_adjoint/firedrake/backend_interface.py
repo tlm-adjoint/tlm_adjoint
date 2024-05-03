@@ -225,9 +225,17 @@ def solve(*args, **kwargs):
     if not isinstance(args[0], ufl.classes.Equation):
         return backend_solve(*args, **kwargs)
 
+    extracted_args = extract_args(*args, **kwargs)
     eq, x, bcs, J, Jp, M, form_compiler_parameters, solver_parameters, \
-        nullspace, transpose_nullspace, near_nullspace, options_prefix, \
-        restrict = extract_args(*args, **kwargs)
+        nullspace, transpose_nullspace, near_nullspace, options_prefix \
+        = extracted_args[:12]
+    # Backwards compatibility
+    if len(extracted_args) == 12:
+        restrict_kwargs = {}
+    elif len(extracted_args) == 13:
+        restrict_kwargs = {"restrict": extracted_args[12]}
+    else:
+        raise ValueError("Invalid extracted arguments")
     check_space_type(x, "primal")
     if bcs is None:
         bcs = ()
@@ -273,7 +281,7 @@ def solve(*args, **kwargs):
                          transpose_nullspace=transpose_nullspace,
                          near_nullspace=near_nullspace,
                          options_prefix=options_prefix,
-                         restrict=restrict)
+                         **restrict_kwargs)
 
 
 class LocalSolver:
