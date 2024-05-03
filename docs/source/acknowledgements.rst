@@ -18,10 +18,7 @@ based on the approach described in
   transient finite element models', Computer Methods in Applied Mechanics and
   Engineering, 276, 95--121, 2014, doi: 10.1016/j.cma.2014.03.010
 
-Checkpointing with tlm_adjoint, and mixed forward restart / non-linear
-dependency data schedules defined by the code in
-`tlm_adjoint/checkpoint_schedules/mixed.py
-<autoapi/tlm_adjoint/checkpoint_schedules/mixed/index.html>`_, are described in
+Checkpointing with tlm_adjoint is described in
 
 - James R. Maddison, 'On the implementation of checkpointing with high-level
   algorithmic differentiation', https://arxiv.org/abs/2305.09568v1, 2023

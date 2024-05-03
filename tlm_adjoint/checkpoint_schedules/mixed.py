@@ -148,7 +148,7 @@ class MixedCheckpointSchedule(CheckpointSchedule):
     required to restart the forward has the same size as the data required to
     advance the adjoint over a step.
 
-    Described in
+    An updated version of the algorithm described in
 
         - James R. Maddison, 'On the implementation of checkpointing with
           high-level algorithmic differentiation',
