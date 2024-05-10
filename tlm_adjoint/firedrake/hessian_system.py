@@ -3,12 +3,12 @@ from ..interface import (
     var_axpy, var_axpy_conjugate, var_copy, var_copy_conjugate, var_dtype,
     var_inner, var_space, var_space_type)
 
+from ..block_system import MixedSpace, iter_sub, tuple_sub
 from ..eigendecomposition import eigendecompose
 from ..manager import manager_disabled
 
 from .block_system import (
-    BlockNullspace, Matrix, MixedSpace, NoneNullspace, Preconditioner, System,
-    iter_sub, tuple_sub)
+    BlockNullspace, Matrix, NoneNullspace, Preconditioner, System)
 
 from collections.abc import Sequence
 import numpy as np
