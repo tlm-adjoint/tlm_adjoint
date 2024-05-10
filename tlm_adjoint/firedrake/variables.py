@@ -342,6 +342,12 @@ class FunctionSpaceInterface(SpaceInterface):
     def _comm(self):
         return self._tlm_adjoint__space_interface_attrs["comm"]
 
+    def _default_space_type(self):
+        if ufl.duals.is_primal(self):
+            return "primal"
+        else:
+            return "conjugate_dual"
+
     def _dtype(self):
         return backend_ScalarType
 
