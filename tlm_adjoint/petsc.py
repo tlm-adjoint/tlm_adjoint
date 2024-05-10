@@ -86,17 +86,17 @@ class PETScVecInterface:
         return self._indices
 
     @property
-    def n(self):
+    def local_size(self):
         return self._n
 
     @property
-    def N(self):
+    def global_size(self):
         return self._N
 
     def from_petsc(self, y, X):
         y_a = y.getArray(True)
 
-        if y_a.shape != (self.n,):
+        if y_a.shape != (self.local_size,):
             raise ValueError("Invalid shape")
         if len(X) != len(self.indices):
             raise ValueError("Invalid length")
@@ -118,7 +118,7 @@ class PETScVecInterface:
             if var_local_size(y) != i1 - i0:
                 raise ValueError("Invalid length")
 
-        x_a = np.zeros(self.n, dtype=self.dtype)
+        x_a = np.zeros(self.local_size, dtype=self.dtype)
         for (i0, i1), y in zip(self.indices, Y):
             x_a[i0:i1] = var_get_values(y)
         x.setArray(x_a)

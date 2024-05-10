@@ -478,7 +478,7 @@ def line_search(F, Fp, X, minus_P, *,
         old_Fp_val = (old_Fp_val,)
 
     vec_interface = PETScVecInterface(X, dtype=PETSc.RealType)
-    n, N = vec_interface.n, vec_interface.N
+    n, N = vec_interface.local_size, vec_interface.global_size
     to_petsc, from_petsc = vec_interface.to_petsc, vec_interface.from_petsc
 
     Y = vars_new(X)
@@ -973,7 +973,7 @@ def minimize_tao(forward, M0, *,
         M_inv_action = wrapped_action(M_inv_action)
 
     vec_interface = PETScVecInterface(M0, dtype=PETSc.RealType)
-    n, N = vec_interface.n, vec_interface.N
+    n, N = vec_interface.local_size, vec_interface.global_size
     to_petsc, from_petsc = vec_interface.to_petsc, vec_interface.from_petsc
 
     if manager is None:

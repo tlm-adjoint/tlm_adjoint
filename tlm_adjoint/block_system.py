@@ -1,7 +1,6 @@
 from .interface import (
-    DEFAULT_COMM, space_default_space_type, space_id, space_new, var_comm,
-    var_get_values, var_global_size, var_local_size, var_set_values)
-
+    DEFAULT_COMM, space_default_space_type, space_comm, space_id, space_new)
+from .petsc import PETScVecInterface
 
 from collections import deque
 from collections.abc import Sequence
@@ -9,7 +8,6 @@ try:
     import mpi4py.MPI as MPI
 except ImportError:
     MPI = None
-import numpy as np
 try:
     import petsc4py.PETSc as PETSc
 except ImportError:
@@ -61,7 +59,7 @@ def zip_sub(*iterables):
             pass
 
 
-class MixedSpace(Sequence):
+class MixedSpace(PETScVecInterface, Sequence):
     """Used to map between different versions of a mixed space.
 
     This class defines two representations for the space:
@@ -124,27 +122,20 @@ class MixedSpace(Sequence):
                                   "dual", "conjugate_dual"}:
                 raise ValueError("Invalid space types")
 
-        comm = None
-        indices = []
-        n = 0
-        N = 0
-        for space, space_type in zip(flattened_spaces, space_types):
-            u_i = space_new(space, space_type=space_type)
-            if comm is None:
-                comm = var_comm(u_i)
-            indices.append((n, n + var_local_size(u_i)))
-            n += var_local_size(u_i)
-            N += var_global_size(u_i)
-        if comm is None:
-            comm = DEFAULT_COMM if MPI is None else MPI.COMM_SELF
+        if len(flattened_spaces) > 0:
+            comm = space_comm(flattened_spaces[0])
+        elif MPI is None:
+            comm = DEFAULT_COMM
+        else:
+            comm = MPI.COMM_SELF
 
+        super().__init__(
+            tuple(space_new(space, space_type=space_type)
+                  for space, space_type in zip(flattened_spaces, space_types)))
         self._spaces = spaces
         self._flattened_spaces = flattened_spaces
         self._space_types = space_types
         self._comm = comm
-        self._indices = indices
-        self._n = n
-        self._N = N
 
     def __len__(self):
         return len(self.split_space)
@@ -208,79 +199,8 @@ class MixedSpace(Sequence):
             u.append(space_new(space, space_type=space_type))
         return self.tuple_sub(u)
 
-    @property
-    def local_size(self):
-        """The number of local degrees of freedom.
-        """
+    def from_petsc(self, y, X):
+        super().from_petsc(y, tuple(iter_sub(X)))
 
-        return self._n
-
-    @property
-    def global_size(self):
-        """The global number of degrees of freedom.
-        """
-
-        return self._N
-
-    def from_petsc(self, u_petsc, u):
-        """Copy data from a compatible :class:`petsc4py.PETSc.Vec`.
-
-        :arg u_petsc: The :class:`petsc4py.PETSc.Vec`.
-        :arg u: An element of the split space.
-        """
-
-        if PETSc is None:
-            raise RuntimeError("PETSc not available")
-
-        u_a = u_petsc.getArray(True)
-
-        if not np.can_cast(u_a, PETSc.ScalarType):
-            raise ValueError("Invalid dtype")
-        if len(u_a.shape) != 1:
-            raise ValueError("Invalid shape")
-
-        i0 = 0
-        for j, u_i in zip_sub(range(len(self._indices)), u):
-            i1 = i0 + var_local_size(u_i)
-            if i1 > u_a.shape[0]:
-                raise ValueError("Invalid shape")
-            if (i0, i1) != self._indices[j]:
-                raise ValueError("Invalid shape")
-            var_set_values(u_i, u_a[i0:i1])
-            i0 = i1
-        if i0 != u_a.shape[0]:
-            raise ValueError("Invalid shape")
-
-    def to_petsc(self, u_petsc, u):
-        """Copy data to a compatible :class:`petsc4py.PETSc.Vec`. Does not
-        update the ghost.
-
-        :arg u_petsc: The :class:`petsc4py.PETSc.Vec`.
-        :arg u: An element of the split space.
-        """
-
-        if PETSc is None:
-            raise RuntimeError("PETSc not available")
-
-        u_a = np.zeros(self.local_size, dtype=PETSc.ScalarType)
-
-        i0 = 0
-        for j, u_i in zip_sub(range(len(self._indices)), iter_sub(u)):
-            u_i_a = var_get_values(u_i)
-
-            if not np.can_cast(u_i_a, PETSc.ScalarType):
-                raise ValueError("Invalid dtype")
-            if len(u_i_a.shape) != 1:
-                raise ValueError("Invalid shape")
-
-            i1 = i0 + u_i_a.shape[0]
-            if i1 > u_a.shape[0]:
-                raise ValueError("Invalid shape")
-            if (i0, i1) != self._indices[j]:
-                raise ValueError("Invalid shape")
-            u_a[i0:i1] = u_i_a
-            i0 = i1
-        if i0 != u_a.shape[0]:
-            raise ValueError("Invalid shape")
-
-        u_petsc.setArray(u_a)
+    def to_petsc(self, x, Y):
+        super().to_petsc(x, tuple(iter_sub(Y)))
