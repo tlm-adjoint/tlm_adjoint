@@ -78,6 +78,8 @@ where `u_0`, `u_1`, and `u_2` are :class:`firedrake.function.Function` or
 representations of a mixed space solution.
 """
 
+from ..interface import space_id
+
 from firedrake import (
     Cofunction, Constant, DirichletBC, Function, TestFunction, assemble)
 
@@ -157,7 +159,7 @@ def tuple_sub(iterable, sequence):
     return t
 
 
-class MixedSpace:
+class MixedSpace(Sequence):
     """Used to map between different versions of a mixed space.
 
     This class defines two representations for the space:
@@ -197,7 +199,9 @@ class MixedSpace:
     """
 
     def __init__(self, spaces):
-        if isinstance(spaces, Sequence):
+        if isinstance(spaces, MixedSpace):
+            spaces = spaces.split_space
+        elif isinstance(spaces, Sequence):
             spaces = tuple(spaces)
         else:
             spaces = (spaces,)
@@ -229,6 +233,20 @@ class MixedSpace:
         self._n = n
         self._N = N
 
+    def __len__(self):
+        return len(self.split_space)
+
+    def __getitem__(self, key):
+        if len(self) == 1:
+            return (self,)[key]
+        else:
+            return MixedSpace(self.split_space[key])
+
+    def __eq__(self, other):
+        self_ids = self.tuple_sub(map(space_id, self.flattened_space))
+        other_ids = other.tuple_sub(map(space_id, other.flattened_space))
+        return self_ids == other_ids
+
     @property
     def comm(self):
         """The communicator associated with the mixed space.
@@ -250,6 +268,15 @@ class MixedSpace:
 
         return self._flattened_spaces
 
+    def tuple_sub(self, u):
+        """
+        :arg u: An :class:`Iterable`.
+        :returns: A :class:`tuple` storing elements in `u` using the tree
+            structure of the split space.
+        """
+
+        return tuple_sub(u, self.split_space)
+
     def new_split(self):
         """
         :returns: A new element in the split space.
@@ -261,7 +288,7 @@ class MixedSpace:
                 u.append(Function(space))
             else:
                 u.append(Cofunction(space))
-        return tuple_sub(u, self.split_space)
+        return self.tuple_sub(u)
 
     @property
     def local_size(self):
@@ -711,12 +738,10 @@ class Matrix(ABC):
     """
 
     def __init__(self, arg_space, action_space):
-        if isinstance(arg_space, Sequence):
-            arg_space = tuple(arg_space)
-            arg_space = tuple_sub(arg_space, arg_space)
-        if isinstance(action_space, Sequence):
-            action_space = tuple(action_space)
-            action_space = tuple_sub(action_space, action_space)
+        if not isinstance(arg_space, MixedSpace):
+            arg_space = MixedSpace(arg_space)
+        if not isinstance(action_space, MixedSpace):
+            action_space = MixedSpace(action_space)
 
         self._arg_space = arg_space
         self._action_space = action_space
@@ -841,6 +866,11 @@ class BlockMatrix(Matrix, MutableMapping):
 
 class PETScInterface:
     def __init__(self, arg_space, action_space, nullspace):
+        if not isinstance(arg_space, MixedSpace):
+            arg_space = MixedSpace(arg_space)
+        if not isinstance(action_space, MixedSpace):
+            action_space = MixedSpace(action_space)
+
         self._arg_space = arg_space
         self._action_space = action_space
         self._nullspace = nullspace
@@ -853,8 +883,16 @@ class PETScInterface:
         else:
             self._x_c = arg_space.new_split()
 
+    @property
+    def arg_space(self):
+        return self._arg_space
+
+    @property
+    def action_space(self):
+        return self._action_space
+
     def _pre_mult(self, x_petsc):
-        self._arg_space.from_petsc(x_petsc, self._x)
+        self.arg_space.from_petsc(x_petsc, self._x)
 
         if not isinstance(self._nullspace, NoneNullspace):
             for x_i, x_c_i in zip_sub(self._x, self._x_c):
@@ -866,17 +904,12 @@ class PETScInterface:
                 y_i_v.zeroEntries()
 
     def _post_mult(self, y_petsc):
-        self._action_space.to_petsc(y_petsc, self._y)
+        self.action_space.to_petsc(y_petsc, self._y)
 
 
 class SystemMatrix(PETScInterface):
-    def __init__(self, arg_space, action_space, matrix, nullspace):
-        if matrix.arg_space != arg_space.split_space:
-            raise ValueError("Invalid space")
-        if matrix.action_space != action_space.split_space:
-            raise ValueError("Invalid space")
-
-        super().__init__(arg_space, action_space, nullspace)
+    def __init__(self, matrix, nullspace):
+        super().__init__(matrix.arg_space, matrix.action_space, nullspace)
         self._matrix = matrix
 
     def mult(self, A, x, y):
@@ -936,16 +969,10 @@ class System:
 
     def __init__(self, arg_spaces, action_spaces, blocks, *,
                  nullspaces=None, comm=None):
-        if isinstance(arg_spaces, MixedSpace):
-            arg_space = arg_spaces
-        else:
-            arg_space = MixedSpace(arg_spaces)
-        arg_spaces = arg_space.split_space
-        if isinstance(action_spaces, MixedSpace):
-            action_space = action_spaces
-        else:
-            action_space = MixedSpace(action_spaces)
-        action_spaces = action_space.split_space
+        if not isinstance(arg_spaces, MixedSpace):
+            arg_spaces = MixedSpace(arg_spaces)
+        if not isinstance(action_spaces, MixedSpace):
+            action_spaces = MixedSpace(action_spaces)
 
         matrix = BlockMatrix(arg_spaces, action_spaces, blocks)
 
@@ -957,11 +984,11 @@ class System:
                 raise ValueError("Invalid space")
 
         if comm is None:
-            comm = arg_space.comm
+            comm = arg_spaces.comm
 
         self._comm = comm
-        self._arg_space = arg_space
-        self._action_space = action_space
+        self._arg_space = arg_spaces
+        self._action_space = action_spaces
         self._matrix = matrix
         self._nullspace = nullspace
 
@@ -1027,7 +1054,7 @@ class System:
                 def pc_fn(u, b):
                     u, = tuple(iter_sub(u))
                     return pc_fn_u(u, b)
-        u = tuple_sub(u, self._arg_space.split_space)
+        u = self._arg_space.tuple_sub(u)
 
         if isinstance(b, Sequence):
             b = tuple(b)
@@ -1041,7 +1068,7 @@ class System:
                 def pc_fn(u, b):
                     b, = tuple(iter_sub(b))
                     return pc_fn_b(u, b)
-        b = tuple_sub(b, self._action_space.split_space)
+        b = self._action_space.tuple_sub(b)
 
         if tuple(u_i.function_space() for u_i in iter_sub(u)) \
                 != self._arg_space.flattened_space:
@@ -1056,8 +1083,7 @@ class System:
                 with b_c_i.dat.vec_wo as b_c_i_v, b_i.dat.vec_ro as b_i_v:
                     b_i_v.copy(result=b_c_i_v)
 
-        A = SystemMatrix(self._arg_space, self._action_space,
-                         self._matrix, self._nullspace)
+        A = SystemMatrix(self._matrix, self._nullspace)
 
         mat_A = PETSc.Mat().createPython(
             ((self._action_space.local_size, self._action_space.global_size),
