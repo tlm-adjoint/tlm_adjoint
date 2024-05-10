@@ -1,19 +1,18 @@
 from ..interface import (
-    check_space_types, comm_dup_cached, is_var, space_dtype, space_new,
-    var_assign, var_axpy, var_axpy_conjugate, var_copy, var_copy_conjugate,
-    var_dtype, var_inner, var_space, var_space_type)
+    check_space_types, comm_dup_cached, is_var, space_dtype, var_assign,
+    var_axpy, var_axpy_conjugate, var_copy, var_copy_conjugate, var_dtype,
+    var_inner, var_space, var_space_type)
 
 from ..eigendecomposition import eigendecompose
 from ..manager import manager_disabled
 
 from .block_system import (
-    BlockNullspace, Matrix, MixedSpace as _MixedSpace, NoneNullspace,
-    Preconditioner, System, iter_sub, tuple_sub)
+    BlockNullspace, Matrix, MixedSpace, NoneNullspace, Preconditioner, System,
+    iter_sub, tuple_sub)
 
 from collections.abc import Sequence
 import numpy as np
 import petsc4py.PETSc as PETSc
-import ufl
 import warnings
 
 __all__ = \
@@ -23,36 +22,6 @@ __all__ = \
         "B_inv_orthonormality_test",
         "hessian_eigendecomposition_pc",
     ]
-
-
-class MixedSpace(_MixedSpace):
-    def __init__(self, spaces, space_types=None):
-        if isinstance(spaces, Sequence):
-            spaces = tuple(spaces)
-        else:
-            spaces = (spaces,)
-        spaces = tuple_sub(spaces, spaces)
-
-        if space_types is None:
-            space_types = tuple(
-                "primal" if ufl.duals.is_primal(space) else "conjugate_dual"
-                for space in iter_sub(spaces))
-        if space_types in ["primal", "conjugate", "dual", "conjugate_dual"]:
-            space_types = tuple(space_types for _ in iter_sub(spaces))
-        else:
-            space_types = tuple(iter_sub(space_types))
-
-        super().__init__(spaces)
-        if len(space_types) != len(self.flattened_space):
-            raise ValueError("Invalid space types")
-        self._space_types = space_types
-
-    def new_split(self):
-        flattened_space = self.flattened_space
-        assert len(flattened_space) == len(self._space_types)
-        return tuple_sub((space_new(space, space_type=space_type)
-                          for space, space_type in zip(flattened_space, self._space_types)),  # noqa: E501
-                         self.split_space)
 
 
 # Complex note: It is convenient to define a Hessian action in terms of the

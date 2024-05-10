@@ -78,10 +78,10 @@ where `u_0`, `u_1`, and `u_2` are :class:`firedrake.function.Function` or
 representations of a mixed space solution.
 """
 
-from ..interface import space_id
+from ..interface import space_default_space_type, space_id, space_new
 
 from firedrake import (
-    Cofunction, Constant, DirichletBC, Function, TestFunction, assemble)
+    Constant, DirichletBC, Function, TestFunction, assemble)
 
 import petsc4py.PETSc as PETSc
 import ufl
@@ -198,7 +198,7 @@ class MixedSpace(Sequence):
     :arg spaces: The split space.
     """
 
-    def __init__(self, spaces):
+    def __init__(self, spaces, *, space_types=None):
         if isinstance(spaces, MixedSpace):
             spaces = spaces.split_space
         elif isinstance(spaces, Sequence):
@@ -208,15 +208,25 @@ class MixedSpace(Sequence):
         spaces = tuple_sub(spaces, spaces)
         flattened_spaces = tuple(iter_sub(spaces))
 
+        if space_types is None:
+            space_types = tuple(map(space_default_space_type,
+                                    flattened_spaces))
+        elif space_types in ["primal", "conjugate", "dual", "conjugate_dual"]:
+            space_types = tuple(space_types for _ in flattened_spaces)
+        space_types = tuple(iter_sub(space_types))
+        if len(space_types) != len(flattened_spaces):
+            raise ValueError("Invalid space types")
+        for space_type in space_types:
+            if space_type not in {"primal", "conjugate",
+                                  "dual", "conjugate_dual"}:
+                raise ValueError("Invalid space types")
+
         comm = None
         indices = []
         n = 0
         N = 0
-        for space in flattened_spaces:
-            if ufl.duals.is_primal(space):
-                u_i = Function(space)
-            else:
-                u_i = Cofunction(space)
+        for space, space_type in zip(flattened_spaces, space_types):
+            u_i = space_new(space, space_type=space_type)
             with u_i.dat.vec_ro as u_i_v:
                 if comm is None:
                     comm = u_i_v.comm.tompi4py()
@@ -228,6 +238,7 @@ class MixedSpace(Sequence):
 
         self._spaces = spaces
         self._flattened_spaces = flattened_spaces
+        self._space_types = space_types
         self._comm = comm
         self._indices = indices
         self._n = n
@@ -245,7 +256,8 @@ class MixedSpace(Sequence):
     def __eq__(self, other):
         self_ids = self.tuple_sub(map(space_id, self.flattened_space))
         other_ids = other.tuple_sub(map(space_id, other.flattened_space))
-        return self_ids == other_ids
+        return (self_ids == other_ids
+                and self.space_types == other.space_types)
 
     @property
     def comm(self):
@@ -268,6 +280,13 @@ class MixedSpace(Sequence):
 
         return self._flattened_spaces
 
+    @property
+    def space_types(self):
+        """Space types for the flattened space representation.
+        """
+
+        return self._space_types
+
     def tuple_sub(self, u):
         """
         :arg u: An :class:`Iterable`.
@@ -283,11 +302,8 @@ class MixedSpace(Sequence):
         """
 
         u = []
-        for space in self.flattened_space:
-            if ufl.duals.is_primal(space):
-                u.append(Function(space))
-            else:
-                u.append(Cofunction(space))
+        for space, space_type in zip(self.flattened_space, self.space_types):
+            u.append(space_new(space, space_type=space_type))
         return self.tuple_sub(u)
 
     @property
