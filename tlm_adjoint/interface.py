@@ -78,6 +78,7 @@ __all__ = \
         "SpaceInterface",
         "is_space",
         "space_comm",
+        "space_default_space_type",
         "space_dtype",
         "space_id",
         "space_new",
@@ -432,10 +433,13 @@ class SpaceInterface:
     """
 
     prefix = "_tlm_adjoint__space_interface"
-    names = ("_comm", "_dtype", "_id", "_new")
+    names = ("_default_space_type", "_comm", "_dtype", "_id", "_new")
 
     def __init__(self):
         raise RuntimeError("Cannot instantiate SpaceInterface object")
+
+    def _default_space_type(self):
+        return "primal"
 
     def _comm(self):
         raise NotImplementedError("Method not overridden")
@@ -471,6 +475,15 @@ def space_comm(space):
     return space._tlm_adjoint__space_interface_comm()
 
 
+def space_default_space_type(space):
+    """
+    :arg space: A space.
+    :returns: The default space type associated with the space.
+    """
+
+    return space._tlm_adjoint__space_interface_default_space_type()
+
+
 def space_dtype(space):
     """
     :arg space: A space.
@@ -498,14 +511,15 @@ def space_id(space):
     return space._tlm_adjoint__space_interface_id()
 
 
-def space_new(space, *, name=None, space_type="primal", static=False,
+def space_new(space, *, name=None, space_type=None, static=False,
               cache=None):
     """Return a new variable.
 
     :arg space: The space.
     :arg name: A :class:`str` name for the variable.
     :arg space_type: The space type for the new variable. `'primal'`, `'dual'`,
-        `'conjugate'`, or `'conjugate_dual'`.
+        `'conjugate'`, or `'conjugate_dual'`. Defaults to
+        `space_default_space_type(space)`.
     :arg static: Defines whether the new variable is static, meaning that it is
         stored by reference in checkpointing/replay, and an associated
         tangent-linear variable is zero.
@@ -514,6 +528,8 @@ def space_new(space, *, name=None, space_type="primal", static=False,
     :returns: The new variable.
     """
 
+    if space_type is None:
+        space_type = space_default_space_type(space)
     if space_type not in {"primal", "conjugate", "dual", "conjugate_dual"}:
         raise ValueError("Invalid space type")
     return space._tlm_adjoint__space_interface_new(
