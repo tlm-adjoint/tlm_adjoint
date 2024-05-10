@@ -141,7 +141,7 @@ class MixedSpace(PETScVecInterface, Sequence):
         return len(self.split_space)
 
     def __getitem__(self, key):
-        if len(self) == 1:
+        if len(self) == 1 and not isinstance(self.split_space[0], Sequence):
             return (self,)[key]
         else:
             return MixedSpace(self.split_space[key])
