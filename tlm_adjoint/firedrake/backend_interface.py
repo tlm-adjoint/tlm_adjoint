@@ -3,8 +3,8 @@ from .backend import (
     backend_Function, backend_Matrix, backend_assemble, backend_solve,
     extract_args)
 from ..interface import (
-    check_space_type, check_space_types, register_garbage_cleanup, space_new,
-    var_space_type)
+    check_space_type, check_space_types_conjugate_dual,
+    register_garbage_cleanup, space_new)
 
 from ..patch import patch_method
 
@@ -152,14 +152,11 @@ def matrix_copy(A):
     return A_copy
 
 
-def matrix_multiply(A, x, *,
-                    tensor=None, addto=False, action_type="conjugate_dual"):
+def matrix_multiply(A, x, *, tensor=None, addto=False):
     if tensor is None:
         tensor = space_new(
-            A.a.arguments()[0].function_space(),
-            space_type=var_space_type(x, rel_space_type=action_type))
-    else:
-        check_space_types(tensor, x, rel_space_type=action_type)
+            A.a.arguments()[0].function_space().dual())
+    check_space_types_conjugate_dual(tensor, x)
 
     if addto:
         with x.dat.vec_ro as x_v, tensor.dat.vec as tensor_v:

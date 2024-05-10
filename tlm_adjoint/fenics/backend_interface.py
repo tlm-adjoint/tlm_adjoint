@@ -4,8 +4,8 @@ from .backend import (
     backend_ScalarType, backend_assemble, backend_assemble_system,
     has_lu_solver_method)
 from ..interface import (
-    DEFAULT_COMM, check_space_type, check_space_types, space_new,
-    var_space_type)
+    DEFAULT_COMM, check_space_type, check_space_types_conjugate_dual,
+    space_new)
 
 from .expr import eliminate_zeros
 from .parameters import update_parameters
@@ -82,8 +82,7 @@ def matrix_copy(A):
     return A.copy()
 
 
-def matrix_multiply(A, x, *,
-                    tensor=None, addto=False, action_type="conjugate_dual"):
+def matrix_multiply(A, x, *, tensor=None, addto=False):
     if isinstance(x, backend_Function):
         x = x.vector()
     if tensor is not None and isinstance(tensor, backend_Function):
@@ -92,15 +91,13 @@ def matrix_multiply(A, x, *,
         if hasattr(A, "_tlm_adjoint__form") and hasattr(x, "_tlm_adjoint__function"):  # noqa: E501
             tensor = space_new(
                 A._tlm_adjoint__form.arguments()[0].function_space(),
-                space_type=var_space_type(x._tlm_adjoint__function,
-                                          rel_space_type=action_type))
+                space_type="conjugate_dual")
             tensor = tensor.vector()
         else:
             return A * x
-    elif hasattr(tensor, "_tlm_adjoint__function") and hasattr(x, "_tlm_adjoint__function"):  # noqa: E501
-        check_space_types(tensor._tlm_adjoint__function,
-                          x._tlm_adjoint__function,
-                          rel_space_type=action_type)
+    if hasattr(tensor, "_tlm_adjoint__function") and hasattr(x, "_tlm_adjoint__function"):  # noqa: E501
+        check_space_types_conjugate_dual(tensor._tlm_adjoint__function,
+                                         x._tlm_adjoint__function)
 
     x_v = as_backend_type(x).vec()
     tensor_v = as_backend_type(tensor).vec()
