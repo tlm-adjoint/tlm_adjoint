@@ -256,12 +256,12 @@ class MixedSpace:
         """
 
         u = []
-        for space in self._flattened_spaces:
+        for space in self.flattened_space:
             if ufl.duals.is_primal(space):
                 u.append(Function(space))
             else:
                 u.append(Cofunction(space))
-        return tuple_sub(u, self._spaces)
+        return tuple_sub(u, self.split_space)
 
     @property
     def local_size(self):
@@ -821,9 +821,9 @@ class BlockMatrix(Matrix, MutableMapping):
         else:
             if isinstance(value, ufl.classes.Form):
                 value = form_matrix(value)
-            if value.arg_space != self._arg_space[j]:
+            if value.arg_space != self.arg_space[j]:
                 raise ValueError("Invalid space")
-            if value.action_space != self._action_space[i]:
+            if value.action_space != self.action_space[i]:
                 raise ValueError("Invalid space")
             self._blocks[(i, j)] = value
 
