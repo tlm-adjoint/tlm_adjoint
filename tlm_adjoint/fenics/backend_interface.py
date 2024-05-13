@@ -4,7 +4,7 @@ from .backend import (
     backend_ScalarType, backend_assemble, backend_assemble_system,
     has_lu_solver_method)
 from ..interface import (
-    DEFAULT_COMM, check_space_type, check_space_types_conjugate_dual,
+    DEFAULT_COMM, check_space_type, check_space_types_conjugate_dual, space_eq,
     space_new)
 
 from .expr import eliminate_zeros
@@ -209,11 +209,11 @@ class LocalSolver:
             b = b.vector()
 
         if hasattr(x, "_tlm_adjoint__function"):
-            if x._tlm_adjoint__function.function_space() != self._x_space:
+            if not space_eq(x._tlm_adjoint__function.function_space(), self._x_space):  # noqa: E501
                 raise ValueError("Invalid space")
             check_space_type(x._tlm_adjoint__function, "primal")
         if hasattr(b, "_tlm_adjoint__function"):
-            if b._tlm_adjoint__function.function_space() != self._b_space:
+            if not space_eq(b._tlm_adjoint__function.function_space(), self._b_space):  # noqa: E501
                 raise ValueError("Invalid space")
             check_space_type(b._tlm_adjoint__function, "conjugate_dual")
 

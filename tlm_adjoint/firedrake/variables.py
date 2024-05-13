@@ -6,8 +6,8 @@ from .backend import (
     backend_Cofunction, backend_Constant, backend_Function, backend_ScalarType)
 from ..interface import (
     SpaceInterface, VariableInterface, add_replacement_interface, space_comm,
-    register_subtract_adjoint_derivative_action, space_id,
-    subtract_adjoint_derivative_action_base, var_comm, var_dtype,
+    space_dtype, space_eq, register_subtract_adjoint_derivative_action,
+    space_id, subtract_adjoint_derivative_action_base, var_comm, var_dtype,
     var_is_cached, var_is_static, var_linf_norm, var_lock_state,
     var_scalar_value, var_space, var_space_type)
 
@@ -52,6 +52,13 @@ class ConstantSpaceInterface(SpaceInterface):
 
     def _id(self):
         return self._tlm_adjoint__space_interface_attrs["id"]
+
+    def _eq(self, other):
+        return (space_id(self) == space_id(other)
+                or (isinstance(other, type(self))
+                    and space_comm(self).py2f() == space_comm(other).py2f()
+                    and space_dtype(self) == space_dtype(other)
+                    and self == other))
 
     def _new(self, *, name=None, space_type="primal", static=False,
              cache=None):
@@ -354,6 +361,12 @@ class FunctionSpaceInterface(SpaceInterface):
     def _id(self):
         return self._tlm_adjoint__space_interface_attrs["id"]
 
+    def _eq(self, other):
+        return (space_id(self) == space_id(other)
+                or (isinstance(other, type(self))
+                    and ufl.duals.is_primal(self) == ufl.duals.is_primal(other)
+                    and self == other))
+
     def _new(self, *, name=None, space_type="primal", static=False,
              cache=None):
         if space_type in {"primal", "conjugate"}:
@@ -466,7 +479,7 @@ class FunctionInterface(FunctionInterfaceBase):
                 raise ValueError("Invalid shape")
             self.assign(backend_Constant(y))
         elif isinstance(y, backend_Function):
-            if space_id(y.function_space()) != space_id(self.function_space()):
+            if not space_eq(y.function_space(), self.function_space()):
                 raise ValueError("Invalid function space")
             with self.dat.vec_wo as x_v, y.dat.vec_ro as y_v:
                 y_v.copy(result=x_v)
@@ -477,7 +490,7 @@ class FunctionInterface(FunctionInterfaceBase):
         if isinstance(x, backend_Cofunction):
             x = x.riesz_representation("l2")
         if isinstance(x, backend_Function):
-            if space_id(x.function_space()) != space_id(self.function_space()):
+            if not space_eq(x.function_space(), self.function_space()):
                 raise ValueError("Invalid function space")
             with self.dat.vec as y_v, x.dat.vec_ro as x_v:
                 y_v.axpy(alpha, x_v)
@@ -488,7 +501,7 @@ class FunctionInterface(FunctionInterfaceBase):
         if isinstance(y, backend_Function):
             y = y.riesz_representation("l2")
         if isinstance(y, backend_Cofunction):
-            if space_id(y.function_space()) != space_id(self.function_space().dual()):  # noqa: E501
+            if not space_eq(y.function_space(), self.function_space().dual()):
                 raise ValueError("Invalid function space")
             with self.dat.vec_ro as x_v, y.dat.vec_ro as y_v:
                 inner = x_v.dot(y_v)
@@ -541,7 +554,7 @@ class CofunctionInterface(FunctionInterfaceBase):
         if isinstance(y, backend_Function):
             y = y.riesz_representation("l2")
         if isinstance(y, backend_Cofunction):
-            if space_id(y.function_space()) != space_id(self.function_space()):
+            if not space_eq(y.function_space(), self.function_space()):
                 raise ValueError("Invalid function space")
             with self.dat.vec_wo as x_v, y.dat.vec_ro as y_v:
                 y_v.copy(result=x_v)
@@ -552,7 +565,7 @@ class CofunctionInterface(FunctionInterfaceBase):
         if isinstance(x, backend_Function):
             x = x.riesz_representation("l2")
         if isinstance(x, backend_Cofunction):
-            if space_id(x.function_space()) != space_id(self.function_space()):
+            if not space_eq(x.function_space(), self.function_space()):
                 raise ValueError("Invalid function space")
             with self.dat.vec as y_v, x.dat.vec_ro as x_v:
                 y_v.axpy(alpha, x_v)
@@ -563,7 +576,7 @@ class CofunctionInterface(FunctionInterfaceBase):
         if isinstance(y, backend_Cofunction):
             y = y.riesz_representation("l2")
         if isinstance(y, backend_Function):
-            if space_id(y.function_space()) != space_id(self.function_space().dual()):  # noqa: E501
+            if not space_eq(y.function_space(), self.function_space().dual()):
                 raise ValueError("Invalid function space")
             with self.dat.vec_ro as x_v, y.dat.vec_ro as y_v:
                 inner = x_v.dot(y_v)
@@ -680,11 +693,11 @@ class ReplacementFunction(Replacement, ufl.classes.Coefficient):
 
     def __init__(self, x, count):
         Replacement.__init__(self)
-        ufl.classes.Coefficient.__init__(self, var_space(x), count=count)
+        ufl.classes.Coefficient.__init__(self, x.function_space(), count=count)
         add_replacement_interface(self, x)
 
     def __new__(cls, x, *args, **kwargs):
-        return ufl.classes.Coefficient.__new__(cls, var_space(x),
+        return ufl.classes.Coefficient.__new__(cls, x.function_space(),
                                                *args, **kwargs)
 
 
@@ -695,7 +708,7 @@ class ReplacementCofunction(Replacement, ufl.classes.Cofunction):
 
     def __init__(self, x, count):
         Replacement.__init__(self)
-        ufl.classes.Cofunction.__init__(self, var_space(x), count=count)
+        ufl.classes.Cofunction.__init__(self, x.function_space(), count=count)
         add_replacement_interface(self, x)
 
     def _analyze_form_arguments(self):

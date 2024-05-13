@@ -7,8 +7,8 @@ from .backend import (
     backend_solve, cpp_Assembler, cpp_PETScVector, cpp_SystemAssembler)
 from ..interface import (
     DEFAULT_COMM, add_interface, comm_dup_cached, comm_parent, is_var,
-    new_space_id, new_var_id, space_id, space_new, var_assign, var_comm,
-    var_new, var_space, var_update_state)
+    new_space_id, new_var_id, space_eq, space_id, space_new, var_assign,
+    var_comm, var_new, var_space, var_update_state)
 
 from ..equations import Assignment
 from ..manager import annotation_enabled, tlm_enabled
@@ -438,7 +438,7 @@ def Function_assign(self, orig, orig_args, rhs):
     if isinstance(rhs, backend_Function):
         # Prevent a new vector being created
 
-        if space_id(var_space(rhs)) == space_id(var_space(self)):
+        if space_eq(rhs.function_space(), self.function_space()):
             if rhs is not self:
                 var_assign(self, rhs)
 

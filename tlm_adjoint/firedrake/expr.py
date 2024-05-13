@@ -3,7 +3,7 @@
 
 from .backend import TestFunction, TrialFunction, backend_action, complex_mode
 from ..interface import (
-    VariableStateChangeError, check_space_type, is_var, var_id,
+    VariableStateChangeError, check_space_type, is_var, space_eq, var_id,
     var_is_replacement, var_replacement, var_space)
 
 from ..equation import Equation
@@ -213,8 +213,7 @@ def action(form, coefficient):
     if isinstance(form, (ufl.classes.Argument,
                          ufl.classes.Coargument)):
         # Work around Firedrake issue #3130
-        if form.ufl_function_space() != coefficient.ufl_function_space() \
-                or ufl.duals.is_primal(form) != ufl.duals.is_primal(coefficient):  # noqa: E501
+        if not space_eq(form.ufl_function_space(), coefficient.ufl_function_space()):  # noqa: E501
             raise ValueError("Invalid space")
         return coefficient
     else:

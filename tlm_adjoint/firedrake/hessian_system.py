@@ -1,7 +1,7 @@
 from ..interface import (
     check_space_types, is_var, space_dtype, var_assign, var_axpy,
     var_axpy_conjugate, var_copy, var_copy_conjugate, var_dtype, var_inner,
-    var_space, var_space_type)
+    var_space_type)
 
 from ..block_system import (
     BlockNullspace, LinearSolver, Matrix, MixedSpace, NoneNullspace,
@@ -37,8 +37,8 @@ class HessianMatrix(Matrix):
             M = (M,)
         else:
             M = tuple(M)
-        arg_space = tuple(map(var_space, M))
-        action_space = MixedSpace(tuple(var_space(m).dual() for m in M),
+        arg_space = tuple(m.function_space() for m in M)
+        action_space = MixedSpace(tuple(m.function_space().dual() for m in M),
                                   space_types=tuple("dual" for _ in M))
 
         super().__init__(arg_space, action_space)
@@ -170,17 +170,13 @@ def hessian_eigendecompose(
     Remaining keyword arguments are passed to :func:`.eigendecompose`.
     """
 
-    space = var_space(m)
+    space = m.function_space()
 
     arg_space_type = var_space_type(m)
     arg_space = MixedSpace(space, space_types=arg_space_type)
-    assert arg_space.split_space == (space,)
-    assert arg_space.flattened_space == (space,)
 
     action_space_type = var_space_type(m, rel_space_type="dual")
     action_space = MixedSpace(space, space_types=action_space_type)
-    assert action_space.split_space == (space,)
-    assert action_space.flattened_space == (space,)
 
     if nullspace is None:
         nullspace = NoneNullspace()

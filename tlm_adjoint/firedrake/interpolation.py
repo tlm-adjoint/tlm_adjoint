@@ -7,7 +7,7 @@ from .backend import (
 from ..interface import (
     check_space_type, comm_dup_cached, is_var, space_new, var_assign, var_comm,
     var_copy, var_id, var_inner, var_is_scalar, var_new_conjugate_dual,
-    var_replacement, var_scalar_value, var_space)
+    var_replacement, var_scalar_value)
 
 from ..equation import Equation, ZeroAssignment
 from ..manager import manager_disabled
@@ -54,8 +54,7 @@ def interpolate_expression(x, expr, *, adj_x=None):
         interpolate_expression(expr_val, expr)
         var_assign(x, var_inner(adj_x, expr_val))
     elif isinstance(x, backend_Cofunction):
-        adj_x_space = var_space(adj_x).dual()
-        interp = Interpolator(expr, adj_x_space)
+        interp = Interpolator(expr, adj_x.function_space().dual())
         adj_x = var_copy(adj_x)
         adj_x.dat.data[:] = adj_x.dat.data_ro.conjugate()
         interp._interpolate(adj_x, transpose=True, output=x)

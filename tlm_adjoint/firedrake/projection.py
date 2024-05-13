@@ -2,7 +2,6 @@
 """
 
 from .backend import TestFunction, TrialFunction
-from ..interface import var_space
 
 from .solve import EquationSolver, LocalEquationSolver
 
@@ -29,7 +28,7 @@ class Projection(EquationSolver):
     """
 
     def __init__(self, x, rhs, *args, **kwargs):
-        space = var_space(x)
+        space = x.function_space()
         test, trial = TestFunction(space), TrialFunction(space)
         lhs = ufl.inner(trial, test) * ufl.dx
         rhs = ufl.inner(rhs, test) * ufl.dx
@@ -52,7 +51,7 @@ class LocalProjection(LocalEquationSolver):
     """
 
     def __init__(self, x, rhs, *args, **kwargs):
-        space = var_space(x)
+        space = x.function_space()
         test, trial = TestFunction(space), TrialFunction(space)
         lhs = ufl.inner(trial, test) * ufl.dx
         rhs = ufl.inner(rhs, test) * ufl.dx

@@ -4,6 +4,7 @@
 from ..block_system import (
     BlockMatrix as _BlockMatrix, BlockNullspace, LinearSolver as _LinearSolver,
     Matrix, MixedSpace, NoneNullspace, Nullspace)
+from ..interface import space_eq
 
 from firedrake import Constant, DirichletBC, Function, TestFunction, assemble
 
@@ -152,7 +153,7 @@ class DirichletBCNullspace(Nullspace):
 
         space = bcs[0].function_space()
         for bc in bcs:
-            if bc.function_space() != space:
+            if not space_eq(bc.function_space(), space):
                 raise ValueError("Invalid space")
             if not isinstance(bc._function_arg, ufl.classes.Zero):
                 raise ValueError("Homogeneous boundary conditions required")

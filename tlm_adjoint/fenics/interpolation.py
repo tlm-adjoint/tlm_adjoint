@@ -5,10 +5,9 @@ from .backend import (
     Cell, Mesh, MeshEditor, Point, UserExpression, backend_Constant,
     backend_Function, backend_ScalarType, parameters)
 from ..interface import (
-    check_space_type, is_var, space_comm, var_assign, var_comm, var_get_values,
-    var_id, var_inner, var_is_scalar, var_local_size, var_new,
-    var_new_conjugate_dual, var_replacement, var_scalar_value, var_set_values,
-    var_space)
+    check_space_type, is_var, space_comm, space_eq, var_assign, var_comm,
+    var_get_values, var_id, var_inner, var_is_scalar, var_local_size, var_new,
+    var_new_conjugate_dual, var_replacement, var_scalar_value, var_set_values)
 
 from ..equation import Equation, ZeroAssignment
 from ..equations import MatrixActionRHS
@@ -88,10 +87,7 @@ def interpolate_expression(x, expr, *, adj_x=None):
                 raise ValueError("Scalar Constant required")
             var_assign(x, var_inner(adj_x, expr_val))
         elif isinstance(x, backend_Function):
-            x_space = var_space(x)
-            adj_x_space = var_space(adj_x)
-            if x_space.ufl_domains() != adj_x_space.ufl_domains() \
-                    or x_space.ufl_element() != adj_x_space.ufl_element():
+            if not space_eq(x.function_space(), adj_x.function_space()):
                 raise ValueError("Unable to perform transpose interpolation")
             var_set_values(
                 x, var_get_values(expr_val).conjugate() * var_get_values(adj_x))  # noqa: E501

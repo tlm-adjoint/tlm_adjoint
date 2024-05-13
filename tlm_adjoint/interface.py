@@ -80,6 +80,7 @@ __all__ = \
         "space_comm",
         "space_default_space_type",
         "space_dtype",
+        "space_eq",
         "space_id",
         "space_new",
 
@@ -433,7 +434,7 @@ class SpaceInterface:
     """
 
     prefix = "_tlm_adjoint__space_interface"
-    names = ("_default_space_type", "_comm", "_dtype", "_id", "_new")
+    names = ("_default_space_type", "_comm", "_dtype", "_id", "_eq", "_new")
 
     def __init__(self):
         raise RuntimeError("Cannot instantiate SpaceInterface object")
@@ -449,6 +450,9 @@ class SpaceInterface:
 
     def _id(self):
         raise NotImplementedError("Method not overridden")
+
+    def _eq(self, other):
+        return space_id(self) == space_id(other)
 
     def _new(self, *, name=None, space_type="primal", static=False,
              cache=None):
@@ -509,6 +513,17 @@ def space_id(space):
     """
 
     return space._tlm_adjoint__space_interface_id()
+
+
+def space_eq(space, other):
+    """
+    :arg space: The space.
+    :arg other: A second space, to compare to space.
+    :returns: Whether the two spaces are equal.
+    """
+
+    return (is_space(other)
+            and space._tlm_adjoint__space_interface_eq(other))
 
 
 def space_new(space, *, name=None, space_type=None, static=False,

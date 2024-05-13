@@ -69,15 +69,14 @@ representations of a mixed space solution.
 """
 
 from .interface import (
-    DEFAULT_COMM, comm_dup_cached, space_default_space_type, space_comm,
-    space_id, space_new, var_assign, var_zero)
+    DEFAULT_COMM, comm_dup_cached, space_comm, space_default_space_type,
+    space_eq, space_new, var_assign, var_locked, var_zero)
 from .manager import manager_disabled
 from .petsc import PETScOptions, PETScVecInterface
 
 from abc import ABC, abstractmethod
-from collections.abc import Mapping, MutableMapping
+from collections.abc import Mapping, MutableMapping, Sequence
 from collections import deque
-from collections.abc import Sequence
 import logging
 try:
     import mpi4py.MPI as MPI
@@ -156,9 +155,9 @@ class MixedSpace(PETScVecInterface, Sequence):
     This class defines two representations for the space:
 
         1. As a 'split space': A tree defining the mixed space. Stored using
-           space and :class:`tuple` objects, each corresponding to a node in
-           the tree. Spaces correspond to leaf nodes, and :class:`tuple`
-           objects to other nodes in the tree.
+           backend space and :class:`tuple` objects, each corresponding to a
+           node in the tree. Backend spaces correspond to leaf nodes, and
+           :class:`tuple` objects to other nodes in the tree.
         2. As a 'flattened space': A :class:`Sequence` containing leaf nodes of
            the split space with an ordering determined using a depth first
            search.
@@ -220,6 +219,7 @@ class MixedSpace(PETScVecInterface, Sequence):
         else:
             comm = MPI.COMM_SELF
 
+        assert len(flattened_spaces) == len(space_types)
         super().__init__(
             tuple(space_new(space, space_type=space_type)
                   for space, space_type in zip(flattened_spaces, space_types)))
@@ -238,10 +238,18 @@ class MixedSpace(PETScVecInterface, Sequence):
             return MixedSpace(self.split_space[key])
 
     def __eq__(self, other):
-        self_ids = self.tuple_sub(map(space_id, self.flattened_space))
-        other_ids = other.tuple_sub(map(space_id, other.flattened_space))
-        return (self_ids == other_ids
-                and self.space_types == other.space_types)
+        self_shape = self.tuple_sub(None for _ in self.flattened_space)
+        other_shape = other.tuple_sub(None for _ in other.flattened_space)
+        if self_shape != other_shape:
+            return False
+        if self.space_types != other.space_types:
+            return False
+        assert len(self.flattened_space) == len(other.flattened_space)
+        for self_space, other_space in zip(self.flattened_space,
+                                           other.flattened_space):
+            if not space_eq(self_space, other_space):
+                return False
+        return True
 
     @property
     def comm(self):
@@ -286,6 +294,7 @@ class MixedSpace(PETScVecInterface, Sequence):
         """
 
         u = []
+        assert len(self.flattened_space) == len(self.space_types)
         for space, space_type in zip(self.flattened_space, self.space_types):
             u.append(space_new(space, space_type=space_type))
         return self.tuple_sub(u)
@@ -298,7 +307,7 @@ class MixedSpace(PETScVecInterface, Sequence):
 
 
 class Nullspace(ABC):
-    """Represents a matrix nullspace and left nullspace.
+    """Represents a nullspace and left nullspace for a square matrix.
     """
 
     @abstractmethod
@@ -447,8 +456,8 @@ class NoneNullspace(Nullspace):
         pass
 
 
-class BlockNullspace(Nullspace):
-    """Nullspaces for a mixed space.
+class BlockNullspace(Nullspace, Sequence):
+    """Nullspaces for a square :class:`.BlockMatrix`.
 
     :arg nullspaces: A :class:`.Nullspace` or a :class:`Sequence` of
         :class:`.Nullspace` objects defining the nullspace. `None` indicates a
@@ -482,37 +491,37 @@ class BlockNullspace(Nullspace):
     def __getitem__(self, key):
         return self._nullspaces[key]
 
-    def __iter__(self):
-        yield from self._nullspaces
-
     def __len__(self):
         return len(self._nullspaces)
 
     def apply_nullspace_transformation_lhs_right(self, x):
-        assert len(self._nullspaces) == len(x)
-        for nullspace, x_i in zip(self._nullspaces, x):
+        assert len(self) == len(x)
+        for nullspace, x_i in zip(self, x):
             nullspace.apply_nullspace_transformation_lhs_right(x_i)
 
     def apply_nullspace_transformation_lhs_left(self, y):
-        assert len(self._nullspaces) == len(y)
-        for nullspace, y_i in zip(self._nullspaces, y):
+        assert len(self) == len(y)
+        for nullspace, y_i in zip(self, y):
             nullspace.apply_nullspace_transformation_lhs_left(y_i)
 
     def constraint_correct_lhs(self, x, y):
-        assert len(self._nullspaces) == len(x)
-        assert len(self._nullspaces) == len(y)
-        for nullspace, x_i, y_i in zip(self._nullspaces, x, y):
-            nullspace.constraint_correct_lhs(x_i, y_i)
+        with var_locked(*iter_sub(x)):
+            assert len(self) == len(x)
+            assert len(self) == len(y)
+            for nullspace, x_i, y_i in zip(self, x, y):
+                nullspace.constraint_correct_lhs(x_i, y_i)
 
     def pc_constraint_correct_soln(self, u, b):
-        assert len(self._nullspaces) == len(u)
-        assert len(self._nullspaces) == len(b)
-        for nullspace, u_i, b_i in zip(self._nullspaces, u, b):
-            nullspace.pc_constraint_correct_soln(u_i, b_i)
+        with var_locked(*iter_sub(b)):
+            assert len(self) == len(u)
+            assert len(self) == len(b)
+            for nullspace, u_i, b_i in zip(self, u, b):
+                nullspace.pc_constraint_correct_soln(u_i, b_i)
 
 
 class Matrix(ABC):
-    r"""Represents a matrix :math:`A` mapping :math:`V \rightarrow W`.
+    r"""Represents a matrix defining a mapping
+    :math:`A` mapping :math:`V \rightarrow W`.
 
     :arg arg_space: Defines the space `V`.
     :arg action_space: Defines the space `W`.
@@ -553,8 +562,8 @@ class Matrix(ABC):
 
 
 class BlockMatrix(Matrix, MutableMapping):
-    r"""A matrix :math:`A` mapping :math:`V \rightarrow W`, where :math:`V` and
-    :math:`W` are defined by mixed spaces.
+    r"""A matrix defining a mapping :math:`A` mapping :math:`V \rightarrow W`,
+    where :math:`V` and :math:`W` are defined by mixed spaces.
 
     :arg arg_spaces: Defines the space `V`.
     :arg action_spaces: Defines the space `W`.
@@ -601,18 +610,27 @@ class BlockMatrix(Matrix, MutableMapping):
         return len(self._blocks)
 
     def mult_add(self, x, y):
-        for (i, j), block in self.items():
-            block.mult_add(x[j], y[i])
+        with var_locked(*iter_sub(x)):
+            for (i, j), block in self.items():
+                block.mult_add(x[j], y[i])
 
 
-class PETScInterface:
+class PETScSquareMatInterface:
     def __init__(self, arg_space, action_space, *, nullspace=None):
         if not isinstance(arg_space, MixedSpace):
             arg_space = MixedSpace(arg_space)
         if not isinstance(action_space, MixedSpace):
             action_space = MixedSpace(action_space)
+        if len(arg_space) != len(action_space):
+            raise ValueError("Invalid space")
         if nullspace is None:
             nullspace = NoneNullspace()
+        if not isinstance(nullspace, (NoneNullspace, BlockNullspace)):
+            nullspace = BlockNullspace(nullspace)
+        if isinstance(nullspace, BlockNullspace) \
+                and (len(nullspace) != len(arg_space)
+                     or len(nullspace) != len(action_space)):
+            raise ValueError("Invalid nullspace")
 
         self._arg_space = arg_space
         self._action_space = action_space
@@ -652,7 +670,7 @@ class PETScInterface:
         self.action_space.to_petsc(y_petsc, self._y)
 
 
-class SystemMatrix(PETScInterface):
+class SystemMatrix(PETScSquareMatInterface):
     def __init__(self, matrix, *, nullspace=None):
         super().__init__(matrix.arg_space, matrix.action_space,
                          nullspace=nullspace)
@@ -670,7 +688,7 @@ class SystemMatrix(PETScInterface):
         self._post_mult(y)
 
 
-class Preconditioner(PETScInterface):
+class Preconditioner(PETScSquareMatInterface):
     def __init__(self, arg_space, action_space, pc_fn, *, nullspace=None):
         super().__init__(arg_space, action_space,
                          nullspace=nullspace)
@@ -689,11 +707,8 @@ class Preconditioner(PETScInterface):
         self._post_mult(y)
 
 
-def petsc_ksp(A, *, nullspace=None, comm=None,
-              solver_parameters=None, pc_fn=None):
+def petsc_ksp(A, *, comm=None, solver_parameters=None, pc_fn=None):
     action_space, arg_space = A.action_space, A.arg_space
-    if nullspace is None:
-        nullspace = NoneNullspace()
     if comm is None:
         comm = arg_space.comm
     if solver_parameters is None:
@@ -709,7 +724,7 @@ def petsc_ksp(A, *, nullspace=None, comm=None,
 
     if pc_fn is not None:
         A_pc = Preconditioner(action_space, arg_space,
-                              pc_fn, nullspace=nullspace)
+                              pc_fn, nullspace=A.nullspace)
         pc = PETSc.PC().createPython(A_pc, comm=comm)
         pc.setOperators(A_mat)
         pc.setUp()
@@ -724,7 +739,7 @@ def petsc_ksp(A, *, nullspace=None, comm=None,
         ksp.setPC(pc)
     ksp.setOperators(A_mat)
 
-    logger = logging.getLogger("tlm_adjoint.LinearSolver")
+    logger = logging.getLogger("tlm_adjoint.block_system")
 
     def monitor(ksp, it, r_norm):
         logger.debug(f"KSP: "
@@ -750,7 +765,7 @@ class LinearSolver:
     :arg nullspace: A :class:`.Nullspace` or a :class:`Sequence` of
         :class:`.Nullspace` objects defining the nullspace and left nullspace
         of :math:`A`. `None` indicates a :class:`.NoneNullspace`.
-    :arg solver_parameters: A :class:`Mapping` defining outer Krylov solver
+    :arg solver_parameters: A :class:`Mapping` defining Krylov solver
         parameters.
     :arg pc_fn: Defines the application of a preconditioner. A callable
 
@@ -767,8 +782,6 @@ class LinearSolver:
                  pc_fn=None, comm=None):
         if not isinstance(A, BlockMatrix):
             A = BlockMatrix(A.arg_space, A.action_space, A)
-        if not isinstance(nullspace, BlockNullspace):
-            nullspace = BlockNullspace(nullspace)
         if solver_parameters is None:
             solver_parameters = {}
         if pc_fn is None:
@@ -776,12 +789,12 @@ class LinearSolver:
         else:
             def pc_pc_fn(u, b):
                 pc_fn, = self._pc_pc_fn
-                pc_fn(u, b)
+                with var_locked(*iter_sub(b)):
+                    pc_fn(u, b)
 
         A = SystemMatrix(A, nullspace=nullspace)
         ksp, pc, A_mat = petsc_ksp(
-            A, nullspace=nullspace, solver_parameters=solver_parameters,
-            pc_fn=pc_pc_fn, comm=comm)
+            A, solver_parameters=solver_parameters, pc_fn=pc_pc_fn, comm=comm)
 
         self._A = A
         self._ksp = ksp
@@ -838,13 +851,6 @@ class LinearSolver:
         u = self._A.arg_space.tuple_sub(u)
         b = self._A.action_space.tuple_sub(b)
 
-        if tuple(u_i.function_space() for u_i in iter_sub(u)) \
-                != self._A.arg_space.flattened_space:
-            raise ValueError("Invalid space")
-        for b_i, space in zip_sub(b, self._A.action_space.split_space):
-            if b_i is not None and b_i.function_space() != space:
-                raise ValueError("Invalid space")
-
         b_c = self._A.action_space.new_split()
         for b_c_i, b_i in zip_sub(b_c, b):
             if b_i is not None:
@@ -864,14 +870,13 @@ class LinearSolver:
             self._pc_pc_fn[0] = pc_fn
             self.ksp.solve(b_petsc, u_petsc)
         finally:
-            self._pc_pc_fn[0] = [self._pc_fn]
+            self._pc_pc_fn[0] = self._pc_fn
         del b_petsc
 
         self._A.arg_space.from_petsc(u_petsc, u)
         del u_petsc
 
         if correct_solution:
-            # Not needed if the linear problem were to be solved exactly
             self._A.nullspace.correct_soln(u)
 
         if self.ksp.getConvergedReason() <= 0:
