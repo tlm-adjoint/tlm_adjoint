@@ -3,6 +3,7 @@ from .interface import (
 from .petsc import PETScVecInterface
 
 from abc import ABC, abstractmethod
+from collections.abc import Mapping, MutableMapping
 from collections import deque
 from collections.abc import Sequence
 try:
@@ -21,7 +22,10 @@ __all__ = \
 
         "Nullspace",
         "NoneNullspace",
-        "BlockNullspace"
+        "BlockNullspace",
+
+        "Matrix",
+        "BlockMatrix"
     ]
 
 
@@ -429,3 +433,97 @@ class BlockNullspace(Nullspace):
         assert len(self._nullspaces) == len(b)
         for nullspace, u_i, b_i in zip(self._nullspaces, u, b):
             nullspace.pc_constraint_correct_soln(u_i, b_i)
+
+
+class Matrix(ABC):
+    r"""Represents a matrix :math:`A` mapping :math:`V \rightarrow W`.
+
+    :arg arg_space: Defines the space `V`.
+    :arg action_space: Defines the space `W`.
+    """
+
+    def __init__(self, arg_space, action_space):
+        if not isinstance(arg_space, MixedSpace):
+            arg_space = MixedSpace(arg_space)
+        if not isinstance(action_space, MixedSpace):
+            action_space = MixedSpace(action_space)
+
+        self._arg_space = arg_space
+        self._action_space = action_space
+
+    @property
+    def arg_space(self):
+        """The space defining :math:`V`.
+        """
+
+        return self._arg_space
+
+    @property
+    def action_space(self):
+        """The space defining :math:`W`.
+        """
+
+        return self._action_space
+
+    @abstractmethod
+    def mult_add(self, x, y):
+        """Add :math:`A x` to :math:`y`.
+
+        :arg x: Defines :math:`x`. Should not be modified.
+        :arg y: Defines :math:`y`.
+        """
+
+        raise NotImplementedError
+
+
+class BlockMatrix(Matrix, MutableMapping):
+    r"""A matrix :math:`A` mapping :math:`V \rightarrow W`, where :math:`V` and
+    :math:`W` are defined by mixed spaces.
+
+    :arg arg_spaces: Defines the space `V`.
+    :arg action_spaces: Defines the space `W`.
+    :arg block: A :class:`Mapping` defining the blocks of the matrix. Items are
+        `((i, j), block)` where the block in the `i` th and `j` th column is
+        defined by `block`. Each `block` is a
+        :class:`tlm_adjoint.block_system.Matrix`, or `None` to indicate a zero
+        block.
+    """
+
+    def __init__(self, arg_spaces, action_spaces, blocks=None):
+        if not isinstance(blocks, Mapping):
+            blocks = {(0, 0): blocks}
+
+        super().__init__(arg_spaces, action_spaces)
+        self._blocks = {}
+
+        if blocks is not None:
+            self.update(blocks)
+
+    def __iter__(self):
+        yield from sorted(self._blocks)
+
+    def __getitem__(self, key):
+        i, j = key
+        return self._blocks[(i, j)]
+
+    def __setitem__(self, key, value):
+        i, j = key
+        if value is None:
+            self.pop((i, j), None)
+        else:
+            if value.arg_space != self.arg_space[j]:
+                raise ValueError("Invalid space")
+            if value.action_space != self.action_space[i]:
+                raise ValueError("Invalid space")
+            self._blocks[(i, j)] = value
+
+    def __delitem__(self, key):
+        i, j = key
+        del self._blocks[(i, j)]
+
+    def __len__(self):
+        return len(self._blocks)
+
+    def mult_add(self, x, y):
+        for (i, j), block in self.items():
+            block.mult_add(x[j], y[i])
