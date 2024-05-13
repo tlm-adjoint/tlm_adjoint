@@ -72,7 +72,7 @@ from .interface import (
     DEFAULT_COMM, comm_dup_cached, space_default_space_type, space_comm,
     space_id, space_new, var_assign, var_zero)
 from .manager import manager_disabled
-from .petsc import PETScVecInterface
+from .petsc import PETScOptions, PETScVecInterface
 
 from abc import ABC, abstractmethod
 from collections.abc import Mapping, MutableMapping
@@ -717,23 +717,12 @@ def petsc_ksp(A, *, nullspace=None, comm=None,
         pc = None
 
     ksp = PETSc.KSP().create(comm=comm)
-    ksp.setType(solver_parameters.get("linear_solver", "fgmres"))
+    options = PETScOptions(f"_tlm_adjoint__{ksp.name:s}_")
+    options.update(solver_parameters)
+    ksp.setOptionsPrefix(options.options_prefix)
     if pc is not None:
         ksp.setPC(pc)
-    if "pc_side" in solver_parameters:
-        ksp.setPCSide(solver_parameters["pc_side"])
     ksp.setOperators(A_mat)
-    ksp.setTolerances(
-        rtol=solver_parameters["relative_tolerance"],
-        atol=solver_parameters["absolute_tolerance"],
-        divtol=solver_parameters.get("divergence_limit", None),
-        max_it=solver_parameters.get("maximum_iterations", 1000))
-    ksp.setInitialGuessNonzero(
-        solver_parameters.get("nonzero_initial_guess", True))
-    ksp.setNormType(
-        solver_parameters.get("norm_type", PETSc.KSP.NormType.DEFAULT))
-    if "gmres_restart" in solver_parameters:
-        ksp.setGMRESRestart(solver_parameters["gmres_restart"])
 
     logger = logging.getLogger("tlm_adjoint.LinearSolver")
 
@@ -744,6 +733,7 @@ def petsc_ksp(A, *, nullspace=None, comm=None,
 
     ksp.setMonitor(monitor)
 
+    ksp.setFromOptions()
     ksp.setUp()
 
     return ksp, pc, A_mat

@@ -54,6 +54,10 @@ class PETScOptions:
         for key in tuple(self._keys):
             del self[key]
 
+    def update(self, other):
+        for key, value in other.items():
+            self[key] = value
+
 
 class PETScVecInterface:
     def __init__(self, X, *, dtype=None):

@@ -125,9 +125,9 @@ def test_hessian_solve(setup_test,
 
     H_solver = HessianLinearSolver(
         H, m,
-        solver_parameters={"linear_solver": "cg",
-                           "absolute_tolerance": 1.0e-12,
-                           "relative_tolerance": 1.0e-12},
+        solver_parameters={"ksp_type": "cg",
+                           "ksp_atol": 1.0e-12,
+                           "ksp_rtol": 1.0e-12},
         pc_fn=pc_fn)
     H_solver.solve(
         v, b_ref)

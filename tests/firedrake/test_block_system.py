@@ -120,9 +120,9 @@ def test_block_diagonal(setup_test, pc):  # noqa: F811
         BlockMatrix((space_0, space_1), (space_0.dual(), space_1.dual()),
                     {(0, 0): block_00, (0, 1): block_01,
                      (1, 0): block_10, (1, 1): block_11}),
-        solver_parameters={"linear_solver": "cg",
-                           "relative_tolerance": 1.0e-14,
-                           "absolute_tolerance": 1.0e-14},
+        solver_parameters={"ksp_type": "cg",
+                           "ksp_rtol": 1.0e-14,
+                           "ksp_atol": 1.0e-14},
         pc_fn=pc_fn)
     block_solver.solve(
         (u_0, u_1), (b_0, b_1))
@@ -176,9 +176,9 @@ def test_constant_nullspace(setup_test):  # noqa: F811
         BlockMatrix((space_0, space_1), (space_0.dual(), space_1.dual()),
                     {(0, 0): block_00, (0, 1): block_01,
                      (1, 0): block_10, (1, 1): block_11}),
-        solver_parameters={"linear_solver": "cg",
-                           "relative_tolerance": 1.0e-14,
-                           "absolute_tolerance": 1.0e-14},
+        solver_parameters={"ksp_type": "cg",
+                           "ksp_rtol": 1.0e-14,
+                           "ksp_atol": 1.0e-14},
         nullspace=BlockNullspace((ConstantNullspace(), None)))
     block_solver.solve(
         (u_0, u_1), (b_0, b_1))
@@ -227,9 +227,9 @@ def test_unity_nullspace(setup_test):  # noqa: F811
         BlockMatrix((space_0, space_1), (space_0.dual(), space_1.dual()),
                     {(0, 0): block_00, (0, 1): block_01,
                      (1, 0): block_10, (1, 1): block_11}),
-        solver_parameters={"linear_solver": "cg",
-                           "relative_tolerance": 1.0e-14,
-                           "absolute_tolerance": 1.0e-14},
+        solver_parameters={"ksp_type": "cg",
+                           "ksp_rtol": 1.0e-14,
+                           "ksp_atol": 1.0e-14},
         nullspace=BlockNullspace((UnityNullspace(space_0), None)))
     block_solver.solve(
         (u_0, u_1), (b_0, b_1))
@@ -277,9 +277,9 @@ def test_dirichlet_bc_nullspace(setup_test):  # noqa: F811
         BlockMatrix((space_0, space_1), (space_0.dual(), space_1.dual()),
                     {(0, 0): block_00, (0, 1): block_01,
                      (1, 0): block_10, (1, 1): block_11}),
-        solver_parameters={"linear_solver": "cg",
-                           "relative_tolerance": 1.0e-14,
-                           "absolute_tolerance": 1.0e-14},
+        solver_parameters={"ksp_type": "cg",
+                           "ksp_rtol": 1.0e-14,
+                           "ksp_atol": 1.0e-14},
         nullspace=BlockNullspace((DirichletBCNullspace(DirichletBC(space_0, 0.0, "on_boundary")), None)))  # noqa: E501
     block_solver.solve(
         (u_0, u_1), (b_0, b_1))
@@ -333,9 +333,9 @@ def test_pressure_projection(setup_test):  # noqa: F811
         BlockMatrix((space_0, space_1), (space_0.dual(), space_1.dual()),
                     {(0, 0): block_00, (0, 1): block_01,
                      (1, 0): block_10, (1, 1): block_11}),
-        solver_parameters={"linear_solver": "minres",
-                           "relative_tolerance": 1.0e-14,
-                           "absolute_tolerance": 1.0e-14},
+        solver_parameters={"ksp_type": "minres",
+                           "ksp_rtol": 1.0e-14,
+                           "ksp_atol": 1.0e-14},
         nullspace=BlockNullspace((DirichletBCNullspace(DirichletBC(space_0, 0.0, "on_boundary")),  # noqa: E501
                                   ConstantNullspace())))
     block_solver.solve(
@@ -393,9 +393,9 @@ def test_mass(setup_test):  # noqa: F811
 
     block_solver = BlockLinearSolver(
         inner(trial, test) * dx,
-        solver_parameters={"linear_solver": "cg",
-                           "relative_tolerance": 1.0e-14,
-                           "absolute_tolerance": 1.0e-14},
+        solver_parameters={"ksp_type": "cg",
+                           "ksp_rtol": 1.0e-14,
+                           "ksp_atol": 1.0e-14},
         nullspace=DirichletBCNullspace(bc))
     block_solver.solve(
         u, b)
@@ -458,9 +458,9 @@ def test_sub_block(setup_test):  # noqa: F811
     block_solver = BlockLinearSolver(
         BlockMatrix(((space_0, space_1), space_2), ((space_0.dual(), space_1.dual()), space_2.dual()),  # noqa: E501
                     {(0, 0): block_00, (1, 1): block_11}),
-        solver_parameters={"linear_solver": "cg",
-                           "relative_tolerance": 1.0e-14,
-                           "absolute_tolerance": 1.0e-14},
+        solver_parameters={"ksp_type": "cg",
+                           "ksp_rtol": 1.0e-14,
+                           "ksp_atol": 1.0e-14},
         pc_fn=pc_fn,
         nullspace=(None, nullspace_2))
     block_solver.solve(
