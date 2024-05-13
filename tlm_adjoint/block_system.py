@@ -1,15 +1,12 @@
 r"""Solvers for linear systems defined in mixed spaces.
 
-The :class:`.System` class defines the block structure of the linear system,
-and solves the system using an outer Krylov solver.
-
 Given a linear problem with a potentially singular matrix :math:`A`
 
 .. math::
 
     A u = b,
 
-a :class:`.System` instead solves the linear problem
+a :class:`.LinearSolver` instead solves the linear problem
 
 .. math::
 
@@ -43,8 +40,8 @@ This has two primary use cases:
     2. Where the matrix :math:`A` is singular and :math:`b` is orthogonal to
        the left nullspace of :math:`A`. Typically one would then choose
        :math:`U` and :math:`V` so that their columns respectively span the left
-       nullspace and nullspace of :math:`A`, and the :class:`.System` then
-       seeks a solution to the original problem subject to the linear
+       nullspace and nullspace of :math:`A`, and the :class:`.LinearSolver`
+       then seeks a solution to the original problem subject to the linear
        constraints :math:`V^* C u = 0`.
 
 Spaces are defined via backend spaces, and :class:`Sequence` objects containing
@@ -72,15 +69,15 @@ representations of a mixed space solution.
 """
 
 from .interface import (
-    DEFAULT_COMM, space_default_space_type, space_comm, space_id, space_new,
-    var_assign, var_zero)
+    DEFAULT_COMM, comm_dup_cached, space_default_space_type, space_comm,
+    space_id, space_new, var_assign, var_zero)
+from .manager import manager_disabled
 from .petsc import PETScVecInterface
 
 from abc import ABC, abstractmethod
 from collections.abc import Mapping, MutableMapping
 from collections import deque
 from collections.abc import Sequence
-from functools import wraps
 import logging
 try:
     import mpi4py.MPI as MPI
@@ -90,6 +87,7 @@ try:
     import petsc4py.PETSc as PETSc
 except ImportError:
     PETSc = None
+import weakref
 
 
 __all__ = \
@@ -103,7 +101,7 @@ __all__ = \
         "Matrix",
         "BlockMatrix",
 
-        "System"
+        "LinearSolver"
     ]
 
 
@@ -608,11 +606,13 @@ class BlockMatrix(Matrix, MutableMapping):
 
 
 class PETScInterface:
-    def __init__(self, arg_space, action_space, nullspace):
+    def __init__(self, arg_space, action_space, *, nullspace=None):
         if not isinstance(arg_space, MixedSpace):
             arg_space = MixedSpace(arg_space)
         if not isinstance(action_space, MixedSpace):
             action_space = MixedSpace(action_space)
+        if nullspace is None:
+            nullspace = NoneNullspace()
 
         self._arg_space = arg_space
         self._action_space = action_space
@@ -634,10 +634,14 @@ class PETScInterface:
     def action_space(self):
         return self._action_space
 
+    @property
+    def nullspace(self):
+        return self._nullspace
+
     def _pre_mult(self, x_petsc):
         self.arg_space.from_petsc(x_petsc, self._x)
 
-        if not isinstance(self._nullspace, NoneNullspace):
+        if not isinstance(self.nullspace, NoneNullspace):
             for x_i, x_c_i in zip_sub(self._x, self._x_c):
                 var_assign(x_c_i, x_i)
 
@@ -649,257 +653,236 @@ class PETScInterface:
 
 
 class SystemMatrix(PETScInterface):
-    def __init__(self, matrix, nullspace):
-        super().__init__(matrix.arg_space, matrix.action_space, nullspace)
+    def __init__(self, matrix, *, nullspace=None):
+        super().__init__(matrix.arg_space, matrix.action_space,
+                         nullspace=nullspace)
         self._matrix = matrix
 
     def mult(self, A, x, y):
         self._pre_mult(x)
 
-        if not isinstance(self._nullspace, NoneNullspace):
-            self._nullspace.pre_mult_correct_lhs(self._x_c)
+        if not isinstance(self.nullspace, NoneNullspace):
+            self.nullspace.pre_mult_correct_lhs(self._x_c)
         self._matrix.mult_add(self._x_c, self._y)
-        if not isinstance(self._nullspace, NoneNullspace):
-            self._nullspace.post_mult_correct_lhs(self._x, self._y)
+        if not isinstance(self.nullspace, NoneNullspace):
+            self.nullspace.post_mult_correct_lhs(self._x, self._y)
 
         self._post_mult(y)
 
 
 class Preconditioner(PETScInterface):
-    def __init__(self, arg_space, action_space, pc_fn, nullspace):
-        super().__init__(arg_space, action_space, nullspace)
+    def __init__(self, arg_space, action_space, pc_fn, *, nullspace=None):
+        super().__init__(arg_space, action_space,
+                         nullspace=nullspace)
         self._pc_fn = pc_fn
 
     def apply(self, pc, x, y):
         self._pre_mult(x)
 
-        if not isinstance(self._nullspace, NoneNullspace):
-            self._nullspace.pc_pre_mult_correct(self._x_c)
+        if not isinstance(self.nullspace, NoneNullspace):
+            self.nullspace.pc_pre_mult_correct(self._x_c)
         self._pc_fn(self._y, self._x_c)
-        if not isinstance(self._nullspace, NoneNullspace):
-            self._nullspace.pc_post_mult_correct(
+        if not isinstance(self.nullspace, NoneNullspace):
+            self.nullspace.pc_post_mult_correct(
                 self._y, self._x)
 
         self._post_mult(y)
 
 
-class System:
-    """A linear system
+def petsc_ksp(A, *, nullspace=None, comm=None,
+              solver_parameters=None, pc_fn=None):
+    action_space, arg_space = A.action_space, A.arg_space
+    if nullspace is None:
+        nullspace = NoneNullspace()
+    if comm is None:
+        comm = arg_space.comm
+    if solver_parameters is None:
+        solver_parameters = {}
+
+    comm = comm_dup_cached(comm, key="block_system")
+
+    A_mat = PETSc.Mat().createPython(
+        ((action_space.local_size, action_space.global_size),
+         (arg_space.local_size, arg_space.global_size)), A,
+        comm=comm)
+    A_mat.setUp()
+
+    if pc_fn is not None:
+        A_pc = Preconditioner(action_space, arg_space,
+                              pc_fn, nullspace=nullspace)
+        pc = PETSc.PC().createPython(A_pc, comm=comm)
+        pc.setOperators(A_mat)
+        pc.setUp()
+    else:
+        pc = None
+
+    ksp = PETSc.KSP().create(comm=comm)
+    ksp.setType(solver_parameters.get("linear_solver", "fgmres"))
+    if pc is not None:
+        ksp.setPC(pc)
+    if "pc_side" in solver_parameters:
+        ksp.setPCSide(solver_parameters["pc_side"])
+    ksp.setOperators(A_mat)
+    ksp.setTolerances(
+        rtol=solver_parameters["relative_tolerance"],
+        atol=solver_parameters["absolute_tolerance"],
+        divtol=solver_parameters.get("divergence_limit", None),
+        max_it=solver_parameters.get("maximum_iterations", 1000))
+    ksp.setInitialGuessNonzero(
+        solver_parameters.get("nonzero_initial_guess", True))
+    ksp.setNormType(
+        solver_parameters.get("norm_type", PETSc.KSP.NormType.DEFAULT))
+    if "gmres_restart" in solver_parameters:
+        ksp.setGMRESRestart(solver_parameters["gmres_restart"])
+
+    logger = logging.getLogger("tlm_adjoint.LinearSolver")
+
+    def monitor(ksp, it, r_norm):
+        logger.debug(f"KSP: "
+                     f"iteration {it:d}, "
+                     f"residual norm {r_norm:.16e}")
+
+    ksp.setMonitor(monitor)
+
+    ksp.setUp()
+
+    return ksp, pc, A_mat
+
+
+class LinearSolver:
+    """Solver for a linear system
 
     .. math::
 
         A u = b.
 
-    :arg arg_spaces: Defines the space for `u`.
-    :arg action_spaces: Defines the space for `b`.
-    :arg blocks: One of
-
-        - A :class:`tlm_adjoint.block_system.Matrix` or :class:`ufl.Form`
-          defining :math:`A`.
-        - A :class:`Mapping` with items `((i, j), block)` where the matrix
-          associated with the block in the `i` th and `j` th column is defined
-          by `block`. Each `block` is a
-          :class:`tlm_adjoint.block_system.Matrix` or :class:`ufl.Form`, or
-          `None` to indicate a zero block.
-
-    :arg nullspaces: A :class:`.Nullspace` or a :class:`Sequence` of
+    :arg A: A :class:`tlm_adjoint.block_system.Matrix` defining :math:`A`.
+    :arg nullspace: A :class:`.Nullspace` or a :class:`Sequence` of
         :class:`.Nullspace` objects defining the nullspace and left nullspace
         of :math:`A`. `None` indicates a :class:`.NoneNullspace`.
+    :arg solver_parameters: A :class:`Mapping` defining outer Krylov solver
+        parameters.
+    :arg pc_fn: Defines the application of a preconditioner. A callable
+
+        .. code-block:: python
+
+            def pc_fn(u, b):
+
+        The preconditioner is applied to `b`, and the result stored in `u`.
+        Defaults to an identity.
     :arg comm: Communicator.
     """
 
-    def __init__(self, arg_spaces, action_spaces, blocks, *,
-                 nullspaces=None, comm=None):
-        if isinstance(blocks, BlockMatrix):
-            matrix = blocks
+    def __init__(self, A, *, nullspace=None, solver_parameters=None,
+                 pc_fn=None, comm=None):
+        if not isinstance(A, BlockMatrix):
+            A = BlockMatrix(A.arg_space, A.action_space, A)
+        if not isinstance(nullspace, BlockNullspace):
+            nullspace = BlockNullspace(nullspace)
+        if solver_parameters is None:
+            solver_parameters = {}
+        if pc_fn is None:
+            pc_pc_fn = None
         else:
-            matrix = BlockMatrix(arg_spaces, action_spaces, blocks)
-        arg_spaces = matrix.arg_space
-        action_spaces = matrix.action_space
+            def pc_pc_fn(u, b):
+                pc_fn, = self._pc_pc_fn
+                pc_fn(u, b)
 
-        nullspace = BlockNullspace(nullspaces)
-        if isinstance(nullspace, BlockNullspace):
-            if len(nullspace) != len(arg_spaces):
-                raise ValueError("Invalid space")
-            if len(nullspace) != len(action_spaces):
-                raise ValueError("Invalid space")
+        A = SystemMatrix(A, nullspace=nullspace)
+        ksp, pc, A_mat = petsc_ksp(
+            A, nullspace=nullspace, solver_parameters=solver_parameters,
+            pc_fn=pc_pc_fn, comm=comm)
 
-        if comm is None:
-            comm = arg_spaces.comm
+        self._A = A
+        self._ksp = ksp
+        self._A_mat = A_mat
+        self._pc_fn = pc_fn
+        self._pc_pc_fn = [pc_fn]
 
-        self._comm = comm
-        self._arg_space = arg_spaces
-        self._action_space = action_spaces
-        self._matrix = matrix
-        self._nullspace = nullspace
+        def finalize_callback(ksp, pc, A_mat):
+            ksp.destroy()
+            if pc is not None:
+                pc.destroy()
+            A_mat.destroy()
 
+        finalize = weakref.finalize(self, finalize_callback,
+                                    ksp, pc, A_mat)
+        finalize.atexit = False
+
+    @property
+    def ksp(self):
+        return self._ksp
+
+    @manager_disabled()
     def solve(self, u, b, *,
-              solver_parameters=None, pc_fn=None,
-              pre_callback=None, post_callback=None,
               correct_initial_guess=True, correct_solution=True):
         """Solve the linear system.
 
         :arg u: Defines the solution :math:`u`.
         :arg b: Defines the right-hand-side :math:`b`.
-        :arg solver_parameters: A :class:`Mapping` defining outer Krylov solver
-            parameters. Parameters (a number of which are based on FEniCS
-            solver parameters) are:
-
-            - `'linear_solver'`: The Krylov solver type, default `'fgmres'`.
-            - `'pc_side'`: Overrides the PETSc default preconditioning side.
-            - `'relative_tolerance'`: Relative tolerance. Required.
-            - `'absolute_tolerance'`: Absolute tolerance. Required.
-            - `'divergence_limit'`: Overrides the default divergence limit.
-            - `'maximum_iterations'`: Maximum number of iterations. Default
-              1000.
-            - `'norm_type'`: Overrides the default convergence norm definition.
-            - `'nonzero_initial_guess'`: Whether to use a non-zero initial
-              guess, defined by the input `u`. Default `True`.
-            - `'gmres_restart'`: Overrides the default GMRES restart parameter.
-
-        :arg pc_fn: Defines the application of a preconditioner. A callable
-
-            .. code-block:: python
-
-                def pc_fn(u, b):
-
-            The preconditioner is applied to `b`, and the result stored in `u`.
-            Defaults to an identity.
-        :arg pre_callback: A callable accepting a single
-            :class:`petsc4py.PETSc.KSP` argument. Used for detailed manual
-            configuration. Called after all other configuration options are
-            set, but before the :meth:`petsc4py.PETSc.KSP.setUp` method is
-            called.
-        :arg post_callback: A callable accepting a single
-            :class:`petsc4py.PETSc.KSP` argument. Called after the
-            :meth:`petsc4py.PETSc.KSP.solve` method has been called.
         :arg correct_initial_guess: Whether to apply a nullspace correction to
             the initial guess.
         :arg correct_solution: Whether to apply a nullspace correction to
             the solution.
-        :returns: The number of Krylov iterations.
         """
 
-        if solver_parameters is None:
-            solver_parameters = {}
-
-        if isinstance(u, Sequence):
-            u = tuple(u)
-        else:
+        pc_fn = self._pc_fn
+        if not isinstance(u, Sequence):
             u = (u,)
 
-            if pc_fn is not None:
-                pc_fn_u = pc_fn
+            pc_fn_u = pc_fn
 
-                @wraps(pc_fn_u)
-                def pc_fn(u, b):
-                    u, = tuple(iter_sub(u))
-                    return pc_fn_u(u, b)
-        u = self._arg_space.tuple_sub(u)
+            def pc_fn(u, b):
+                u, = tuple(iter_sub(u))
+                pc_fn_u(u, b)
 
-        if isinstance(b, Sequence):
-            b = tuple(b)
-        else:
+        if not isinstance(b, Sequence):
             b = (b,)
 
-            if pc_fn is not None:
-                pc_fn_b = pc_fn
+            pc_fn_b = pc_fn
 
-                @wraps(pc_fn_b)
-                def pc_fn(u, b):
-                    b, = tuple(iter_sub(b))
-                    return pc_fn_b(u, b)
-        b = self._action_space.tuple_sub(b)
+            def pc_fn(u, b):
+                b, = tuple(iter_sub(b))
+                pc_fn_b(u, b)
+
+        u = self._A.arg_space.tuple_sub(u)
+        b = self._A.action_space.tuple_sub(b)
 
         if tuple(u_i.function_space() for u_i in iter_sub(u)) \
-                != self._arg_space.flattened_space:
+                != self._A.arg_space.flattened_space:
             raise ValueError("Invalid space")
-        for b_i, space in zip_sub(b, self._action_space.split_space):
+        for b_i, space in zip_sub(b, self._A.action_space.split_space):
             if b_i is not None and b_i.function_space() != space:
                 raise ValueError("Invalid space")
 
-        b_c = self._action_space.new_split()
+        b_c = self._A.action_space.new_split()
         for b_c_i, b_i in zip_sub(b_c, b):
             if b_i is not None:
                 var_assign(b_c_i, b_i)
 
-        A = SystemMatrix(self._matrix, self._nullspace)
-
-        mat_A = PETSc.Mat().createPython(
-            ((self._action_space.local_size, self._action_space.global_size),
-             (self._arg_space.local_size, self._arg_space.global_size)), A,
-            comm=self._comm)
-        mat_A.setUp()
-
-        if pc_fn is not None:
-            A_pc = Preconditioner(self._action_space, self._arg_space,
-                                  pc_fn, self._nullspace)
-            pc = PETSc.PC().createPython(
-                A_pc, comm=self._comm)
-            pc.setOperators(mat_A)
-            pc.setUp()
-
-        ksp_solver = PETSc.KSP().create(comm=self._comm)
-        ksp_solver.setType(solver_parameters.get("linear_solver", "fgmres"))
-        if pc_fn is not None:
-            ksp_solver.setPC(pc)
-        if "pc_side" in solver_parameters:
-            ksp_solver.setPCSide(solver_parameters["pc_side"])
-        ksp_solver.setOperators(mat_A)
-        ksp_solver.setTolerances(
-            rtol=solver_parameters["relative_tolerance"],
-            atol=solver_parameters["absolute_tolerance"],
-            divtol=solver_parameters.get("divergence_limit", None),
-            max_it=solver_parameters.get("maximum_iterations", 1000))
-        ksp_solver.setInitialGuessNonzero(
-            solver_parameters.get("nonzero_initial_guess", True))
-        ksp_solver.setNormType(
-            solver_parameters.get(
-                "norm_type", PETSc.KSP.NormType.DEFAULT))
-        if "gmres_restart" in solver_parameters:
-            ksp_solver.setGMRESRestart(solver_parameters["gmres_restart"])
-
-        logger = logging.getLogger("tlm_adjoint.System")
-
-        def monitor(ksp_solver, it, r_norm):
-            logger.debug(f"KSP: "
-                         f"iteration {it:d}, "
-                         f"residual norm {r_norm:.16e}")
-
-        ksp_solver.setMonitor(monitor)
-
         if correct_initial_guess:
-            self._nullspace.correct_soln(u)
-        self._nullspace.correct_rhs(b_c)
+            self._A.nullspace.correct_soln(u)
+        self._A.nullspace.correct_rhs(b_c)
 
-        u_petsc = mat_A.createVecRight()
-        self._arg_space.to_petsc(u_petsc, u)
-        b_petsc = mat_A.createVecLeft()
-        self._action_space.to_petsc(b_petsc, b_c)
+        u_petsc = self._A_mat.createVecRight()
+        self._A.arg_space.to_petsc(u_petsc, u)
+        b_petsc = self._A_mat.createVecLeft()
+        self._A.action_space.to_petsc(b_petsc, b_c)
         del b_c
 
-        if pre_callback is not None:
-            pre_callback(ksp_solver)
-        ksp_solver.setUp()
-        ksp_solver.solve(b_petsc, u_petsc)
-        if post_callback is not None:
-            post_callback(ksp_solver)
+        try:
+            self._pc_pc_fn[0] = pc_fn
+            self.ksp.solve(b_petsc, u_petsc)
+        finally:
+            self._pc_pc_fn[0] = [self._pc_fn]
         del b_petsc
 
-        self._arg_space.from_petsc(u_petsc, u)
+        self._A.arg_space.from_petsc(u_petsc, u)
         del u_petsc
 
         if correct_solution:
             # Not needed if the linear problem were to be solved exactly
-            self._nullspace.correct_soln(u)
+            self._A.nullspace.correct_soln(u)
 
-        if ksp_solver.getConvergedReason() <= 0:
+        if self.ksp.getConvergedReason() <= 0:
             raise RuntimeError("Convergence failure")
-        ksp_its = ksp_solver.getIterationNumber()
-
-        ksp_solver.destroy()
-        mat_A.destroy()
-        if pc_fn is not None:
-            pc.destroy()
-
-        return ksp_its

@@ -92,7 +92,6 @@ def test_hessian_solve(setup_test,
     nullspace = DirichletBCNullspace(bc)
 
     v = Function(space, name="v")
-    system = HessianSystem(H, m, nullspace=nullspace)
 
     if N_eigenvalues == 0:
         pc_fn = None
@@ -124,11 +123,15 @@ def test_hessian_solve(setup_test,
 
         pc_fn = hessian_eigendecomposition_pc(B, Lam, V)
 
-    ksp_its = system.solve(
-        v, b_ref, pc_fn=pc_fn,
+    H_solver = HessianLinearSolver(
+        H, m,
         solver_parameters={"linear_solver": "cg",
                            "absolute_tolerance": 1.0e-12,
-                           "relative_tolerance": 1.0e-12})
+                           "relative_tolerance": 1.0e-12},
+        pc_fn=pc_fn)
+    H_solver.solve(
+        v, b_ref)
+    ksp_its = H_solver.ksp.getIterationNumber()
 
     if N_eigenvalues == 0:
         assert ksp_its <= 14

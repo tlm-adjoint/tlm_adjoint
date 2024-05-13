@@ -2,8 +2,8 @@
 """
 
 from ..block_system import (
-    BlockMatrix as _BlockMatrix, BlockNullspace, Matrix, MixedSpace,
-    NoneNullspace, Nullspace, System as _System)
+    BlockMatrix as _BlockMatrix, BlockNullspace, LinearSolver as _LinearSolver,
+    Matrix, MixedSpace, NoneNullspace, Nullspace)
 
 from firedrake import Constant, DirichletBC, Function, TestFunction, assemble
 
@@ -31,7 +31,7 @@ __all__ = \
         "BlockMatrix",
         "form_matrix",
 
-        "System"
+        "LinearSolver"
     ]
 
 
@@ -225,18 +225,14 @@ def form_matrix(a, *args, **kwargs):
 
 
 class BlockMatrix(_BlockMatrix):
-    """A :class:`tlm_adjoint.block_system.BlockMatrix` where blocks may also be
-    defined by a :class:`ufl.Form`.
-    """
-
     def __setitem__(self, key, value):
         if isinstance(value, ufl.classes.Form):
             value = form_matrix(value)
         super().__setitem__(key, value)
 
 
-class System(_System):
-    def __init__(self, arg_spaces, action_spaces, blocks, *args, **kwargs):
-        if not isinstance(blocks, BlockMatrix):
-            blocks = BlockMatrix(arg_spaces, action_spaces, blocks)
-        super().__init__(arg_spaces, action_spaces, blocks, *args, **kwargs)
+class LinearSolver(_LinearSolver):
+    def __init__(self, A, *args, **kwargs):
+        if isinstance(A, ufl.classes.Form):
+            A = form_matrix(A)
+        super().__init__(A, *args, **kwargs)

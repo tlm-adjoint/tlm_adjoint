@@ -1,11 +1,11 @@
 from ..interface import (
-    check_space_types, comm_dup_cached, is_var, space_dtype, var_assign,
-    var_axpy, var_axpy_conjugate, var_copy, var_copy_conjugate, var_dtype,
-    var_inner, var_space, var_space_type)
+    check_space_types, is_var, space_dtype, var_assign, var_axpy,
+    var_axpy_conjugate, var_copy, var_copy_conjugate, var_dtype, var_inner,
+    var_space, var_space_type)
 
 from ..block_system import (
-    BlockNullspace, Matrix, MixedSpace, NoneNullspace, Preconditioner, System,
-    iter_sub, tuple_sub)
+    BlockNullspace, LinearSolver, Matrix, MixedSpace, NoneNullspace,
+    Preconditioner, iter_sub, tuple_sub)
 from ..eigendecomposition import eigendecompose
 from ..manager import manager_disabled
 
@@ -16,7 +16,7 @@ import warnings
 
 __all__ = \
     [
-        "HessianSystem",
+        "HessianLinearSolver",
         "hessian_eigendecompose",
         "B_inv_orthonormality_test",
         "hessian_eigendecomposition_pc",
@@ -38,7 +38,8 @@ class HessianMatrix(Matrix):
         else:
             M = tuple(M)
         arg_space = tuple(map(var_space, M))
-        action_space = tuple(var_space(m).dual() for m in M)
+        action_space = MixedSpace(tuple(var_space(m).dual() for m in M),
+                                  space_types=tuple("dual" for _ in M))
 
         super().__init__(arg_space, action_space)
         self._H = H
@@ -63,7 +64,7 @@ class HessianMatrix(Matrix):
             var_axpy_conjugate(y_i, 1.0, ddJ_i)
 
 
-class HessianSystem(System):
+class HessianLinearSolver(LinearSolver):
     """Defines a linear system involving a Hessian matrix,
 
     .. math::
@@ -75,34 +76,13 @@ class HessianSystem(System):
         :class:`firedrake.cofunction.Cofunction`, or a :class:`Sequence` of
         :class:`firedrake.function.Function` or
         :class:`firedrake.cofunction.Cofunction` objects, defining the control.
-    :arg nullspace: A :class:`.Nullspace` or a :class:`Sequence` of
-        :class:`.Nullspace` objects defining the nullspace and left nullspace
-        of the Hessian matrix. `None` indicates a :class:`.NoneNullspace`.
-    :arg comm: A communicator.
+
+    Remaining arguments are passed to the
+    :class:`tlm_adjoint.block_system.LinearSolver` constructor.
     """
 
-    def __init__(self, H, M, *,
-                 nullspace=None, comm=None):
-        if is_var(M):
-            M = (M,)
-
-        arg_spaces = MixedSpace(
-            (tuple(map(var_space, M)),),
-            space_types=tuple(map(var_space_type, M)))
-        action_spaces = MixedSpace(
-            (tuple(var_space(m).dual() for m in M),),
-            space_types=tuple(var_space_type(m, rel_space_type="dual")
-                              for m in M))
-
-        matrix = HessianMatrix(H, M)
-
-        if comm is None:
-            comm = arg_spaces.comm
-        comm = comm_dup_cached(comm, key="HessianSystem")
-
-        super().__init__(
-            arg_spaces, action_spaces, matrix,
-            nullspaces=BlockNullspace(nullspace), comm=comm)
+    def __init__(self, H, M, *args, **kwargs):
+        super().__init__(HessianMatrix(H, M), *args, **kwargs)
 
     @manager_disabled()
     def solve(self, u, b, **kwargs):
@@ -123,8 +103,8 @@ class HessianSystem(System):
             :class:`firedrake.cofunction.Cofunction` objects, defining the
             conjugate of the right-hand-side :math:`b`.
 
-        Remaining arguments are handed to the base class
-        :meth:`.System.solve` method.
+        Remaining arguments are handed to the
+        :class:`tlm_adjoint.block_system.LinearSolver`` method.
         """
 
         if is_var(b):
@@ -239,7 +219,7 @@ def hessian_eigendecompose(
 
         B_pc = Preconditioner(
             action_space, arg_space,
-            B_action, BlockNullspace(nullspace))
+            B_action, nullspace=BlockNullspace(nullspace))
         pc = PETSc.PC().createPython(
             B_pc, comm=ksp_solver.comm)
         pc.setOperators(B_inv)
@@ -391,7 +371,7 @@ def hessian_eigendecomposition_pc(B_action, Lam, V):
         :class:`firedrake.cofunction.Cofunction` objects defining the columns
         of :math:`V`.
     :returns: A callable suitable for use as the `pc_fn` argument to
-        :meth:`.HessianSystem.solve`.
+        :meth:`.HessianLinearSolver.solve`.
     """
 
     if len(V) == 2 \
