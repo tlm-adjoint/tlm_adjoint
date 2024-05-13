@@ -80,7 +80,7 @@ representations of a mixed space solution.
 
 from ..block_system import (
     BlockMatrix as _BlockMatrix, BlockNullspace, Matrix, MixedSpace,
-    NoneNullspace, Nullspace, iter_sub, zip_sub)
+    NoneNullspace, Nullspace, Preconditioner, SystemMatrix, iter_sub, zip_sub)
 
 from firedrake import (
     Constant, DirichletBC, Function, TestFunction, assemble)
@@ -314,84 +314,6 @@ class BlockMatrix(_BlockMatrix):
         if isinstance(value, ufl.classes.Form):
             value = form_matrix(value)
         super().__setitem__(key, value)
-
-
-class PETScInterface:
-    def __init__(self, arg_space, action_space, nullspace):
-        if not isinstance(arg_space, MixedSpace):
-            arg_space = MixedSpace(arg_space)
-        if not isinstance(action_space, MixedSpace):
-            action_space = MixedSpace(action_space)
-
-        self._arg_space = arg_space
-        self._action_space = action_space
-        self._nullspace = nullspace
-
-        self._x = arg_space.new_split()
-        self._y = action_space.new_split()
-
-        if isinstance(self._nullspace, NoneNullspace):
-            self._x_c = self._x
-        else:
-            self._x_c = arg_space.new_split()
-
-    @property
-    def arg_space(self):
-        return self._arg_space
-
-    @property
-    def action_space(self):
-        return self._action_space
-
-    def _pre_mult(self, x_petsc):
-        self.arg_space.from_petsc(x_petsc, self._x)
-
-        if not isinstance(self._nullspace, NoneNullspace):
-            for x_i, x_c_i in zip_sub(self._x, self._x_c):
-                with x_c_i.dat.vec_wo as x_c_i_v, x_i.dat.vec_ro as x_i_v:
-                    x_i_v.copy(result=x_c_i_v)
-
-        for y_i in iter_sub(self._y):
-            with y_i.dat.vec_wo as y_i_v:
-                y_i_v.zeroEntries()
-
-    def _post_mult(self, y_petsc):
-        self.action_space.to_petsc(y_petsc, self._y)
-
-
-class SystemMatrix(PETScInterface):
-    def __init__(self, matrix, nullspace):
-        super().__init__(matrix.arg_space, matrix.action_space, nullspace)
-        self._matrix = matrix
-
-    def mult(self, A, x, y):
-        self._pre_mult(x)
-
-        if not isinstance(self._nullspace, NoneNullspace):
-            self._nullspace.pre_mult_correct_lhs(self._x_c)
-        self._matrix.mult_add(self._x_c, self._y)
-        if not isinstance(self._nullspace, NoneNullspace):
-            self._nullspace.post_mult_correct_lhs(self._x, self._y)
-
-        self._post_mult(y)
-
-
-class Preconditioner(PETScInterface):
-    def __init__(self, arg_space, action_space, pc_fn, nullspace):
-        super().__init__(arg_space, action_space, nullspace)
-        self._pc_fn = pc_fn
-
-    def apply(self, pc, x, y):
-        self._pre_mult(x)
-
-        if not isinstance(self._nullspace, NoneNullspace):
-            self._nullspace.pc_pre_mult_correct(self._x_c)
-        self._pc_fn(self._y, self._x_c)
-        if not isinstance(self._nullspace, NoneNullspace):
-            self._nullspace.pc_post_mult_correct(
-                self._y, self._x)
-
-        self._post_mult(y)
 
 
 class System:
