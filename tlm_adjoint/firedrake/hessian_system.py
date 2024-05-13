@@ -4,11 +4,10 @@ from ..interface import (
     var_inner, var_space, var_space_type)
 
 from ..block_system import (
-    BlockNullspace, MixedSpace, NoneNullspace, iter_sub, tuple_sub)
+    BlockNullspace, Matrix, MixedSpace, NoneNullspace, Preconditioner, System,
+    iter_sub, tuple_sub)
 from ..eigendecomposition import eigendecompose
 from ..manager import manager_disabled
-
-from .block_system import Matrix, Preconditioner, System
 
 from collections.abc import Sequence
 import numpy as np
