@@ -327,7 +327,7 @@ if MPI is not None and PETSc is not None and hasattr(PETSc, "garbage_cleanup"):
 
 def garbage_cleanup(comm=None):
     """Call `petsc4py.PETSc.garbage_cleanup(comm)` for a communicator, and any
-    communicators duplicated from it using :func:`comm_dup_cached`.
+    communicators duplicated from it using :func:`.comm_dup_cached`.
 
     :arg comm: A communicator. Defaults to `DEFAULT_COMM`.
     """
