@@ -60,6 +60,24 @@ class ConstantSpaceInterface(SpaceInterface):
                     and space_dtype(self) == space_dtype(other)
                     and self == other))
 
+    def _global_size(self):
+        shape = self.ufl_element().value_shape
+        if len(shape) == 0:
+            return 1
+        else:
+            return np.prod(shape)
+
+    def _local_indices(self):
+        comm = space_comm(self)
+        if comm.rank == 0:
+            shape = self.ufl_element().value_shape
+            if len(shape) == 0:
+                return slice(0, 1)
+            else:
+                return slice(0, np.prod(shape))
+        else:
+            return slice(0, 0)
+
     def _new(self, *, name=None, space_type="primal", static=False,
              cache=None):
         domain = self._tlm_adjoint__space_interface_attrs["domain"]
@@ -155,32 +173,6 @@ class ConstantInterface(VariableInterface):
             return var_dtype(self)(0.0).real.dtype.type(0.0)
         else:
             return abs(values).max()
-
-    def _local_size(self):
-        comm = var_comm(self)
-        if comm.rank == 0:
-            if len(self.ufl_shape) == 0:
-                return 1
-            else:
-                return np.prod(self.ufl_shape)
-        else:
-            return 0
-
-    def _global_size(self):
-        if len(self.ufl_shape) == 0:
-            return 1
-        else:
-            return np.prod(self.ufl_shape)
-
-    def _local_indices(self):
-        comm = var_comm(self)
-        if comm.rank == 0:
-            if len(self.ufl_shape) == 0:
-                return slice(0, 1)
-            else:
-                return slice(0, np.prod(self.ufl_shape))
-        else:
-            return slice(0, 0)
 
     def _get_values(self):
         comm = var_comm(self)
@@ -367,6 +359,13 @@ class FunctionSpaceInterface(SpaceInterface):
                     and ufl.duals.is_primal(self) == ufl.duals.is_primal(other)
                     and self == other))
 
+    def _global_size(self):
+        return self.dim()
+
+    def _local_indices(self):
+        n0, n1 = self._tlm_adjoint__space_interface_attrs["local_indices"]
+        return slice(n0, n1)
+
     def _new(self, *, name=None, space_type="primal", static=False,
              cache=None):
         if space_type in {"primal", "conjugate"}:
@@ -435,21 +434,6 @@ class FunctionInterfaceBase(VariableInterface):
         with self.dat.vec_ro as x_v:
             linf_norm = x_v.norm(norm_type=PETSc.NormType.NORM_INFINITY)
         return linf_norm
-
-    def _local_size(self):
-        with self.dat.vec_ro as x_v:
-            local_size = x_v.getLocalSize()
-        return local_size
-
-    def _global_size(self):
-        with self.dat.vec_ro as x_v:
-            size = x_v.getSize()
-        return size
-
-    def _local_indices(self):
-        with self.dat.vec_ro as x_v:
-            local_range = x_v.getOwnershipRange()
-        return slice(*local_range)
 
     def _get_values(self):
         with self.dat.vec_ro as x_v:

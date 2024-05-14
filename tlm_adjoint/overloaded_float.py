@@ -109,6 +109,15 @@ class FloatSpaceInterface(SpaceInterface):
                     and space_comm(self).py2f() == space_comm(other).py2f()
                     and space_dtype(self) == space_dtype(other)))
 
+    def _global_size(self):
+        return 1
+
+    def _local_indices(self):
+        if self.comm.rank == 0:
+            return slice(0, 1)
+        else:
+            return slice(0, 0)
+
     def _new(self, *, name=None, space_type="primal", static=False,
              cache=None):
         return self.float_cls(
@@ -262,21 +271,6 @@ class FloatInterface(VariableInterface):
 
     def _linf_norm(self):
         return self.space.rdtype(abs(self.value))
-
-    def _local_size(self):
-        if self.space.comm.rank == 0:
-            return 1
-        else:
-            return 0
-
-    def _global_size(self):
-        return 1
-
-    def _local_indices(self):
-        if self.space.comm.rank == 0:
-            return slice(0, 1)
-        else:
-            return slice(0, 0)
 
     def _get_values(self):
         return np.array([self.value] if self.space.comm.rank == 0 else [],

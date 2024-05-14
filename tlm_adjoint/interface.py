@@ -81,7 +81,10 @@ __all__ = \
         "space_default_space_type",
         "space_dtype",
         "space_eq",
+        "space_global_size",
         "space_id",
+        "space_local_indices",
+        "space_local_size",
         "space_new",
 
         "SpaceTypeError",
@@ -434,7 +437,8 @@ class SpaceInterface:
     """
 
     prefix = "_tlm_adjoint__space_interface"
-    names = ("_default_space_type", "_comm", "_dtype", "_id", "_eq", "_new")
+    names = ("_default_space_type", "_comm", "_dtype", "_id", "_eq",
+             "_local_size", "_global_size", "_local_indices", "_new")
 
     def __init__(self):
         raise RuntimeError("Cannot instantiate SpaceInterface object")
@@ -453,6 +457,17 @@ class SpaceInterface:
 
     def _eq(self, other):
         return space_id(self) == space_id(other)
+
+    def _local_size(self):
+        indices = space_local_indices(self)
+        n0, n1 = indices.start, indices.stop
+        return n1 - n0
+
+    def _global_size(self):
+        raise NotImplementedError("Method not overridden")
+
+    def _local_indices(self):
+        raise NotImplementedError("Method not overridden")
 
     def _new(self, *, name=None, space_type="primal", static=False,
              cache=None):
@@ -524,6 +539,43 @@ def space_eq(space, other):
 
     return (is_space(other)
             and space._tlm_adjoint__space_interface_eq(other))
+
+
+def space_local_size(space):
+    """Return the process local number of degrees of freedom associated with
+    a variable in a space. This is the number of 'owned' degrees of freedom.
+
+    :arg x: The space.
+    :returns: The process local number of degrees of freedom for a variable in
+        the space.
+    """
+
+    return space._tlm_adjoint__space_interface_local_size()
+
+
+def space_global_size(space):
+    """Return the global number of degrees of freedom associated with a
+    variable in a space. This is the total number of 'owned' degrees of
+    freedom, summed across all processes.
+
+    :arg x: The space.
+    :returns: The global number of degrees of freedom for a variable in the
+        space.
+    """
+
+    return space._tlm_adjoint__space_interface_global_size()
+
+
+def space_local_indices(space):
+    """Return the indices of process local degrees of freedom associated with
+    a variable in a space.
+
+    :arg x: The space.
+    :returns: An :class:`slice`, yielding the indices of the process local
+        elements.
+    """
+
+    return space._tlm_adjoint__space_interface_local_indices()
 
 
 def space_new(space, *, name=None, space_type=None, static=False,
@@ -798,13 +850,13 @@ class VariableInterface:
         raise NotImplementedError("Method not overridden")
 
     def _local_size(self):
-        raise NotImplementedError("Method not overridden")
+        return space_local_size(var_space(self))
 
     def _global_size(self):
-        raise NotImplementedError("Method not overridden")
+        return space_global_size(var_space(self))
 
     def _local_indices(self):
-        raise NotImplementedError("Method not overridden")
+        return space_local_indices(var_space(self))
 
     def _get_values(self):
         raise NotImplementedError("Method not overridden")
@@ -1261,7 +1313,7 @@ def var_local_indices(x):
     a variable.
 
     :arg x: The variable.
-    :returns: An :class:`Iterable`, yielding the indices of the process local
+    :returns: An :class:`slice`, yielding the indices of the process local
         elements.
     """
 

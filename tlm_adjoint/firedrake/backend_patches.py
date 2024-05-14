@@ -258,6 +258,9 @@ def FunctionSpace__init__(self, orig, orig_args, *args, **kwargs):
     add_interface(self, FunctionSpaceInterface,
                   {"space": self, "comm": comm_dup_cached(self.comm),
                    "id": new_space_id_cached(self)})
+    with backend_Function(self).dat.vec_ro as x_v:
+        n0, n1 = x_v.getOwnershipRange()
+    self._tlm_adjoint__space_interface_attrs["local_indices"] = (n0, n1)
 
 
 @patch_method(backend_FunctionSpace, "dual")
@@ -276,6 +279,9 @@ def CofunctionSpace__init__(self, orig, orig_args, *args, **kwargs):
     add_interface(self, FunctionSpaceInterface,
                   {"space_dual": self, "comm": comm_dup_cached(self.comm),
                    "id": new_space_id_cached(self)})
+    with backend_Cofunction(self).dat.vec_ro as x_v:
+        n0, n1 = x_v.getOwnershipRange()
+    self._tlm_adjoint__space_interface_attrs["local_indices"] = (n0, n1)
 
 
 @patch_method(backend_CofunctionSpace, "dual")

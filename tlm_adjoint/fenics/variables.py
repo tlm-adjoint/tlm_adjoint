@@ -55,6 +55,24 @@ class ConstantSpaceInterface(SpaceInterface):
                     and space_dtype(self) == space_dtype(other)
                     and self == other))
 
+    def _global_size(self):
+        shape = self.ufl_element().value_shape()
+        if len(shape) == 0:
+            return 1
+        else:
+            return np.prod(shape)
+
+    def _local_indices(self):
+        comm = space_comm(self)
+        if comm.rank == 0:
+            shape = self.ufl_element().value_shape()
+            if len(shape) == 0:
+                return slice(0, 1)
+            else:
+                return slice(0, np.prod(shape))
+        else:
+            return slice(0, 0)
+
     def _new(self, *, name=None, space_type="primal", static=False,
              cache=None):
         domain = self._tlm_adjoint__space_interface_attrs["domain"]
@@ -150,32 +168,6 @@ class ConstantInterface(VariableInterface):
             return var_dtype(self)(0.0).real.dtype.type(0.0)
         else:
             return abs(values).max()
-
-    def _local_size(self):
-        comm = var_comm(self)
-        if comm.rank == 0:
-            if len(self.ufl_shape) == 0:
-                return 1
-            else:
-                return np.prod(self.ufl_shape)
-        else:
-            return 0
-
-    def _global_size(self):
-        if len(self.ufl_shape) == 0:
-            return 1
-        else:
-            return np.prod(self.ufl_shape)
-
-    def _local_indices(self):
-        comm = var_comm(self)
-        if comm.rank == 0:
-            if len(self.ufl_shape) == 0:
-                return slice(0, 1)
-            else:
-                return slice(0, np.prod(self.ufl_shape))
-        else:
-            return slice(0, 0)
 
     def _get_values(self):
         comm = var_comm(self)
@@ -317,6 +309,13 @@ class FunctionSpaceInterface(SpaceInterface):
                 or (isinstance(other, type(self))
                     and self == other))
 
+    def _global_size(self):
+        return self.dofmap().global_dimension()
+
+    def _local_indices(self):
+        n0, n1 = self.dofmap().ownership_range()
+        return slice(n0, n1)
+
     def _new(self, *, name=None, space_type="primal", static=False,
              cache=None):
         return Function(self, name=name, space_type=space_type, static=static,
@@ -421,18 +420,6 @@ class FunctionInterface(VariableInterface):
     @check_vector
     def _linf_norm(self):
         return self.vector().norm("linf")
-
-    @check_vector
-    def _local_size(self):
-        return self.vector().local_size()
-
-    @check_vector
-    def _global_size(self):
-        return self.function_space().dofmap().global_dimension()
-
-    @check_vector
-    def _local_indices(self):
-        return slice(*self.function_space().dofmap().ownership_range())
 
     @check_vector
     def _get_values(self):

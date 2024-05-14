@@ -77,6 +77,12 @@ class VectorSpaceInterface(SpaceInterface):
     def _id(self):
         return self._tlm_adjoint__space_interface_attrs["id"]
 
+    def _global_size(self):
+        return self.global_size
+
+    def _local_indices(self):
+        return slice(*self.ownership_range)
+
     def _new(self, *, name=None, space_type="primal", static=False,
              cache=None):
         return Vector(self, name=name, space_type=space_type, static=static,
@@ -231,15 +237,6 @@ class VectorInterface(VariableInterface):
         if MPI is not None:
             norm = self.space.comm.allreduce(norm, op=MPI.MAX)
         return norm
-
-    def _local_size(self):
-        return self.space.local_size
-
-    def _global_size(self):
-        return self.space.global_size
-
-    def _local_indices(self):
-        return slice(*self.space.ownership_range)
 
     def _get_values(self):
         return np.array(self.vector, dtype=self.space.dtype)

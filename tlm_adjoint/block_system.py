@@ -220,9 +220,7 @@ class MixedSpace(PETScVecInterface, Sequence):
             comm = MPI.COMM_SELF
 
         assert len(flattened_spaces) == len(space_types)
-        super().__init__(
-            tuple(space_new(space, space_type=space_type)
-                  for space, space_type in zip(flattened_spaces, space_types)))
+        super().__init__(flattened_spaces)
         self._spaces = spaces
         self._flattened_spaces = flattened_spaces
         self._space_types = space_types

@@ -230,7 +230,7 @@ class PointInterpolation(Equation):
         if dep_index != len(self.X()):
             raise ValueError("Unexpected dep_index")
 
-        adj_Xm = space_new(self._interp.V, space_type="conjugate_dual")
+        adj_Xm = space_new(self._interp.V.dual())
 
         vmesh_coords_map = self._interp._tlm_adjoint__vmesh_coords_map
         rank = var_comm(adj_Xm).rank

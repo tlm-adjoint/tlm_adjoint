@@ -1,5 +1,6 @@
 from .interface import (
-    var_dtype, var_get_values, var_global_size, var_local_size, var_set_values)
+    space_global_size, space_local_size, var_dtype, var_get_values,
+    var_local_size, var_set_values)
 
 import numpy as np
 try:
@@ -60,7 +61,7 @@ class PETScOptions:
 
 
 class PETScVecInterface:
-    def __init__(self, X, *, dtype=None):
+    def __init__(self, spaces, *, dtype=None):
         if PETSc is None:
             raise RuntimeError("PETSc not available")
 
@@ -71,10 +72,10 @@ class PETScVecInterface:
         indices = []
         n = 0
         N = 0
-        for x in X:
-            indices.append((n, n + var_local_size(x)))
-            n += var_local_size(x)
-            N += var_global_size(x)
+        for space in spaces:
+            indices.append((n, n + space_local_size(space)))
+            n += space_local_size(space)
+            N += space_global_size(space)
 
         self._dtype = dtype
         self._indices = tuple(indices)
