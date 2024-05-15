@@ -3,7 +3,7 @@
 
 from ..block_system import (
     BlockMatrix as _BlockMatrix, BlockNullspace, LinearSolver as _LinearSolver,
-    Matrix, MixedSpace, NoneNullspace, Nullspace)
+    Matrix, MixedSpace, NoneNullspace, Nullspace, TypedSpace)
 from ..interface import space_eq
 
 from firedrake import Constant, DirichletBC, Function, TestFunction, assemble
@@ -18,6 +18,7 @@ except ImportError:
 
 __all__ = \
     [
+        "TypedSpace",
         "MixedSpace",
 
         "Nullspace",

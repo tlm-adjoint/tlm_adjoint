@@ -4,8 +4,8 @@ from ..interface import (
     var_space_type)
 
 from ..block_system import (
-    BlockNullspace, LinearSolver, Matrix, MixedSpace, NoneNullspace,
-    Preconditioner, iter_sub, tuple_sub)
+    BlockNullspace, LinearSolver, Matrix, NoneNullspace, Preconditioner,
+    TypedSpace, iter_sub, tuple_sub)
 from ..eigendecomposition import eigendecompose
 from ..manager import manager_disabled
 
@@ -38,8 +38,8 @@ class HessianMatrix(Matrix):
         else:
             M = tuple(M)
         arg_space = tuple(m.function_space() for m in M)
-        action_space = MixedSpace(tuple(m.function_space().dual() for m in M),
-                                  space_types=tuple("dual" for _ in M))
+        action_space = tuple(TypedSpace(m.function_space().dual(), space_type="dual")  # noqa: E501
+                             for m in M)
 
         super().__init__(arg_space, action_space)
         self._H = H
@@ -173,10 +173,10 @@ def hessian_eigendecompose(
     space = m.function_space()
 
     arg_space_type = var_space_type(m)
-    arg_space = MixedSpace(space, space_types=arg_space_type)
+    arg_space = TypedSpace(space, space_type=arg_space_type)
 
     action_space_type = var_space_type(m, rel_space_type="dual")
-    action_space = MixedSpace(space, space_types=action_space_type)
+    action_space = TypedSpace(space, space_type=action_space_type)
 
     if nullspace is None:
         nullspace = NoneNullspace()

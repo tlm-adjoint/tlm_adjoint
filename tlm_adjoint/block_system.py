@@ -44,9 +44,10 @@ This has two primary use cases:
        then seeks a solution to the original problem subject to the linear
        constraints :math:`V^* C u = 0`.
 
-Spaces are defined via backend spaces, and :class:`Sequence` objects containing
-backend spaces or similar :class:`Sequence` objects. Similarly variables are
-defined via backend variables, or :class:`Sequence` objects containing backend
+Spaces are defined via backend spaces or :class:`.TypedSpace` objects, and
+:class:`Sequence` objects containing backend spaces, :class:`.TypedSpace`
+objects, or similar :class:`Sequence` objects. Similarly variables are defined
+via backend variables, or :class:`Sequence` objects containing backend
 variables, or similar :class:`Sequence` objects. This defines a basic tree
 structure which is useful e.g. when defining block matrices in terms of
 sub-block matrices.
@@ -91,6 +92,7 @@ import weakref
 
 __all__ = \
     [
+        "TypedSpace",
         "MixedSpace",
 
         "Nullspace",
@@ -149,15 +151,73 @@ def zip_sub(*iterables):
             pass
 
 
+class TypedSpace:
+    """A space with an associated space type.
+
+    :arg space: The space.
+    :arg space_types: The space type.
+    """
+
+    def __init__(self, space, *, space_type=None):
+        if isinstance(space, TypedSpace):
+            if space_type is None:
+                space_type = space.space_type
+            space = space.space
+
+        if space_type is None:
+            space_type = space_default_space_type(space)
+        if space_type not in {"primal", "conjugate",
+                              "dual", "conjugate_dual"}:
+            raise ValueError("Invalid space type")
+
+        self._space = space
+        self._space_type = space_type
+
+    def __eq__(self, other):
+        return (isinstance(other, TypedSpace)
+                and self.space_type == other.space_type
+                and space_eq(self.space, other.space))
+
+    def __ne__(self, other):
+        return not (self == other)
+
+    @property
+    def comm(self):
+        """The communicator associated with the space.
+        """
+
+        return space_comm(self.space)
+
+    @property
+    def space(self):
+        """The backend space.
+        """
+
+        return self._space
+
+    @property
+    def space_type(self):
+        """The space type.
+        """
+
+        return self._space_type
+
+    def new(self):
+        """Return a new variable in the space.
+        """
+
+        return space_new(self.space, space_type=self.space_type)
+
+
 class MixedSpace(PETScVecInterface, Sequence):
     """Used to map between different versions of a mixed space.
 
     This class defines two representations for the space:
 
         1. As a 'split space': A tree defining the mixed space. Stored using
-           backend space and :class:`tuple` objects, each corresponding to a
-           node in the tree. Backend spaces correspond to leaf nodes, and
-           :class:`tuple` objects to other nodes in the tree.
+           :class:`.TypedSpace` and :class:`tuple` objects, each corresponding
+           to a node in the tree. :class:`.TypedSpace` objects correspond to
+           leaf nodes, and :class:`tuple` objects to other nodes in the tree.
         2. As a 'flattened space': A :class:`Sequence` containing leaf nodes of
            the split space with an ordering determined using a depth first
            search.
@@ -186,68 +246,63 @@ class MixedSpace(PETScVecInterface, Sequence):
 
         mixed_space.from_petsc(u_petsc, ((u_0, u_1), u_2))
 
-    :arg spaces: The split space.
+    :arg spaces: Defines the split space. A :class:`Sequence` whose elements
+        are backend space or :class:`.TypedSpace` objects, or similar
+        :class:`Sequence` objects.
     """
 
-    def __init__(self, spaces, *, space_types=None):
+    def __init__(self, spaces):
         if isinstance(spaces, MixedSpace):
             spaces = spaces.split_space
         elif isinstance(spaces, Sequence):
             spaces = tuple(spaces)
+        elif isinstance(spaces, TypedSpace):
+            spaces = (spaces,)
         else:
             spaces = (spaces,)
-        spaces = tuple_sub(spaces, spaces)
-        flattened_spaces = tuple(iter_sub(spaces))
-
-        if space_types is None:
-            space_types = tuple(map(space_default_space_type,
-                                    flattened_spaces))
-        elif space_types in ["primal", "conjugate", "dual", "conjugate_dual"]:
-            space_types = tuple(space_types for _ in flattened_spaces)
-        space_types = tuple(iter_sub(space_types))
-        if len(space_types) != len(flattened_spaces):
-            raise ValueError("Invalid space types")
-        for space_type in space_types:
-            if space_type not in {"primal", "conjugate",
-                                  "dual", "conjugate_dual"}:
-                raise ValueError("Invalid space types")
+        flattened_spaces = tuple(space if isinstance(space, TypedSpace)
+                                 else TypedSpace(space)
+                                 for space in iter_sub(spaces))
+        spaces = tuple_sub(flattened_spaces, spaces)
 
         if len(flattened_spaces) > 0:
-            comm = space_comm(flattened_spaces[0])
+            comm = flattened_spaces[0].comm
         elif MPI is None:
             comm = DEFAULT_COMM
         else:
             comm = MPI.COMM_SELF
 
-        assert len(flattened_spaces) == len(space_types)
-        super().__init__(flattened_spaces)
+        super().__init__(tuple(space.space for space in flattened_spaces))
         self._spaces = spaces
         self._flattened_spaces = flattened_spaces
-        self._space_types = space_types
         self._comm = comm
 
     def __len__(self):
         return len(self.split_space)
 
     def __getitem__(self, key):
-        if len(self) == 1 and not isinstance(self.split_space[0], Sequence):
-            return (self,)[key]
+        space = self.split_space[key]
+        if isinstance(space, TypedSpace):
+            return space
         else:
-            return MixedSpace(self.split_space[key])
+            return MixedSpace(space)
 
     def __eq__(self, other):
+        if not isinstance(other, MixedSpace):
+            return False
         self_shape = self.tuple_sub(None for _ in self.flattened_space)
         other_shape = other.tuple_sub(None for _ in other.flattened_space)
         if self_shape != other_shape:
             return False
-        if self.space_types != other.space_types:
-            return False
         assert len(self.flattened_space) == len(other.flattened_space)
         for self_space, other_space in zip(self.flattened_space,
                                            other.flattened_space):
-            if not space_eq(self_space, other_space):
+            if self_space != other_space:
                 return False
         return True
+
+    def __ne__(self, other):
+        return not (self == other)
 
     @property
     def comm(self):
@@ -270,13 +325,6 @@ class MixedSpace(PETScVecInterface, Sequence):
 
         return self._flattened_spaces
 
-    @property
-    def space_types(self):
-        """Space types for the flattened space representation.
-        """
-
-        return self._space_types
-
     def tuple_sub(self, u):
         """
         :arg u: An :class:`Iterable`.
@@ -291,10 +339,7 @@ class MixedSpace(PETScVecInterface, Sequence):
         :returns: A new element in the split space.
         """
 
-        u = []
-        assert len(self.flattened_space) == len(self.space_types)
-        for space, space_type in zip(self.flattened_space, self.space_types):
-            u.append(space_new(space, space_type=space_type))
+        u = tuple(space.new() for space in self.flattened_space)
         return self.tuple_sub(u)
 
     def from_petsc(self, y, X):
@@ -526,10 +571,12 @@ class Matrix(ABC):
     """
 
     def __init__(self, arg_space, action_space):
-        if not isinstance(arg_space, MixedSpace):
-            arg_space = MixedSpace(arg_space)
-        if not isinstance(action_space, MixedSpace):
-            action_space = MixedSpace(action_space)
+        if not isinstance(arg_space, (TypedSpace, MixedSpace)):
+            arg_space = (MixedSpace if isinstance(arg_space, Sequence)
+                         else TypedSpace)(arg_space)
+        if not isinstance(action_space, (TypedSpace, MixedSpace)):
+            action_space = (MixedSpace if isinstance(action_space, Sequence)
+                            else TypedSpace)(action_space)
 
         self._arg_space = arg_space
         self._action_space = action_space
@@ -573,6 +620,10 @@ class BlockMatrix(Matrix, MutableMapping):
     """
 
     def __init__(self, arg_spaces, action_spaces, blocks=None):
+        if not isinstance(arg_spaces, MixedSpace):
+            arg_spaces = MixedSpace(arg_spaces)
+        if not isinstance(action_spaces, MixedSpace):
+            action_spaces = MixedSpace(action_spaces)
         if not isinstance(blocks, Mapping):
             blocks = {(0, 0): blocks}
 
@@ -779,7 +830,7 @@ class LinearSolver:
     def __init__(self, A, *, nullspace=None, solver_parameters=None,
                  pc_fn=None, comm=None):
         if not isinstance(A, BlockMatrix):
-            A = BlockMatrix(A.arg_space, A.action_space, A)
+            A = BlockMatrix((A.arg_space,), (A.action_space,), A)
         if solver_parameters is None:
             solver_parameters = {}
         if pc_fn is None:
