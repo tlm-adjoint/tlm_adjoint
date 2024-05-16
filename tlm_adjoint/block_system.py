@@ -256,8 +256,6 @@ class MixedSpace(PETScVecInterface, Sequence):
             spaces = spaces.split_space
         elif isinstance(spaces, Sequence):
             spaces = tuple(spaces)
-        elif isinstance(spaces, TypedSpace):
-            spaces = (spaces,)
         else:
             spaces = (spaces,)
         flattened_spaces = tuple(space if isinstance(space, TypedSpace)
@@ -538,26 +536,32 @@ class BlockNullspace(Nullspace, Sequence):
         return len(self._nullspaces)
 
     def apply_nullspace_transformation_lhs_right(self, x):
-        assert len(self) == len(x)
+        if len(x) != len(self):
+            raise ValueError("Invalid x")
         for nullspace, x_i in zip(self, x):
             nullspace.apply_nullspace_transformation_lhs_right(x_i)
 
     def apply_nullspace_transformation_lhs_left(self, y):
-        assert len(self) == len(y)
+        if len(y) != len(self):
+            raise ValueError("Invalid y")
         for nullspace, y_i in zip(self, y):
             nullspace.apply_nullspace_transformation_lhs_left(y_i)
 
     def constraint_correct_lhs(self, x, y):
+        if len(x) != len(self):
+            raise ValueError("Invalid x")
+        if len(y) != len(self):
+            raise ValueError("Invalid y")
         with var_locked(*iter_sub(x)):
-            assert len(self) == len(x)
-            assert len(self) == len(y)
             for nullspace, x_i, y_i in zip(self, x, y):
                 nullspace.constraint_correct_lhs(x_i, y_i)
 
     def pc_constraint_correct_soln(self, u, b):
+        if len(u) != len(self):
+            raise ValueError("Invalid u")
+        if len(b) != len(self):
+            raise ValueError("Invalid b")
         with var_locked(*iter_sub(b)):
-            assert len(self) == len(u)
-            assert len(self) == len(b)
             for nullspace, u_i, b_i in zip(self, u, b):
                 nullspace.pc_constraint_correct_soln(u_i, b_i)
 
@@ -572,11 +576,15 @@ class Matrix(ABC):
 
     def __init__(self, arg_space, action_space):
         if not isinstance(arg_space, (TypedSpace, MixedSpace)):
-            arg_space = (MixedSpace if isinstance(arg_space, Sequence)
-                         else TypedSpace)(arg_space)
+            if isinstance(arg_space, Sequence):
+                arg_space = MixedSpace(arg_space)
+            else:
+                arg_space = TypedSpace(arg_space)
         if not isinstance(action_space, (TypedSpace, MixedSpace)):
-            action_space = (MixedSpace if isinstance(action_space, Sequence)
-                            else TypedSpace)(action_space)
+            if isinstance(action_space, Sequence):
+                action_space = MixedSpace(action_space)
+            else:
+                action_space = TypedSpace(action_space)
 
         self._arg_space = arg_space
         self._action_space = action_space
@@ -643,6 +651,7 @@ class BlockMatrix(Matrix, MutableMapping):
     def __setitem__(self, key, value):
         i, j = key
         if value is None:
+            self.arg_space[j], self.action_space[i]
             self.pop((i, j), None)
         else:
             if value.arg_space != self.arg_space[j]:
@@ -670,16 +679,10 @@ class PETScSquareMatInterface:
             arg_space = MixedSpace(arg_space)
         if not isinstance(action_space, MixedSpace):
             action_space = MixedSpace(action_space)
-        if len(arg_space) != len(action_space):
-            raise ValueError("Invalid space")
         if nullspace is None:
             nullspace = NoneNullspace()
-        if not isinstance(nullspace, (NoneNullspace, BlockNullspace)):
+        elif not isinstance(nullspace, (NoneNullspace, BlockNullspace)):
             nullspace = BlockNullspace(nullspace)
-        if isinstance(nullspace, BlockNullspace) \
-                and (len(nullspace) != len(arg_space)
-                     or len(nullspace) != len(action_space)):
-            raise ValueError("Invalid nullspace")
 
         self._arg_space = arg_space
         self._action_space = action_space
@@ -750,8 +753,7 @@ class Preconditioner(PETScSquareMatInterface):
             self.nullspace.pc_pre_mult_correct(self._x_c)
         self._pc_fn(self._y, self._x_c)
         if not isinstance(self.nullspace, NoneNullspace):
-            self.nullspace.pc_post_mult_correct(
-                self._y, self._x)
+            self.nullspace.pc_post_mult_correct(self._y, self._x)
 
         self._post_mult(y)
 

@@ -45,6 +45,9 @@ def apply_bcs(u, bcs):
     else:
         u_bc = u
     for bc in bcs:
+        if not space_eq(bc.function_space(), u_bc.function_space()):
+            raise ValueError("Invalid space")
+    for bc in bcs:
         bc.apply(u_bc)
 
 
@@ -103,6 +106,7 @@ class UnityNullspace(Nullspace):
         MU = assemble(ufl.inner(U, TestFunction(space)) * ufl.dx)
         UMU = assemble(ufl.inner(U, U) * ufl.dx)
 
+        self._space = space
         self._alpha = alpha
         self._U = U
         self._MU = MU
@@ -117,18 +121,30 @@ class UnityNullspace(Nullspace):
             y_v.axpy(alpha * u_x, v_v)
 
     def apply_nullspace_transformation_lhs_right(self, x):
+        if not space_eq(x.function_space(), self._space):
+            raise ValueError("Invalid space")
         self._correct(
             x, x, self._MU, self._U, alpha=-1.0 / self._UMU)
 
     def apply_nullspace_transformation_lhs_left(self, y):
+        if not space_eq(y.function_space(), self._space.dual()):
+            raise ValueError("Invalid space")
         self._correct(
             y, y, self._U, self._MU, alpha=-1.0 / self._UMU)
 
     def constraint_correct_lhs(self, x, y):
+        if not space_eq(x.function_space(), self._space):
+            raise ValueError("Invalid space")
+        if not space_eq(y.function_space(), self._space.dual()):
+            raise ValueError("Invalid space")
         self._correct(
             x, y, self._MU, self._MU, alpha=self._alpha / self._UMU)
 
     def pc_constraint_correct_soln(self, u, b):
+        if not space_eq(u.function_space(), self._space):
+            raise ValueError("Invalid space")
+        if not space_eq(b.function_space(), self._space.dual()):
+            raise ValueError("Invalid space")
         self._correct(
             b, u, self._U, self._U, alpha=1.0 / (self._alpha * self._UMU))
 
