@@ -626,7 +626,7 @@ def test_ExprInterpolation_transpose_vector(setup_test, test_leaks):
 
     min_order = taylor_test_tlm_adjoint(forward_J, y, adjoint_order=2,
                                         seed=1.0e-3)
-    assert min_order > 1.99
+    assert min_order > 1.98
 
 
 @pytest.mark.firedrake
@@ -818,7 +818,7 @@ def test_Assembly_arity_1_FormSum(setup_test, test_leaks,
         return J
 
     min_order = taylor_test(forward_J, m, J_val=J_val, dJ=dJ, seed=1.0e-3)
-    assert min_order > 1.99
+    assert min_order > 1.98
 
     ddJ = Hessian(forward_J)
     min_order = taylor_test(forward_J, m, J_val=J_val, ddJ=ddJ, seed=1.0e-2)

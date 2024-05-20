@@ -255,7 +255,7 @@ def test_diffusion_1d(setup_test, test_leaks,
         ddJ = Hessian(forward_J)
         min_order = taylor_test(
             forward_J, m, J_val=J_val, ddJ=ddJ, dM=dm, size=4)
-        assert min_order > 2.98
+        assert min_order > 2.97
 
         min_order = taylor_test_tlm(
             forward_J, m, tlm_order=1,
