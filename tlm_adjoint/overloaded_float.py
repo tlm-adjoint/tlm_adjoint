@@ -38,7 +38,7 @@ import sympy as sp
 from sympy.utilities.lambdify import lambdastr
 try:
     from sympy.printing.numpy import NumPyPrinter
-except ModuleNotFoundError:
+except ImportError:
     from sympy.printing.pycode import NumPyPrinter
 
 

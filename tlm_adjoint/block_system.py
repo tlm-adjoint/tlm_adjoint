@@ -246,9 +246,7 @@ class MixedSpace(PETScVecInterface, Sequence):
 
         mixed_space.from_petsc(u_petsc, ((u_0, u_1), u_2))
 
-    :arg spaces: Defines the split space. A :class:`Sequence` whose elements
-        are backend space or :class:`.TypedSpace` objects, or similar
-        :class:`Sequence` objects.
+    :arg spaces: Defines the split space.
     """
 
     def __init__(self, spaces):
@@ -618,8 +616,8 @@ class BlockMatrix(Matrix, MutableMapping):
     r"""A matrix defining a mapping :math:`A` mapping :math:`V \rightarrow W`,
     where :math:`V` and :math:`W` are defined by mixed spaces.
 
-    :arg arg_spaces: Defines the space `V`.
-    :arg action_spaces: Defines the space `W`.
+    :arg arg_space: Defines the space `V`.
+    :arg action_space: Defines the space `W`.
     :arg block: A :class:`Mapping` defining the blocks of the matrix. Items are
         `((i, j), block)` where the block in the `i` th and `j` th column is
         defined by `block`. Each `block` is a
@@ -627,15 +625,15 @@ class BlockMatrix(Matrix, MutableMapping):
         block.
     """
 
-    def __init__(self, arg_spaces, action_spaces, blocks=None):
-        if not isinstance(arg_spaces, MixedSpace):
-            arg_spaces = MixedSpace(arg_spaces)
-        if not isinstance(action_spaces, MixedSpace):
-            action_spaces = MixedSpace(action_spaces)
+    def __init__(self, arg_space, action_space, blocks=None):
+        if not isinstance(arg_space, MixedSpace):
+            arg_space = MixedSpace(arg_space)
+        if not isinstance(action_space, MixedSpace):
+            action_space = MixedSpace(action_space)
         if not isinstance(blocks, Mapping):
             blocks = {(0, 0): blocks}
 
-        super().__init__(arg_spaces, action_spaces)
+        super().__init__(arg_space, action_space)
         self._blocks = {}
 
         if blocks is not None:
@@ -831,8 +829,14 @@ class LinearSolver:
 
     def __init__(self, A, *, nullspace=None, solver_parameters=None,
                  pc_fn=None, comm=None):
+        if nullspace is None:
+            nullspace = NoneNullspace()
+        elif isinstance(nullspace, Sequence):
+            nullspace = BlockNullspace(nullspace)
         if not isinstance(A, BlockMatrix):
             A = BlockMatrix((A.arg_space,), (A.action_space,), A)
+            if not isinstance(nullspace, NoneNullspace):
+                nullspace = BlockNullspace((nullspace,))
         if solver_parameters is None:
             solver_parameters = {}
         if pc_fn is None:
@@ -883,7 +887,6 @@ class LinearSolver:
         pc_fn = self._pc_fn
         if not isinstance(u, Sequence):
             u = (u,)
-
             pc_fn_u = pc_fn
 
             def pc_fn(u, b):
@@ -892,7 +895,6 @@ class LinearSolver:
 
         if not isinstance(b, Sequence):
             b = (b,)
-
             pc_fn_b = pc_fn
 
             def pc_fn(u, b):

@@ -27,7 +27,7 @@ def test_division_solve(setup_test):  # noqa: F811
 
         @no_float_overloading
         def mult_add(self, x, y):
-            y.addto(alpha * x.value)
+            y.addto(alpha * x)
 
     alpha = 0.5
     b = Float(-2.0)

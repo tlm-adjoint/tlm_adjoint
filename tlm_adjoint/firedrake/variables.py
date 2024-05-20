@@ -5,10 +5,10 @@ from .backend import (
     FiniteElement, TensorElement, TestFunction, VectorElement,
     backend_Cofunction, backend_Constant, backend_Function, backend_ScalarType)
 from ..interface import (
-    SpaceInterface, VariableInterface, add_replacement_interface, space_comm,
-    space_dtype, space_eq, register_subtract_adjoint_derivative_action,
-    space_id, subtract_adjoint_derivative_action_base, var_comm, var_dtype,
-    var_is_cached, var_is_static, var_linf_norm, var_lock_state,
+    SpaceInterface, VariableInterface, add_replacement_interface,
+    register_subtract_adjoint_derivative_action, space_comm, space_dtype,
+    space_eq, space_id, subtract_adjoint_derivative_action_base, var_comm,
+    var_dtype, var_is_cached, var_is_static, var_linf_norm, var_lock_state,
     var_scalar_value, var_space, var_space_type)
 
 from ..caches import Caches

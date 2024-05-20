@@ -1,20 +1,18 @@
 """Firedrake specific extensions to :mod:`tlm_adjoint.block_system`.
 """
 
+from .backend import TestFunction, backend_assemble, backend_DirichletBC
+from ..interface import space_eq, var_axpy, var_inner, var_new
+
 from ..block_system import (
     BlockMatrix as _BlockMatrix, BlockNullspace, LinearSolver as _LinearSolver,
     Matrix, MixedSpace, NoneNullspace, Nullspace, TypedSpace)
-from ..interface import space_eq
 
-from firedrake import Constant, DirichletBC, Function, TestFunction, assemble
-
-import ufl
+from .backend_interface import assemble, matrix_multiply
+from .variables import Constant, Function
 
 from collections.abc import Sequence
-try:
-    import mpi4py.MPI as MPI
-except ModuleNotFoundError:
-    MPI = None
+import ufl
 
 __all__ = \
     [
@@ -23,14 +21,14 @@ __all__ = \
 
         "Nullspace",
         "NoneNullspace",
+        "BlockNullspace",
         "ConstantNullspace",
         "UnityNullspace",
         "DirichletBCNullspace",
-        "BlockNullspace",
 
         "Matrix",
-        "PETScMatrix",
         "BlockMatrix",
+        "PETScMatrix",
         "form_matrix",
 
         "LinearSolver"
@@ -114,11 +112,8 @@ class UnityNullspace(Nullspace):
 
     @staticmethod
     def _correct(x, y, u, v, *, alpha=1.0):
-        with x.dat.vec_ro as x_v, u.dat.vec_ro as u_v:
-            u_x = x_v.dot(u_v)
-
-        with y.dat.vec as y_v, v.dat.vec_ro as v_v:
-            y_v.axpy(alpha * u_x, v_v)
+        u_x = var_inner(x, u)
+        var_axpy(y, alpha * u_x, v)
 
     def apply_nullspace_transformation_lhs_right(self, x):
         if not space_eq(x.function_space(), self._space):
@@ -176,9 +171,9 @@ class DirichletBCNullspace(Nullspace):
                 raise ValueError("Homogeneous boundary conditions required")
 
         super().__init__()
+        self._space = space
         self._bcs = bcs
         self._alpha = alpha
-        self._c = Function(space)
 
     def apply_nullspace_transformation_lhs_right(self, x):
         apply_bcs(x, self._bcs)
@@ -187,15 +182,12 @@ class DirichletBCNullspace(Nullspace):
         apply_bcs(y, self._bcs)
 
     def _constraint_correct_lhs(self, x, y, *, alpha=1.0):
-        with self._c.dat.vec_wo as c_v:
-            c_v.zeroEntries()
-
-        apply_bcs(self._c,
-                  tuple(DirichletBC(x.function_space(), x, bc.sub_domain)
-                        for bc in self._bcs))
-
-        with self._c.dat.vec_ro as c_v, y.dat.vec as y_v:
-            y_v.axpy(alpha, c_v)
+        c = var_new(y)
+        apply_bcs(
+            c,
+            tuple(backend_DirichletBC(x.function_space(), x, bc.sub_domain)
+                  for bc in self._bcs))
+        var_axpy(y, alpha, c)
 
     def constraint_correct_lhs(self, x, y):
         self._constraint_correct_lhs(x, y, alpha=self._alpha)
@@ -206,21 +198,20 @@ class DirichletBCNullspace(Nullspace):
 
 class PETScMatrix(Matrix):
     r"""A :class:`tlm_adjoint.block_system.Matrix` associated with a
-    :class:`firedrake.matrix.Matrix` :math:`A` mapping :math:`V \rightarrow W`.
+    :class:`firedrake.matrix.Matrix` :math:`A` defining a mapping
+    :math:`V \rightarrow W`.
 
     :arg arg_space: Defines the space `V`.
     :arg action_space: Defines the space `W`.
     :arg a: The :class:`firedrake.matrix.Matrix`.
     """
 
-    def __init__(self, arg_space, action_space, a):
+    def __init__(self, arg_space, action_space, A):
         super().__init__(arg_space, action_space)
-        self._matrix = a
+        self._A = A
 
     def mult_add(self, x, y):
-        matrix = self._matrix.petscmat
-        with x.dat.vec_ro as x_v, y.dat.vec as y_v:
-            matrix.multAdd(x_v, y_v, y_v)
+        matrix_multiply(self._A, x, tensor=y, addto=True)
 
 
 def form_matrix(a, *args, **kwargs):
@@ -239,7 +230,7 @@ def form_matrix(a, *args, **kwargs):
 
     return PETScMatrix(
         trial.function_space(), test.function_space().dual(),
-        assemble(a, *args, **kwargs))
+        backend_assemble(a, *args, **kwargs))
 
 
 class BlockMatrix(_BlockMatrix):

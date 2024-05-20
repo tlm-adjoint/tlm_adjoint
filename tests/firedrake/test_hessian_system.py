@@ -128,7 +128,8 @@ def test_hessian_solve(setup_test,
         solver_parameters={"ksp_type": "cg",
                            "ksp_atol": 1.0e-12,
                            "ksp_rtol": 1.0e-12},
-        pc_fn=pc_fn)
+        pc_fn=pc_fn,
+        nullspace=nullspace)
     H_solver.solve(
         v, b_ref)
     ksp_its = H_solver.ksp.getIterationNumber()

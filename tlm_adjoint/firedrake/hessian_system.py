@@ -3,11 +3,12 @@ from ..interface import (
     var_axpy_conjugate, var_copy, var_copy_conjugate, var_dtype, var_inner,
     var_space_type)
 
-from ..block_system import (
-    BlockNullspace, LinearSolver, Matrix, NoneNullspace, Preconditioner,
-    TypedSpace, iter_sub, tuple_sub)
+from ..block_system import Preconditioner, iter_sub, tuple_sub
 from ..eigendecomposition import eigendecompose
 from ..manager import manager_disabled
+
+from .block_system import (
+    BlockNullspace, LinearSolver, Matrix, NoneNullspace, TypedSpace)
 
 from collections.abc import Sequence
 import numpy as np
@@ -76,13 +77,21 @@ class HessianLinearSolver(LinearSolver):
         :class:`firedrake.cofunction.Cofunction`, or a :class:`Sequence` of
         :class:`firedrake.function.Function` or
         :class:`firedrake.cofunction.Cofunction` objects, defining the control.
+    :arg nullspace: A :class:`.Nullspace` or a :class:`Sequence` of
+        :class:`.Nullspace` objects defining the nullspace and left nullspace
+        of the Hessian matrix. `None` indicates a :class:`.NoneNullspace`.
 
     Remaining arguments are passed to the
     :class:`tlm_adjoint.block_system.LinearSolver` constructor.
     """
 
-    def __init__(self, H, M, *args, **kwargs):
-        super().__init__(HessianMatrix(H, M), *args, **kwargs)
+    def __init__(self, H, M, *args, nullspace=None, **kwargs):
+        if nullspace is None:
+            nullspace = NoneNullspace()
+        elif not isinstance(nullspace, (NoneNullspace, BlockNullspace)):
+            nullspace = BlockNullspace(nullspace)
+        super().__init__(HessianMatrix(H, M), *args, nullspace=nullspace,
+                         **kwargs)
 
     @manager_disabled()
     def solve(self, u, b, **kwargs):
@@ -104,7 +113,7 @@ class HessianLinearSolver(LinearSolver):
             conjugate of the right-hand-side :math:`b`.
 
         Remaining arguments are handed to the
-        :class:`tlm_adjoint.block_system.LinearSolver`` method.
+        :meth:`tlm_adjoint.block_system.LinearSolver.solve` method.
         """
 
         if is_var(b):
