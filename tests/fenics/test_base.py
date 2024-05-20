@@ -19,7 +19,6 @@ except ImportError:
     def call(obj, /, *args, **kwargs):
         return obj(*args, **kwargs)
 import os
-import petsc4py.PETSc as PETSc
 import pytest
 import weakref
 
@@ -47,7 +46,7 @@ __all__ = \
 
 @pytest.fixture
 def setup_test():
-    if DEFAULT_COMM.size > 1 and not hasattr(PETSc, "garbage_cleanup"):
+    if DEFAULT_COMM.size > 1:
         gc_enabled = gc.isenabled()
         gc.disable()
 
@@ -74,8 +73,7 @@ def setup_test():
     reset_manager("memory", {"drop_references": False})
     clear_caches()
 
-    if DEFAULT_COMM.size > 1 and not hasattr(PETSc, "garbage_cleanup") \
-            and gc_enabled:
+    if DEFAULT_COMM.size > 1 and gc_enabled:
         gc.enable()
 
 
