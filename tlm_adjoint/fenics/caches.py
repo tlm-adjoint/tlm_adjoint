@@ -23,7 +23,7 @@ from collections.abc import Sequence
 import itertools
 try:
     import ufl_legacy as ufl
-except ImportError:
+except ModuleNotFoundError:
     import ufl
 
 __all__ = \

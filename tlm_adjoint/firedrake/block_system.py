@@ -13,7 +13,7 @@ import ufl
 from collections.abc import Sequence
 try:
     import mpi4py.MPI as MPI
-except ImportError:
+except ModuleNotFoundError:
     MPI = None
 
 __all__ = \

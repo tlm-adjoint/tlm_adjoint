@@ -7,7 +7,7 @@ from .solve import EquationSolver, LocalEquationSolver
 
 try:
     import ufl_legacy as ufl
-except ImportError:
+except ModuleNotFoundError:
     import ufl
 
 __all__ = \

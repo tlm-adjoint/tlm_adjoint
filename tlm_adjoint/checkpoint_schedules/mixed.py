@@ -10,7 +10,7 @@ import warnings
 try:
     import numba
     from numba import njit
-except ImportError:
+except ModuleNotFoundError:
     numba = None
 
     def njit(fn):

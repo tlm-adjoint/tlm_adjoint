@@ -24,7 +24,7 @@ import mpi4py.MPI as MPI
 import numpy as np
 try:
     import ufl_legacy as ufl
-except ImportError:
+except ModuleNotFoundError:
     import ufl
 
 __all__ = \

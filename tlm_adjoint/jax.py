@@ -17,7 +17,7 @@ import contextlib
 import functools
 try:
     import mpi4py.MPI as MPI
-except ImportError:
+except ModuleNotFoundError:
     MPI = None
 import numbers
 import numpy as np
@@ -25,7 +25,7 @@ import numpy as np
 try:
     import jax
     jax.config.update("jax_enable_x64", True)
-except ImportError:
+except ModuleNotFoundError:
     jax = None
 
 
@@ -46,7 +46,7 @@ __all__ = \
 try:
     import petsc4py.PETSc as PETSc
     _default_dtype = PETSc.ScalarType
-except ImportError:
+except ModuleNotFoundError:
     _default_dtype = np.double
 _default_dtype = np.dtype(_default_dtype).type
 if not issubclass(_default_dtype, (np.floating, np.complexfloating)):

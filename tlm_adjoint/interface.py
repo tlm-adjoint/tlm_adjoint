@@ -44,7 +44,7 @@ import itertools
 import logging
 try:
     import mpi4py.MPI as MPI
-except ImportError:
+except ModuleNotFoundError:
     MPI = None
 import numbers
 import numpy as np
@@ -56,11 +56,11 @@ except ImportError:
         return obj(*args, **kwargs)
 try:
     import petsc4py.PETSc as PETSc
-except ImportError:
+except ModuleNotFoundError:
     PETSc = None
 try:
     import pyop2
-except ImportError:
+except ModuleNotFoundError:
     pyop2 = None
 import sys
 import warnings

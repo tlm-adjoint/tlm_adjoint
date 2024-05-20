@@ -5,7 +5,7 @@ from .interface import (
 import numpy as np
 try:
     import petsc4py.PETSc as PETSc
-except ImportError:
+except ModuleNotFoundError:
     PETSc = None
 import weakref
 

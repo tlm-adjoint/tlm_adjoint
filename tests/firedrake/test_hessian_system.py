@@ -98,7 +98,7 @@ def test_hessian_solve(setup_test,
     else:
         try:
             import slepc4py.SLEPc as SLEPc
-        except ImportError:
+        except ModuleNotFoundError:
             pytest.skip(reason="SLEPc not available")
 
         Lam, V = hessian_eigendecompose(

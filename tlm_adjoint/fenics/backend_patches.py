@@ -32,7 +32,7 @@ import functools
 import numbers
 try:
     import ufl_legacy as ufl
-except ImportError:
+except ModuleNotFoundError:
     import ufl
 import warnings
 import weakref

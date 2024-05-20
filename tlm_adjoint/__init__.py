@@ -3,11 +3,11 @@
 def _init():
     try:
         import petsc4py
-    except ImportError:
+    except ModuleNotFoundError:
         petsc4py = None
     try:
         import slepc4py
-    except ImportError:
+    except ModuleNotFoundError:
         slepc4py = None
     import sys
 

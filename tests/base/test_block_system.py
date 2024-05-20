@@ -5,7 +5,7 @@ from .test_base import seed_test, setup_test  # noqa: F401
 
 try:
     import petsc4py.PETSc as PETSc
-except ImportError:
+except ModuleNotFoundError:
     PETSc = None
 import pytest
 

@@ -81,11 +81,11 @@ from collections import deque
 import logging
 try:
     import mpi4py.MPI as MPI
-except ImportError:
+except ModuleNotFoundError:
     MPI = None
 try:
     import petsc4py.PETSc as PETSc
-except ImportError:
+except ModuleNotFoundError:
     PETSc = None
 import weakref
 

@@ -8,7 +8,7 @@ import pytest
 
 try:
     import hrevolve
-except ImportError:
+except ModuleNotFoundError:
     hrevolve = None
 
 pytestmark = pytest.mark.skipif(

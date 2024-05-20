@@ -13,11 +13,11 @@ import pytest
 
 try:
     import hrevolve
-except ImportError:
+except ModuleNotFoundError:
     hrevolve = None
 try:
     import mpi4py.MPI as MPI
-except ImportError:
+except ModuleNotFoundError:
     MPI = None
 
 pytestmark = pytest.mark.skipif(

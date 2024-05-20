@@ -5,7 +5,7 @@ from .test_base import seed_test, setup_test, run_example_notebook  # noqa: E501
 
 try:
     import jax
-except ImportError:
+except ModuleNotFoundError:
     jax = None
 import numpy as np
 import pytest

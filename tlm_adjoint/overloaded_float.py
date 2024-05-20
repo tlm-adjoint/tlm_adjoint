@@ -38,7 +38,7 @@ import sympy as sp
 from sympy.utilities.lambdify import lambdastr
 try:
     from sympy.printing.numpy import NumPyPrinter
-except ImportError:
+except ModuleNotFoundError:
     from sympy.printing.pycode import NumPyPrinter
 
 
@@ -72,7 +72,7 @@ def new_symbol_name():
 try:
     import petsc4py.PETSc as PETSc
     _default_dtype = PETSc.ScalarType
-except ImportError:
+except ModuleNotFoundError:
     _default_dtype = np.double
 _default_dtype = np.dtype(_default_dtype).type
 if not issubclass(_default_dtype, (np.floating, np.complexfloating)):

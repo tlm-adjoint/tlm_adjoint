@@ -10,7 +10,7 @@ from .test_base import jax_tlm_config, seed_test, setup_test  # noqa: F401
 
 try:
     import jax
-except ImportError:
+except ModuleNotFoundError:
     jax = None
 import numbers
 import numpy as np

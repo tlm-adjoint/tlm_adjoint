@@ -27,7 +27,7 @@ from .parameters import (
 from collections import defaultdict
 try:
     import ufl_legacy as ufl
-except ImportError:
+except ModuleNotFoundError:
     import ufl
 
 __all__ = \
