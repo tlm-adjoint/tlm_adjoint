@@ -8,7 +8,7 @@ import pytest
 
 try:
     import mpi4py.MPI as MPI
-except ImportError:
+except ModuleNotFoundError:
     MPI = None
 
 pytestmark = pytest.mark.skipif(

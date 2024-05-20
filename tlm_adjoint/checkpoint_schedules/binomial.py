@@ -8,7 +8,7 @@ from operator import itemgetter
 try:
     import numba
     from numba import njit
-except ImportError:
+except ModuleNotFoundError:
     numba = None
 
     def njit(fn):

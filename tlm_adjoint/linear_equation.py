@@ -1,7 +1,6 @@
 from .interface import (
-    conjugate_dual_space_type, is_var, space_new, var_id,
-    var_new_conjugate_dual, var_replacement, var_space, var_space_type,
-    var_zero)
+    conjugate_dual_space_type, is_var, var_id, var_new, var_new_conjugate_dual,
+    var_replacement, var_zero)
 
 from .equation import Equation, Referrer, ZeroAssignment
 
@@ -157,12 +156,7 @@ class LinearEquation(Equation):
                 var_zero(x)
             B = X
         else:
-            def b_space_type(m):
-                space_type = var_space_type(
-                    self.X(m), rel_space_type=self.adj_X_type(m))
-                return conjugate_dual_space_type(space_type)
-
-            B = tuple(space_new(var_space(x), space_type=b_space_type(m))
+            B = tuple(var_new(x, rel_space_type=conjugate_dual_space_type(self.adj_X_type(m)))  # noqa: E501
                       for m, x in enumerate(X))
 
         for i, b in enumerate(self._B):

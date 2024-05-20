@@ -133,7 +133,7 @@ class Assembly(ExprEquation):
                             if isinstance(dF_comp, ufl.classes.Form):
                                 dF_comp = ufl.classes.Form(
                                     [integral.reconstruct(integrand=ufl.conj(integral.integrand()))  # noqa: E501
-                                     for integral in dF_comp.integrals()])  # noqa: E501
+                                     for integral in dF_comp.integrals()])
                             else:
                                 if complex_mode:
                                     # See Firedrake issue #3346

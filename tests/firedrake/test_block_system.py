@@ -11,8 +11,8 @@ pytestmark = pytest.mark.skipif(
     reason="tests must be run in serial, or with 4 processes")
 
 from tlm_adjoint.firedrake.block_system import (  # noqa: E402
-    BlockMatrix, ConstantNullspace, DirichletBCNullspace, System as _System,
-    UnityNullspace)
+    BlockMatrix, BlockNullspace, ConstantNullspace, DirichletBCNullspace,
+    LinearSolver as _BlockLinearSolver, UnityNullspace)
 
 from firedrake import (  # noqa: E402
     Constant, ConvergenceError, DirichletBC, Function, FunctionSpace,
@@ -21,7 +21,7 @@ from firedrake import (  # noqa: E402
     exp, grad, inner, pi, sin, solve)
 
 
-class System(_System):
+class BlockLinearSolver(_BlockLinearSolver):
     def solve(self, *args, **kwargs):
         return super().solve(
             *args, correct_initial_guess=False, correct_solution=False,
@@ -43,11 +43,6 @@ def test_block_diagonal(setup_test, pc):  # noqa: F811
     block_01 = None
     block_10 = None
     block_11 = inner(trial_1, test_1) * dx
-
-    system = System(
-        (space_0, space_1), (space_0.dual(), space_1.dual()),
-        {(0, 0): block_00, (0, 1): block_01,
-         (1, 0): block_10, (1, 1): block_11})
 
     u_0_ref = Function(space_0)
     u_0_ref.interpolate(X[0] * exp(X[1]))
@@ -121,12 +116,17 @@ def test_block_diagonal(setup_test, pc):  # noqa: F811
             except ConvergenceError:
                 assert solver_1.ksp.getConvergedReason() == PETSc.KSP.ConvergedReason.DIVERGED_MAX_IT  # noqa: E501
 
-    ksp_its = system.solve(
-        (u_0, u_1), (b_0, b_1),
-        solver_parameters={"linear_solver": "cg",
-                           "relative_tolerance": 1.0e-14,
-                           "absolute_tolerance": 1.0e-14},
+    block_solver = BlockLinearSolver(
+        BlockMatrix((space_0, space_1), (space_0.dual(), space_1.dual()),
+                    {(0, 0): block_00, (0, 1): block_01,
+                     (1, 0): block_10, (1, 1): block_11}),
+        solver_parameters={"ksp_type": "cg",
+                           "ksp_rtol": 1.0e-14,
+                           "ksp_atol": 1.0e-14},
         pc_fn=pc_fn)
+    block_solver.solve(
+        (u_0, u_1), (b_0, b_1))
+    ksp_its = block_solver.ksp.getIterationNumber()
 
     u_0_error_norm = np.sqrt(abs(assemble(inner(u_0 - u_0_ref,
                                                 u_0 - u_0_ref) * dx)))
@@ -160,12 +160,6 @@ def test_constant_nullspace(setup_test):  # noqa: F811
     block_10 = None
     block_11 = inner(trial_1, test_1) * dx
 
-    system = System(
-        (space_0, space_1), (space_0.dual(), space_1.dual()),
-        {(0, 0): block_00, (0, 1): block_01,
-         (1, 0): block_10, (1, 1): block_11},
-        nullspaces=(ConstantNullspace(), None))
-
     u_0_ref = Function(space_0)
     u_0_ref.interpolate(X[0] * exp(X[1]))
     u_1_ref = Function(space_1)
@@ -178,11 +172,16 @@ def test_constant_nullspace(setup_test):  # noqa: F811
     u_0.interpolate(Constant(1.0))
     u_1 = Function(space_1)
 
-    _ = system.solve(
-        (u_0, u_1), (b_0, b_1),
-        solver_parameters={"linear_solver": "cg",
-                           "relative_tolerance": 1.0e-14,
-                           "absolute_tolerance": 1.0e-14})
+    block_solver = BlockLinearSolver(
+        BlockMatrix((space_0, space_1), (space_0.dual(), space_1.dual()),
+                    {(0, 0): block_00, (0, 1): block_01,
+                     (1, 0): block_10, (1, 1): block_11}),
+        solver_parameters={"ksp_type": "cg",
+                           "ksp_rtol": 1.0e-14,
+                           "ksp_atol": 1.0e-14},
+        nullspace=BlockNullspace((ConstantNullspace(), None)))
+    block_solver.solve(
+        (u_0, u_1), (b_0, b_1))
 
     with u_0.dat.vec_ro as u_0_v:
         u_0_sum = u_0_v.sum()
@@ -212,12 +211,6 @@ def test_unity_nullspace(setup_test):  # noqa: F811
     block_10 = None
     block_11 = inner(trial_1, test_1) * dx
 
-    system = System(
-        (space_0, space_1), (space_0.dual(), space_1.dual()),
-        {(0, 0): block_00, (0, 1): block_01,
-         (1, 0): block_10, (1, 1): block_11},
-        nullspaces=(UnityNullspace(space_0), None))
-
     u_0_ref = Function(space_0)
     u_0_ref.interpolate(X[0] * exp(X[1]))
     u_1_ref = Function(space_1)
@@ -230,11 +223,16 @@ def test_unity_nullspace(setup_test):  # noqa: F811
     u_0.interpolate(Constant(1.0))
     u_1 = Function(space_1)
 
-    _ = system.solve(
-        (u_0, u_1), (b_0, b_1),
-        solver_parameters={"linear_solver": "cg",
-                           "relative_tolerance": 1.0e-14,
-                           "absolute_tolerance": 1.0e-14})
+    block_solver = BlockLinearSolver(
+        BlockMatrix((space_0, space_1), (space_0.dual(), space_1.dual()),
+                    {(0, 0): block_00, (0, 1): block_01,
+                     (1, 0): block_10, (1, 1): block_11}),
+        solver_parameters={"ksp_type": "cg",
+                           "ksp_rtol": 1.0e-14,
+                           "ksp_atol": 1.0e-14},
+        nullspace=BlockNullspace((UnityNullspace(space_0), None)))
+    block_solver.solve(
+        (u_0, u_1), (b_0, b_1))
 
     u_0_int = assemble(u_0 * dx)
     assert abs(u_0_int) < 1.0e-14
@@ -263,13 +261,6 @@ def test_dirichlet_bc_nullspace(setup_test):  # noqa: F811
     block_10 = None
     block_11 = inner(trial_1, test_1) * dx
 
-    system = System(
-        (space_0, space_1), (space_0.dual(), space_1.dual()),
-        {(0, 0): block_00, (0, 1): block_01,
-         (1, 0): block_10, (1, 1): block_11},
-        nullspaces=(DirichletBCNullspace(DirichletBC(space_0, 0.0, "on_boundary")),  # noqa: E501
-                    None))
-
     u_0_ref = Function(space_0)
     u_0_ref.interpolate(X[0] * exp(X[1]) * sin(pi * X[0]) * sin(2.0 * pi * X[1]))  # noqa: E501
     u_1_ref = Function(space_1)
@@ -282,11 +273,16 @@ def test_dirichlet_bc_nullspace(setup_test):  # noqa: F811
     u_0.interpolate(Constant(1.0))
     u_1 = Function(space_1)
 
-    _ = system.solve(
-        (u_0, u_1), (b_0, b_1),
-        solver_parameters={"linear_solver": "cg",
-                           "relative_tolerance": 1.0e-14,
-                           "absolute_tolerance": 1.0e-14})
+    block_solver = BlockLinearSolver(
+        BlockMatrix((space_0, space_1), (space_0.dual(), space_1.dual()),
+                    {(0, 0): block_00, (0, 1): block_01,
+                     (1, 0): block_10, (1, 1): block_11}),
+        solver_parameters={"ksp_type": "cg",
+                           "ksp_rtol": 1.0e-14,
+                           "ksp_atol": 1.0e-14},
+        nullspace=BlockNullspace((DirichletBCNullspace(DirichletBC(space_0, 0.0, "on_boundary")), None)))  # noqa: E501
+    block_solver.solve(
+        (u_0, u_1), (b_0, b_1))
 
     u_0_bc_error_norm = np.sqrt(abs(assemble(inner(u_0, u_0) * ds)))
     assert u_0_bc_error_norm < 1.0e-14
@@ -315,13 +311,6 @@ def test_pressure_projection(setup_test):  # noqa: F811
     block_10 = adjoint(block_01)
     block_11 = None
 
-    system = System(
-        (space_0, space_1), (space_0.dual(), space_1.dual()),
-        {(0, 0): block_00, (0, 1): block_01,
-         (1, 0): block_10, (1, 1): block_11},
-        nullspaces=(DirichletBCNullspace(DirichletBC(space_0, 0.0, "on_boundary")),  # noqa: E501
-                    ConstantNullspace()))
-
     psi_0_ref = Function(space_1)
     psi_0_ref.interpolate(X[0] * exp(X[1]) * sin(pi * X[0]) * sin(2.0 * pi * X[1]))  # noqa: E501
 
@@ -340,11 +329,17 @@ def test_pressure_projection(setup_test):  # noqa: F811
     b_0 = assemble(inner(u_s, test_0) * dx)
     b_1 = None
 
-    _ = system.solve(
-        (u_0, u_1), (b_0, b_1),
-        solver_parameters={"linear_solver": "minres",
-                           "relative_tolerance": 1.0e-14,
-                           "absolute_tolerance": 1.0e-14})
+    block_solver = BlockLinearSolver(
+        BlockMatrix((space_0, space_1), (space_0.dual(), space_1.dual()),
+                    {(0, 0): block_00, (0, 1): block_01,
+                     (1, 0): block_10, (1, 1): block_11}),
+        solver_parameters={"ksp_type": "minres",
+                           "ksp_rtol": 1.0e-14,
+                           "ksp_atol": 1.0e-14},
+        nullspace=BlockNullspace((DirichletBCNullspace(DirichletBC(space_0, 0.0, "on_boundary")),  # noqa: E501
+                                  ConstantNullspace())))
+    block_solver.solve(
+        (u_0, u_1), (b_0, b_1))
 
     u_0_bc_error_norm = np.sqrt(abs(assemble(inner(u_0, u_0) * ds)))
     assert u_0_bc_error_norm == 0.0
@@ -396,15 +391,14 @@ def test_mass(setup_test):  # noqa: F811
     u = Function(space, name="u")
     b = assemble(inner(y, test) * dx)
 
-    system = System(
-        space, space.dual(),
-        inner(trial, test) * dx, nullspaces=DirichletBCNullspace(bc))
-
-    _ = system.solve(
-        u, b,
-        solver_parameters={"linear_solver": "cg",
-                           "relative_tolerance": 1.0e-14,
-                           "absolute_tolerance": 1.0e-14})
+    block_solver = BlockLinearSolver(
+        inner(trial, test) * dx,
+        solver_parameters={"ksp_type": "cg",
+                           "ksp_rtol": 1.0e-14,
+                           "ksp_atol": 1.0e-14},
+        nullspace=DirichletBCNullspace(bc))
+    block_solver.solve(
+        u, b)
 
     u_error_norm = np.sqrt(abs(assemble(inner(u - y, u - y) * dx)))
     assert u_error_norm < 1.0e-13
@@ -444,11 +438,6 @@ def test_sub_block(setup_test):  # noqa: F811
     nullspace_2 = DirichletBCNullspace(
         DirichletBC(space_2, 0.0, "on_boundary"))
 
-    system = System(
-        ((space_0, space_1), space_2), ((space_0.dual(), space_1.dual()), space_2.dual()),  # noqa: E501
-        {(0, 0): block_00, (1, 1): block_11},
-        nullspaces=(None, nullspace_2))
-
     u_0 = Function(space_0)
     u_1 = Function(space_1)
     u_2 = Function(space_2)
@@ -466,12 +455,16 @@ def test_sub_block(setup_test):  # noqa: F811
         u_1.assign(b_1.riesz_representation("l2"))
         u_2.assign(b_2.riesz_representation("l2"))
 
-    _ = system.solve(
-        ((u_0, u_1), u_2), ((b_0, b_1), b_2),
+    block_solver = BlockLinearSolver(
+        BlockMatrix(((space_0, space_1), space_2), ((space_0.dual(), space_1.dual()), space_2.dual()),  # noqa: E501
+                    {(0, 0): block_00, (1, 1): block_11}),
+        solver_parameters={"ksp_type": "cg",
+                           "ksp_rtol": 1.0e-14,
+                           "ksp_atol": 1.0e-14},
         pc_fn=pc_fn,
-        solver_parameters={"linear_solver": "cg",
-                           "relative_tolerance": 1.0e-14,
-                           "absolute_tolerance": 1.0e-14})
+        nullspace=(None, nullspace_2))
+    block_solver.solve(
+        ((u_0, u_1), u_2), ((b_0, b_1), b_2))
 
     u_2_bc_error_norm = np.sqrt(abs(assemble(inner(u_2, u_2) * ds)))
     assert u_2_bc_error_norm == 0.0

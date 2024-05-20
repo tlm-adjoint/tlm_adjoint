@@ -5,7 +5,7 @@ from .test_base import *
 
 try:
     import jax
-except ImportError:
+except ModuleNotFoundError:
     jax = None
 import numpy as np
 import pytest

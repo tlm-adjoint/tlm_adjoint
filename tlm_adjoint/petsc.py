@@ -1,10 +1,11 @@
 from .interface import (
-    var_dtype, var_get_values, var_global_size, var_local_size, var_set_values)
+    space_global_size, space_local_size, var_dtype, var_get_values,
+    var_local_size, var_set_values)
 
 import numpy as np
 try:
     import petsc4py.PETSc as PETSc
-except ImportError:
+except ModuleNotFoundError:
     PETSc = None
 import weakref
 
@@ -54,9 +55,13 @@ class PETScOptions:
         for key in tuple(self._keys):
             del self[key]
 
+    def update(self, other):
+        for key, value in other.items():
+            self[key] = value
+
 
 class PETScVecInterface:
-    def __init__(self, X, *, dtype=None):
+    def __init__(self, spaces, *, dtype=None):
         if PETSc is None:
             raise RuntimeError("PETSc not available")
 
@@ -67,10 +72,10 @@ class PETScVecInterface:
         indices = []
         n = 0
         N = 0
-        for x in X:
-            indices.append((n, n + var_local_size(x)))
-            n += var_local_size(x)
-            N += var_global_size(x)
+        for space in spaces:
+            indices.append((n, n + space_local_size(space)))
+            n += space_local_size(space)
+            N += space_global_size(space)
 
         self._dtype = dtype
         self._indices = tuple(indices)
@@ -86,17 +91,17 @@ class PETScVecInterface:
         return self._indices
 
     @property
-    def n(self):
+    def local_size(self):
         return self._n
 
     @property
-    def N(self):
+    def global_size(self):
         return self._N
 
     def from_petsc(self, y, X):
         y_a = y.getArray(True)
 
-        if y_a.shape != (self.n,):
+        if y_a.shape != (self.local_size,):
             raise ValueError("Invalid shape")
         if len(X) != len(self.indices):
             raise ValueError("Invalid length")
@@ -118,7 +123,7 @@ class PETScVecInterface:
             if var_local_size(y) != i1 - i0:
                 raise ValueError("Invalid length")
 
-        x_a = np.zeros(self.n, dtype=self.dtype)
+        x_a = np.zeros(self.local_size, dtype=self.dtype)
         for (i0, i1), y in zip(self.indices, Y):
             x_a[i0:i1] = var_get_values(y)
         x.setArray(x_a)

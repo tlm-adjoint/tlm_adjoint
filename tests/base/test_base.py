@@ -25,7 +25,7 @@ def setup_test():
     try:
         import petsc4py.PETSc as PETSc
         default_dtype = PETSc.ScalarType
-    except ImportError:
+    except ModuleNotFoundError:
         default_dtype = np.double
     set_default_float_dtype(default_dtype)
     set_default_jax_dtype(default_dtype)

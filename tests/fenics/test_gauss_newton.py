@@ -7,7 +7,7 @@ import numpy as np
 import pytest
 try:
     import ufl_legacy as ufl
-except ImportError:
+except ModuleNotFoundError:
     import ufl
 
 pytestmark = pytest.mark.skipif(

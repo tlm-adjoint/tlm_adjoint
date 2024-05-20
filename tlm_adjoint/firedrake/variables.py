@@ -5,10 +5,10 @@ from .backend import (
     FiniteElement, TensorElement, TestFunction, VectorElement,
     backend_Cofunction, backend_Constant, backend_Function, backend_ScalarType)
 from ..interface import (
-    SpaceInterface, VariableInterface, add_replacement_interface, space_comm,
-    register_subtract_adjoint_derivative_action, space_id,
-    subtract_adjoint_derivative_action_base, var_comm, var_dtype,
-    var_is_cached, var_is_static, var_linf_norm, var_lock_state,
+    SpaceInterface, VariableInterface, add_replacement_interface,
+    register_subtract_adjoint_derivative_action, space_comm, space_dtype,
+    space_eq, space_id, subtract_adjoint_derivative_action_base, var_comm,
+    var_dtype, var_is_cached, var_is_static, var_linf_norm, var_lock_state,
     var_scalar_value, var_space, var_space_type)
 
 from ..caches import Caches
@@ -52,6 +52,31 @@ class ConstantSpaceInterface(SpaceInterface):
 
     def _id(self):
         return self._tlm_adjoint__space_interface_attrs["id"]
+
+    def _eq(self, other):
+        return (space_id(self) == space_id(other)
+                or (isinstance(other, type(self))
+                    and space_comm(self).py2f() == space_comm(other).py2f()
+                    and space_dtype(self) == space_dtype(other)
+                    and self == other))
+
+    def _global_size(self):
+        shape = self.ufl_element().value_shape
+        if len(shape) == 0:
+            return 1
+        else:
+            return np.prod(shape)
+
+    def _local_indices(self):
+        comm = space_comm(self)
+        if comm.rank == 0:
+            shape = self.ufl_element().value_shape
+            if len(shape) == 0:
+                return slice(0, 1)
+            else:
+                return slice(0, np.prod(shape))
+        else:
+            return slice(0, 0)
 
     def _new(self, *, name=None, space_type="primal", static=False,
              cache=None):
@@ -148,32 +173,6 @@ class ConstantInterface(VariableInterface):
             return var_dtype(self)(0.0).real.dtype.type(0.0)
         else:
             return abs(values).max()
-
-    def _local_size(self):
-        comm = var_comm(self)
-        if comm.rank == 0:
-            if len(self.ufl_shape) == 0:
-                return 1
-            else:
-                return np.prod(self.ufl_shape)
-        else:
-            return 0
-
-    def _global_size(self):
-        if len(self.ufl_shape) == 0:
-            return 1
-        else:
-            return np.prod(self.ufl_shape)
-
-    def _local_indices(self):
-        comm = var_comm(self)
-        if comm.rank == 0:
-            if len(self.ufl_shape) == 0:
-                return slice(0, 1)
-            else:
-                return slice(0, np.prod(self.ufl_shape))
-        else:
-            return slice(0, 0)
 
     def _get_values(self):
         comm = var_comm(self)
@@ -342,11 +341,30 @@ class FunctionSpaceInterface(SpaceInterface):
     def _comm(self):
         return self._tlm_adjoint__space_interface_attrs["comm"]
 
+    def _default_space_type(self):
+        if ufl.duals.is_primal(self):
+            return "primal"
+        else:
+            return "conjugate_dual"
+
     def _dtype(self):
         return backend_ScalarType
 
     def _id(self):
         return self._tlm_adjoint__space_interface_attrs["id"]
+
+    def _eq(self, other):
+        return (space_id(self) == space_id(other)
+                or (isinstance(other, type(self))
+                    and ufl.duals.is_primal(self) == ufl.duals.is_primal(other)
+                    and self == other))
+
+    def _global_size(self):
+        return self.dim()
+
+    def _local_indices(self):
+        n0, n1 = self._tlm_adjoint__space_interface_attrs["local_indices"]
+        return slice(n0, n1)
 
     def _new(self, *, name=None, space_type="primal", static=False,
              cache=None):
@@ -417,21 +435,6 @@ class FunctionInterfaceBase(VariableInterface):
             linf_norm = x_v.norm(norm_type=PETSc.NormType.NORM_INFINITY)
         return linf_norm
 
-    def _local_size(self):
-        with self.dat.vec_ro as x_v:
-            local_size = x_v.getLocalSize()
-        return local_size
-
-    def _global_size(self):
-        with self.dat.vec_ro as x_v:
-            size = x_v.getSize()
-        return size
-
-    def _local_indices(self):
-        with self.dat.vec_ro as x_v:
-            local_range = x_v.getOwnershipRange()
-        return slice(*local_range)
-
     def _get_values(self):
         with self.dat.vec_ro as x_v:
             x_a = x_v.getArray(True)
@@ -460,7 +463,7 @@ class FunctionInterface(FunctionInterfaceBase):
                 raise ValueError("Invalid shape")
             self.assign(backend_Constant(y))
         elif isinstance(y, backend_Function):
-            if space_id(y.function_space()) != space_id(self.function_space()):
+            if not space_eq(y.function_space(), self.function_space()):
                 raise ValueError("Invalid function space")
             with self.dat.vec_wo as x_v, y.dat.vec_ro as y_v:
                 y_v.copy(result=x_v)
@@ -471,7 +474,7 @@ class FunctionInterface(FunctionInterfaceBase):
         if isinstance(x, backend_Cofunction):
             x = x.riesz_representation("l2")
         if isinstance(x, backend_Function):
-            if space_id(x.function_space()) != space_id(self.function_space()):
+            if not space_eq(x.function_space(), self.function_space()):
                 raise ValueError("Invalid function space")
             with self.dat.vec as y_v, x.dat.vec_ro as x_v:
                 y_v.axpy(alpha, x_v)
@@ -482,7 +485,7 @@ class FunctionInterface(FunctionInterfaceBase):
         if isinstance(y, backend_Function):
             y = y.riesz_representation("l2")
         if isinstance(y, backend_Cofunction):
-            if space_id(y.function_space()) != space_id(self.function_space().dual()):  # noqa: E501
+            if not space_eq(y.function_space(), self.function_space().dual()):
                 raise ValueError("Invalid function space")
             with self.dat.vec_ro as x_v, y.dat.vec_ro as y_v:
                 inner = x_v.dot(y_v)
@@ -535,7 +538,7 @@ class CofunctionInterface(FunctionInterfaceBase):
         if isinstance(y, backend_Function):
             y = y.riesz_representation("l2")
         if isinstance(y, backend_Cofunction):
-            if space_id(y.function_space()) != space_id(self.function_space()):
+            if not space_eq(y.function_space(), self.function_space()):
                 raise ValueError("Invalid function space")
             with self.dat.vec_wo as x_v, y.dat.vec_ro as y_v:
                 y_v.copy(result=x_v)
@@ -546,7 +549,7 @@ class CofunctionInterface(FunctionInterfaceBase):
         if isinstance(x, backend_Function):
             x = x.riesz_representation("l2")
         if isinstance(x, backend_Cofunction):
-            if space_id(x.function_space()) != space_id(self.function_space()):
+            if not space_eq(x.function_space(), self.function_space()):
                 raise ValueError("Invalid function space")
             with self.dat.vec as y_v, x.dat.vec_ro as x_v:
                 y_v.axpy(alpha, x_v)
@@ -557,7 +560,7 @@ class CofunctionInterface(FunctionInterfaceBase):
         if isinstance(y, backend_Cofunction):
             y = y.riesz_representation("l2")
         if isinstance(y, backend_Function):
-            if space_id(y.function_space()) != space_id(self.function_space().dual()):  # noqa: E501
+            if not space_eq(y.function_space(), self.function_space().dual()):
                 raise ValueError("Invalid function space")
             with self.dat.vec_ro as x_v, y.dat.vec_ro as y_v:
                 inner = x_v.dot(y_v)
@@ -674,11 +677,11 @@ class ReplacementFunction(Replacement, ufl.classes.Coefficient):
 
     def __init__(self, x, count):
         Replacement.__init__(self)
-        ufl.classes.Coefficient.__init__(self, var_space(x), count=count)
+        ufl.classes.Coefficient.__init__(self, x.function_space(), count=count)
         add_replacement_interface(self, x)
 
     def __new__(cls, x, *args, **kwargs):
-        return ufl.classes.Coefficient.__new__(cls, var_space(x),
+        return ufl.classes.Coefficient.__new__(cls, x.function_space(),
                                                *args, **kwargs)
 
 
@@ -689,7 +692,7 @@ class ReplacementCofunction(Replacement, ufl.classes.Cofunction):
 
     def __init__(self, x, count):
         Replacement.__init__(self)
-        ufl.classes.Cofunction.__init__(self, var_space(x), count=count)
+        ufl.classes.Cofunction.__init__(self, x.function_space(), count=count)
         add_replacement_interface(self, x)
 
     def _analyze_form_arguments(self):

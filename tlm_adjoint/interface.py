@@ -44,7 +44,7 @@ import itertools
 import logging
 try:
     import mpi4py.MPI as MPI
-except ImportError:
+except ModuleNotFoundError:
     MPI = None
 import numbers
 import numpy as np
@@ -56,11 +56,11 @@ except ImportError:
         return obj(*args, **kwargs)
 try:
     import petsc4py.PETSc as PETSc
-except ImportError:
+except ModuleNotFoundError:
     PETSc = None
 try:
     import pyop2
-except ImportError:
+except ModuleNotFoundError:
     pyop2 = None
 import sys
 import warnings
@@ -78,8 +78,13 @@ __all__ = \
         "SpaceInterface",
         "is_space",
         "space_comm",
+        "space_default_space_type",
         "space_dtype",
+        "space_eq",
+        "space_global_size",
         "space_id",
+        "space_local_indices",
+        "space_local_size",
         "space_new",
 
         "SpaceTypeError",
@@ -322,7 +327,7 @@ if MPI is not None and PETSc is not None and hasattr(PETSc, "garbage_cleanup"):
 
 def garbage_cleanup(comm=None):
     """Call `petsc4py.PETSc.garbage_cleanup(comm)` for a communicator, and any
-    communicators duplicated from it using :func:`comm_dup_cached`.
+    communicators duplicated from it using :func:`.comm_dup_cached`.
 
     :arg comm: A communicator. Defaults to `DEFAULT_COMM`.
     """
@@ -432,10 +437,14 @@ class SpaceInterface:
     """
 
     prefix = "_tlm_adjoint__space_interface"
-    names = ("_comm", "_dtype", "_id", "_new")
+    names = ("_default_space_type", "_comm", "_dtype", "_id", "_eq",
+             "_local_size", "_global_size", "_local_indices", "_new")
 
     def __init__(self):
         raise RuntimeError("Cannot instantiate SpaceInterface object")
+
+    def _default_space_type(self):
+        return "primal"
 
     def _comm(self):
         raise NotImplementedError("Method not overridden")
@@ -444,6 +453,20 @@ class SpaceInterface:
         raise NotImplementedError("Method not overridden")
 
     def _id(self):
+        raise NotImplementedError("Method not overridden")
+
+    def _eq(self, other):
+        return space_id(self) == space_id(other)
+
+    def _local_size(self):
+        indices = space_local_indices(self)
+        n0, n1 = indices.start, indices.stop
+        return n1 - n0
+
+    def _global_size(self):
+        raise NotImplementedError("Method not overridden")
+
+    def _local_indices(self):
         raise NotImplementedError("Method not overridden")
 
     def _new(self, *, name=None, space_type="primal", static=False,
@@ -469,6 +492,15 @@ def space_comm(space):
     """
 
     return space._tlm_adjoint__space_interface_comm()
+
+
+def space_default_space_type(space):
+    """
+    :arg space: A space.
+    :returns: The default space type associated with the space.
+    """
+
+    return space._tlm_adjoint__space_interface_default_space_type()
 
 
 def space_dtype(space):
@@ -498,14 +530,63 @@ def space_id(space):
     return space._tlm_adjoint__space_interface_id()
 
 
-def space_new(space, *, name=None, space_type="primal", static=False,
+def space_eq(space, other):
+    """
+    :arg space: The space.
+    :arg other: A second space, to compare to space.
+    :returns: Whether the two spaces are equal.
+    """
+
+    return (is_space(other)
+            and space._tlm_adjoint__space_interface_eq(other))
+
+
+def space_local_size(space):
+    """Return the process local number of degrees of freedom associated with
+    a variable in a space. This is the number of 'owned' degrees of freedom.
+
+    :arg x: The space.
+    :returns: The process local number of degrees of freedom for a variable in
+        the space.
+    """
+
+    return space._tlm_adjoint__space_interface_local_size()
+
+
+def space_global_size(space):
+    """Return the global number of degrees of freedom associated with a
+    variable in a space. This is the total number of 'owned' degrees of
+    freedom, summed across all processes.
+
+    :arg x: The space.
+    :returns: The global number of degrees of freedom for a variable in the
+        space.
+    """
+
+    return space._tlm_adjoint__space_interface_global_size()
+
+
+def space_local_indices(space):
+    """Return the indices of process local degrees of freedom associated with
+    a variable in a space.
+
+    :arg x: The space.
+    :returns: An :class:`slice`, yielding the indices of the process local
+        elements.
+    """
+
+    return space._tlm_adjoint__space_interface_local_indices()
+
+
+def space_new(space, *, name=None, space_type=None, static=False,
               cache=None):
     """Return a new variable.
 
     :arg space: The space.
     :arg name: A :class:`str` name for the variable.
     :arg space_type: The space type for the new variable. `'primal'`, `'dual'`,
-        `'conjugate'`, or `'conjugate_dual'`.
+        `'conjugate'`, or `'conjugate_dual'`. Defaults to
+        `space_default_space_type(space)`.
     :arg static: Defines whether the new variable is static, meaning that it is
         stored by reference in checkpointing/replay, and an associated
         tangent-linear variable is zero.
@@ -514,6 +595,8 @@ def space_new(space, *, name=None, space_type="primal", static=False,
     :returns: The new variable.
     """
 
+    if space_type is None:
+        space_type = space_default_space_type(space)
     if space_type not in {"primal", "conjugate", "dual", "conjugate_dual"}:
         raise ValueError("Invalid space type")
     return space._tlm_adjoint__space_interface_new(
@@ -767,13 +850,13 @@ class VariableInterface:
         raise NotImplementedError("Method not overridden")
 
     def _local_size(self):
-        raise NotImplementedError("Method not overridden")
+        return space_local_size(var_space(self))
 
     def _global_size(self):
-        raise NotImplementedError("Method not overridden")
+        return space_global_size(var_space(self))
 
     def _local_indices(self):
-        raise NotImplementedError("Method not overridden")
+        return space_local_indices(var_space(self))
 
     def _get_values(self):
         raise NotImplementedError("Method not overridden")
@@ -1230,7 +1313,7 @@ def var_local_indices(x):
     a variable.
 
     :arg x: The variable.
-    :returns: An :class:`Iterable`, yielding the indices of the process local
+    :returns: An :class:`slice`, yielding the indices of the process local
         elements.
     """
 

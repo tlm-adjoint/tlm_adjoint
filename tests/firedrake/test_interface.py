@@ -96,6 +96,16 @@ def test_FunctionSpace_interface(setup_test, test_leaks):
 
 @pytest.mark.firedrake
 @seed_test
+def test_FunctionSpace_space_default_space_type(setup_test, test_leaks):
+    mesh = UnitIntervalMesh(20)
+    space = FunctionSpace(mesh, "Lagrange", 1)
+
+    assert space_default_space_type(space) == "primal"
+    assert space_default_space_type(space.dual()) == "conjugate_dual"
+
+
+@pytest.mark.firedrake
+@seed_test
 def test_FunctionSpace_space_id(setup_test, test_leaks):
     mesh = UnitIntervalMesh(20)
     space0 = FunctionSpace(mesh, "Lagrange", 1)

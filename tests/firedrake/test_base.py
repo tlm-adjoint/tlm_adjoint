@@ -285,7 +285,7 @@ def interpolate_Interpolator_Function(v, V):
 
 
 def interpolate_Interpolator_test(v, V):
-    interp = Interpolator(TestFunction(var_space(v)), V)
+    interp = Interpolator(TestFunction(v.function_space()), V)
     x = space_new(V)
     interp.interpolate(v, output=x)
     return x

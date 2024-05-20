@@ -63,7 +63,7 @@ def distinct_combinations_indices(iterable, r):
 
     try:
         import more_itertools
-    except ImportError:
+    except ModuleNotFoundError:
         # Basic implementation likely suffices for most cases in practice
         seen = set()
         for combination in itertools.combinations(t, r):

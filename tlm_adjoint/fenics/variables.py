@@ -6,9 +6,10 @@ from .backend import (
 from ..interface import (
     SpaceInterface, VariableInterface, check_space_types,
     register_subtract_adjoint_derivative_action,
-    subtract_adjoint_derivative_action_base, space_comm, space_id, var_axpy,
-    var_comm, var_copy, var_dtype, var_is_cached, var_is_static, var_linf_norm,
-    var_lock_state, var_new, var_scalar_value, var_space_type)
+    subtract_adjoint_derivative_action_base, space_comm, space_dtype, space_eq,
+    space_id, var_axpy, var_comm, var_copy, var_dtype, var_is_cached,
+    var_is_static, var_linf_norm, var_lock_state, var_new, var_scalar_value,
+    var_space_type)
 
 from ..caches import Caches
 from ..equations import Conversion
@@ -46,6 +47,31 @@ class ConstantSpaceInterface(SpaceInterface):
 
     def _id(self):
         return self._tlm_adjoint__space_interface_attrs["id"]
+
+    def _eq(self, other):
+        return (space_id(self) == space_id(other)
+                or (isinstance(other, type(self))
+                    and space_comm(self).py2f() == space_comm(other).py2f()
+                    and space_dtype(self) == space_dtype(other)
+                    and self == other))
+
+    def _global_size(self):
+        shape = self.ufl_element().value_shape()
+        if len(shape) == 0:
+            return 1
+        else:
+            return np.prod(shape)
+
+    def _local_indices(self):
+        comm = space_comm(self)
+        if comm.rank == 0:
+            shape = self.ufl_element().value_shape()
+            if len(shape) == 0:
+                return slice(0, 1)
+            else:
+                return slice(0, np.prod(shape))
+        else:
+            return slice(0, 0)
 
     def _new(self, *, name=None, space_type="primal", static=False,
              cache=None):
@@ -142,32 +168,6 @@ class ConstantInterface(VariableInterface):
             return var_dtype(self)(0.0).real.dtype.type(0.0)
         else:
             return abs(values).max()
-
-    def _local_size(self):
-        comm = var_comm(self)
-        if comm.rank == 0:
-            if len(self.ufl_shape) == 0:
-                return 1
-            else:
-                return np.prod(self.ufl_shape)
-        else:
-            return 0
-
-    def _global_size(self):
-        if len(self.ufl_shape) == 0:
-            return 1
-        else:
-            return np.prod(self.ufl_shape)
-
-    def _local_indices(self):
-        comm = var_comm(self)
-        if comm.rank == 0:
-            if len(self.ufl_shape) == 0:
-                return slice(0, 1)
-            else:
-                return slice(0, np.prod(self.ufl_shape))
-        else:
-            return slice(0, 0)
 
     def _get_values(self):
         comm = var_comm(self)
@@ -304,6 +304,18 @@ class FunctionSpaceInterface(SpaceInterface):
     def _id(self):
         return self._tlm_adjoint__space_interface_attrs["id"]
 
+    def _eq(self, other):
+        return (space_id(self) == space_id(other)
+                or (isinstance(other, type(self))
+                    and self == other))
+
+    def _global_size(self):
+        return self.dofmap().global_dimension()
+
+    def _local_indices(self):
+        n0, n1 = self.dofmap().ownership_range()
+        return slice(n0, n1)
+
     def _new(self, *, name=None, space_type="primal", static=False,
              cache=None):
         return Function(self, name=name, space_type=space_type, static=static,
@@ -380,7 +392,7 @@ class FunctionInterface(VariableInterface):
                 raise ValueError("Invalid shape")
             self.assign(backend_Constant(y))
         elif isinstance(y, backend_Function):
-            if space_id(y.function_space()) != space_id(self.function_space()):
+            if not space_eq(y.function_space(), self.function_space()):
                 raise ValueError("Invalid function space")
             self.vector().zero()
             self.vector().axpy(1.0, y.vector())
@@ -390,7 +402,7 @@ class FunctionInterface(VariableInterface):
     @check_vector
     def _axpy(self, alpha, x, /):
         if isinstance(x, backend_Function):
-            if space_id(x.function_space()) != space_id(self.function_space()):
+            if not space_eq(x.function_space(), self.function_space()):
                 raise ValueError("Invalid function space")
             self.vector().axpy(alpha, x.vector())
         else:
@@ -399,7 +411,7 @@ class FunctionInterface(VariableInterface):
     @check_vector
     def _inner(self, y):
         if isinstance(y, backend_Function):
-            if space_id(y.function_space()) != space_id(self.function_space()):
+            if not space_eq(y.function_space(), self.function_space()):
                 raise ValueError("Invalid function space")
             return y.vector().inner(self.vector())
         else:
@@ -408,18 +420,6 @@ class FunctionInterface(VariableInterface):
     @check_vector
     def _linf_norm(self):
         return self.vector().norm("linf")
-
-    @check_vector
-    def _local_size(self):
-        return self.vector().local_size()
-
-    @check_vector
-    def _global_size(self):
-        return self.function_space().dofmap().global_dimension()
-
-    @check_vector
-    def _local_indices(self):
-        return slice(*self.function_space().dofmap().ownership_range())
 
     @check_vector
     def _get_values(self):

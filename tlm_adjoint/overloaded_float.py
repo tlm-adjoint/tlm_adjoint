@@ -20,8 +20,9 @@ from .interface import (
     DEFAULT_COMM, SpaceInterface, VariableInterface, add_interface,
     check_space_type, comm_dup_cached, is_var, new_space_id, new_var_id,
     register_subtract_adjoint_derivative_action, space_comm, space_dtype,
-    subtract_adjoint_derivative_action_base, var_assign, var_comm, var_dtype,
-    var_id, var_new, var_new_conjugate_dual, var_scalar_value, var_space_type)
+    space_id, subtract_adjoint_derivative_action_base, var_assign, var_comm,
+    var_dtype, var_id, var_new, var_new_conjugate_dual, var_scalar_value,
+    var_space_type)
 
 from .caches import Caches
 from .equation import Equation, ZeroAssignment
@@ -71,7 +72,7 @@ def new_symbol_name():
 try:
     import petsc4py.PETSc as PETSc
     _default_dtype = PETSc.ScalarType
-except ImportError:
+except ModuleNotFoundError:
     _default_dtype = np.double
 _default_dtype = np.dtype(_default_dtype).type
 if not issubclass(_default_dtype, (np.floating, np.complexfloating)):
@@ -101,6 +102,21 @@ class FloatSpaceInterface(SpaceInterface):
 
     def _id(self):
         return self._tlm_adjoint__space_interface_attrs["id"]
+
+    def _eq(self, other):
+        return (space_id(self) == space_id(other)
+                or (isinstance(other, type(self))
+                    and space_comm(self).py2f() == space_comm(other).py2f()
+                    and space_dtype(self) == space_dtype(other)))
+
+    def _global_size(self):
+        return 1
+
+    def _local_indices(self):
+        if self.comm.rank == 0:
+            return slice(0, 1)
+        else:
+            return slice(0, 0)
 
     def _new(self, *, name=None, space_type="primal", static=False,
              cache=None):
@@ -255,21 +271,6 @@ class FloatInterface(VariableInterface):
 
     def _linf_norm(self):
         return self.space.rdtype(abs(self.value))
-
-    def _local_size(self):
-        if self.space.comm.rank == 0:
-            return 1
-        else:
-            return 0
-
-    def _global_size(self):
-        return 1
-
-    def _local_indices(self):
-        if self.space.comm.rank == 0:
-            return slice(0, 1)
-        else:
-            return slice(0, 0)
 
     def _get_values(self):
         return np.array([self.value] if self.space.comm.rank == 0 else [],

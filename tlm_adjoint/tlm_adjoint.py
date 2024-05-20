@@ -23,7 +23,7 @@ import functools
 import logging
 try:
     import MPI
-except ImportError:
+except ModuleNotFoundError:
     MPI = None
 import os
 import warnings

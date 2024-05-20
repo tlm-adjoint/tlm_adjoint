@@ -2,8 +2,8 @@ from .interface import (
     comm_dup_cached, garbage_cleanup, is_var, paused_space_type_checking,
     var_axpy, var_comm, var_copy, var_dtype, var_get_values, var_is_cached,
     var_is_static, var_linf_norm, var_local_size, var_new, var_scalar_value,
-    var_set_values, vars_assign, vars_axpy, vars_copy, vars_inner, vars_new,
-    vars_new_conjugate_dual)
+    var_set_values, var_space, vars_assign, vars_axpy, vars_copy, vars_inner,
+    vars_new, vars_new_conjugate_dual)
 
 from .caches import clear_caches, local_caches
 from .hessian import GeneralHessian as Hessian
@@ -477,8 +477,9 @@ def line_search(F, Fp, X, minus_P, *,
     elif is_var(old_Fp_val):
         old_Fp_val = (old_Fp_val,)
 
-    vec_interface = PETScVecInterface(X, dtype=PETSc.RealType)
-    n, N = vec_interface.n, vec_interface.N
+    vec_interface = PETScVecInterface(tuple(map(var_space, X)),
+                                      dtype=PETSc.RealType)
+    n, N = vec_interface.local_size, vec_interface.global_size
     to_petsc, from_petsc = vec_interface.to_petsc, vec_interface.from_petsc
 
     Y = vars_new(X)
@@ -972,8 +973,9 @@ def minimize_tao(forward, M0, *,
     if M_inv_action is not None:
         M_inv_action = wrapped_action(M_inv_action)
 
-    vec_interface = PETScVecInterface(M0, dtype=PETSc.RealType)
-    n, N = vec_interface.n, vec_interface.N
+    vec_interface = PETScVecInterface(tuple(map(var_space, M0)),
+                                      dtype=PETSc.RealType)
+    n, N = vec_interface.local_size, vec_interface.global_size
     to_petsc, from_petsc = vec_interface.to_petsc, vec_interface.from_petsc
 
     if manager is None:

@@ -10,7 +10,7 @@ from abc import ABC, abstractmethod
 from collections import deque
 try:
     import mpi4py.MPI as MPI
-except ImportError:
+except ModuleNotFoundError:
     MPI = None
 import numpy as np
 import os

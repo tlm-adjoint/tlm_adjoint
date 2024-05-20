@@ -4,7 +4,8 @@
 
 from .interface import (
     check_space_type, comm_dup_cached, relative_space_type, space_comm,
-    space_new, var_get_values, var_global_size, var_local_size, var_set_values)
+    space_global_size, space_local_size, space_new, var_get_values,
+    var_set_values)
 
 import functools
 import numpy as np
@@ -167,9 +168,7 @@ def eigendecompose(space, A_action, *, B_action=None, arg_space_type="primal",
     if which is None:
         which = SLEPc.EPS.Which.LARGEST_MAGNITUDE
 
-    X = space_new(space, space_type=arg_space_type)
-    n, N = var_local_size(X), var_global_size(X)
-    del X
+    n, N = space_local_size(space), space_global_size(space)
     N_ev = N if N_eigenvalues is None else N_eigenvalues
 
     comm = space_comm(space)

@@ -8,7 +8,7 @@ from .backend import (
 from ..interface import (
     DEFAULT_COMM, add_interface, check_space_type, comm_dup_cached,
     comm_parent, is_var, new_space_id, new_var_id, relative_space_type,
-    space_id, var_comm, var_is_alias, var_new, var_space, var_update_state)
+    space_eq, var_comm, var_is_alias, var_new, var_update_state)
 
 from ..equation import ZeroAssignment
 from ..equations import Assignment, LinearCombination
@@ -258,6 +258,9 @@ def FunctionSpace__init__(self, orig, orig_args, *args, **kwargs):
     add_interface(self, FunctionSpaceInterface,
                   {"space": self, "comm": comm_dup_cached(self.comm),
                    "id": new_space_id_cached(self)})
+    with backend_Function(self).dat.vec_ro as x_v:
+        n0, n1 = x_v.getOwnershipRange()
+    self._tlm_adjoint__space_interface_attrs["local_indices"] = (n0, n1)
 
 
 @patch_method(backend_FunctionSpace, "dual")
@@ -276,6 +279,9 @@ def CofunctionSpace__init__(self, orig, orig_args, *args, **kwargs):
     add_interface(self, FunctionSpaceInterface,
                   {"space_dual": self, "comm": comm_dup_cached(self.comm),
                    "id": new_space_id_cached(self)})
+    with backend_Cofunction(self).dat.vec_ro as x_v:
+        n0, n1 = x_v.getOwnershipRange()
+    self._tlm_adjoint__space_interface_attrs["local_indices"] = (n0, n1)
 
 
 @patch_method(backend_CofunctionSpace, "dual")
@@ -340,7 +346,7 @@ def Function_assign(self, orig, orig_args, expr, subset=None):
             ZeroAssignment(x).solve()
         elif subset is None \
                 and isinstance(y, backend_Function) \
-                and space_id(var_space(y)) == space_id(var_space(x)):
+                and space_eq(y.function_space(), x.function_space()):
             Assignment(x, y).solve()
         else:
             ExprAssignment(x, y, subset=subset).solve()
@@ -348,7 +354,7 @@ def Function_assign(self, orig, orig_args, expr, subset=None):
 
     if subset is None:
         if isinstance(expr, backend_Function) \
-                and space_id(var_space(expr)) == space_id(var_space(self)):
+                and space_eq(expr.function_space(), self.function_space()):
             if expr is not self:
                 eq = Assignment(self, expr)
             else:
@@ -400,7 +406,7 @@ def Function_project(self, orig, orig_args, b, bcs=None,
     if use_slate_for_inverse:
         # Is a local solver actually used?
         projector = Projector(
-            b, var_space(self), bcs=bcs,
+            b, self.function_space(), bcs=bcs,
             solver_parameters=solver_parameters,
             form_compiler_parameters=form_compiler_parameters,
             use_slate_for_inverse=True)

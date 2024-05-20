@@ -3,8 +3,8 @@ from .backend import (
     backend_Function, backend_Matrix, backend_assemble, backend_solve,
     extract_args)
 from ..interface import (
-    check_space_type, check_space_types, register_garbage_cleanup, space_new,
-    var_space_type)
+    check_space_type, check_space_types_conjugate_dual,
+    register_garbage_cleanup, space_eq, space_new)
 
 from ..patch import patch_method
 
@@ -152,14 +152,11 @@ def matrix_copy(A):
     return A_copy
 
 
-def matrix_multiply(A, x, *,
-                    tensor=None, addto=False, action_type="conjugate_dual"):
+def matrix_multiply(A, x, *, tensor=None, addto=False):
     if tensor is None:
         tensor = space_new(
-            A.a.arguments()[0].function_space(),
-            space_type=var_space_type(x, rel_space_type=action_type))
-    else:
-        check_space_types(tensor, x, rel_space_type=action_type)
+            A.a.arguments()[0].function_space().dual())
+    check_space_types_conjugate_dual(tensor, x)
 
     if addto:
         with x.dat.vec_ro as x_v, tensor.dat.vec as tensor_v:
@@ -292,7 +289,7 @@ class LocalSolver:
         arguments = form.arguments()
         test, trial = arguments
         assert test.number() < trial.number()
-        b_space = test.function_space()
+        b_space = test.function_space().dual()
         x_space = trial.function_space()
 
         form = eliminate_zeros(form)
@@ -305,10 +302,10 @@ class LocalSolver:
         self._b_space = b_space
 
     def solve(self, x, b):
-        if x.function_space() != self._x_space:
+        if not space_eq(x.function_space(), self._x_space):
             raise ValueError("Invalid space")
         check_space_type(x, "primal")
-        if b.function_space() != self._b_space:
+        if not space_eq(b.function_space(), self._b_space):
             raise ValueError("Invalid space")
         check_space_type(b, "conjugate_dual")
 

@@ -9,7 +9,7 @@ import petsc4py.PETSc as PETSc
 import pytest
 try:
     import slepc4py.SLEPc as SLEPc
-except ImportError:
+except ModuleNotFoundError:
     SLEPc = None
 
 pytestmark = pytest.mark.skipif(
