@@ -10,6 +10,7 @@ from ..interface import (
 from .expr import eliminate_zeros
 from .parameters import update_parameters
 
+import mpi4py.MPI as MPI
 import numpy as np
 try:
     import ufl_legacy as ufl
@@ -160,14 +161,26 @@ def linear_solver(A, linear_solver_parameters, *, comm=None):
     is_lu_linear_solver = linear_solver == "default" \
         or has_lu_solver_method(linear_solver)
     if is_lu_linear_solver:
-        solver = LUSolver(comm, linear_solver)
+        try:
+            solver = LUSolver(comm, linear_solver)
+        except TypeError:
+            # Backwards compatibility
+            if MPI.Comm.Compare(comm, MPI.COMM_WORLD) != MPI.CONGRUENT:
+                raise RuntimeError("Invalid communicator")
+            solver = LUSolver(linear_solver)
         solver.set_operator(A)
         lu_parameters = linear_solver_parameters.get("lu_solver", {})
         update_parameters(solver.parameters, lu_parameters)
     else:
         pc = linear_solver_parameters.get("preconditioner", "default")
         ks_parameters = linear_solver_parameters.get("krylov_solver", {})
-        solver = KrylovSolver(comm, linear_solver, pc)
+        try:
+            solver = KrylovSolver(comm, linear_solver, pc)
+        except TypeError:
+            # Backwards compatibility
+            if MPI.Comm.Compare(comm, MPI.COMM_WORLD) != MPI.CONGRUENT:
+                raise RuntimeError("Invalid communicator")
+            solver = KrylovSolver(linear_solver, pc)
         solver.set_operator(A)
         update_parameters(solver.parameters, ks_parameters)
     return solver
