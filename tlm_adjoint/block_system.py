@@ -72,6 +72,7 @@ representations of a mixed space solution.
 from .interface import (
     DEFAULT_COMM, comm_dup_cached, space_comm, space_default_space_type,
     space_eq, space_new, var_assign, var_locked, var_zero)
+
 from .manager import manager_disabled
 from .petsc import PETScOptions, PETScVecInterface
 

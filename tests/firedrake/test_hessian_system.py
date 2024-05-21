@@ -1,7 +1,6 @@
 from firedrake import *
 from tlm_adjoint.firedrake import *
 from tlm_adjoint.firedrake.backend_interface import assemble_linear_solver
-from tlm_adjoint.firedrake.block_system import DirichletBCNullspace
 
 from .test_base import *
 

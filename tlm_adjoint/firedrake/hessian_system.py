@@ -1,14 +1,11 @@
 from ..interface import (
-    check_space_types, is_var, space_dtype, var_assign, var_axpy,
-    var_axpy_conjugate, var_copy, var_copy_conjugate, var_dtype, var_inner,
-    var_space_type)
+    is_var, space_dtype, var_assign, var_axpy, var_copy, var_copy_conjugate,
+    var_dtype, var_inner, var_space_type)
 
-from ..block_system import Preconditioner, iter_sub, tuple_sub
+from ..block_system import Preconditioner
 from ..eigendecomposition import eigendecompose
-from ..manager import manager_disabled
 
-from .block_system import (
-    BlockNullspace, LinearSolver, Matrix, NoneNullspace, TypedSpace)
+from .block_system import BlockNullspace, NoneNullspace, TypedSpace
 
 from collections.abc import Sequence
 import numpy as np
@@ -17,110 +14,10 @@ import warnings
 
 __all__ = \
     [
-        "HessianLinearSolver",
         "hessian_eigendecompose",
         "B_inv_orthonormality_test",
         "hessian_eigendecomposition_pc",
     ]
-
-
-# Complex note: It is convenient to define a Hessian action in terms of the
-# *conjugate* of the action, i.e. (H \zeta)^{*,T}, e.g. this is the form
-# returned by reverse-over-forward AD. However complex conjugation is then
-# needed in a number of places (e.g. one cannot define an eigenproblem directly
-# in terms of the conjugate of an action, as this is antilinear, rather than
-# linear).
-
-
-class HessianMatrix(Matrix):
-    def __init__(self, H, M):
-        if is_var(M):
-            M = (M,)
-        else:
-            M = tuple(M)
-        arg_space = tuple(m.function_space() for m in M)
-        action_space = tuple(TypedSpace(m.function_space().dual(), space_type="dual")  # noqa: E501
-                             for m in M)
-
-        super().__init__(arg_space, action_space)
-        self._H = H
-        self._M = M
-
-    def mult_add(self, x, y):
-        if is_var(x):
-            x = (x,)
-        if is_var(y):
-            y = (y,)
-
-        if len(x) != len(self._M):
-            raise ValueError("Invalid Hessian argument")
-        for x_i, m in zip(x, self._M):
-            check_space_types(x_i, m)
-
-        _, _, ddJ = self._H.action(self._M, x)
-
-        if len(y) != len(ddJ):
-            raise ValueError("Invalid Hessian action")
-        for y_i, ddJ_i in zip(y, ddJ):
-            var_axpy_conjugate(y_i, 1.0, ddJ_i)
-
-
-class HessianLinearSolver(LinearSolver):
-    """Defines a linear system involving a Hessian matrix,
-
-    .. math::
-
-        H u = b.
-
-    :arg H: A :class:`.Hessian` defining :math:`H`.
-    :arg M: A :class:`firedrake.function.Function` or
-        :class:`firedrake.cofunction.Cofunction`, or a :class:`Sequence` of
-        :class:`firedrake.function.Function` or
-        :class:`firedrake.cofunction.Cofunction` objects, defining the control.
-    :arg nullspace: A :class:`.Nullspace` or a :class:`Sequence` of
-        :class:`.Nullspace` objects defining the nullspace and left nullspace
-        of the Hessian matrix. `None` indicates a :class:`.NoneNullspace`.
-
-    Remaining arguments are passed to the
-    :class:`tlm_adjoint.block_system.LinearSolver` constructor.
-    """
-
-    def __init__(self, H, M, *args, nullspace=None, **kwargs):
-        if nullspace is None:
-            nullspace = NoneNullspace()
-        elif not isinstance(nullspace, (NoneNullspace, BlockNullspace)):
-            nullspace = BlockNullspace(nullspace)
-        super().__init__(HessianMatrix(H, M), *args, nullspace=nullspace,
-                         **kwargs)
-
-    @manager_disabled()
-    def solve(self, u, b, **kwargs):
-        """Solve a linear system involving a Hessian matrix,
-
-        .. math::
-
-            H u = b.
-
-        :arg u: A :class:`firedrake.function.Function` or
-            :class:`firedrake.cofunction.Cofunction`, or a :class:`Sequence` of
-            :class:`firedrake.function.Function` or
-            :class:`firedrake.cofunction.Cofunction` objects, defining the
-            solution :math:`u`.
-        :arg b: A :class:`firedrake.function.Function` or
-            :class:`firedrake.cofunction.Cofunction`, or a :class:`Sequence` of
-            :class:`firedrake.function.Function` or
-            :class:`firedrake.cofunction.Cofunction` objects, defining the
-            conjugate of the right-hand-side :math:`b`.
-
-        Remaining arguments are handed to the
-        :meth:`tlm_adjoint.block_system.LinearSolver.solve` method.
-        """
-
-        if is_var(b):
-            b = var_copy_conjugate(b)
-        else:
-            b = tuple_sub(map(var_copy_conjugate, iter_sub(b)), b)
-        return super().solve(u, b, **kwargs)
 
 
 def _default_hessian_eigenproblem_type(dtype):

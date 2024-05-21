@@ -1500,8 +1500,8 @@ def var_is_alias(x):
     return x._tlm_adjoint__var_interface_is_alias()
 
 
-def var_copy_conjugate(x):
-    y = var_new_conjugate(x)
+def var_copy_conjugate(x, *, name=None, static=False, cache=None):
+    y = var_new_conjugate(x, name=name, static=static, cache=cache)
     var_set_values(y, var_get_values(x).conjugate())
     return y
 
