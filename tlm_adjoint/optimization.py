@@ -1025,6 +1025,7 @@ def minimize_tao(forward, M0, *,
 
         def set_M(self, x):
             from_petsc(x, self._M)
+            self._shift = 0.0
 
         def shift(self, A, alpha):
             self._shift += alpha
