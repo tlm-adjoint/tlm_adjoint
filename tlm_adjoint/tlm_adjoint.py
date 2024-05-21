@@ -118,9 +118,9 @@ class EquationManager:
 
         self.reset(cp_method=cp_method, cp_parameters=cp_parameters)
 
+    @property
     def comm(self):
-        """
-        :returns: The communicator associated with the manager.
+        """The communicator associated with the manager.
         """
 
         return self._comm

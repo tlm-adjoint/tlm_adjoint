@@ -23,7 +23,7 @@ class HessianOptimization:
         if manager._alias_eqs:
             raise RuntimeError("Invalid equation manager state")
 
-        comm = manager.comm()
+        comm = manager.comm
 
         blocks = list(manager._blocks) + [list(manager._block)]
 

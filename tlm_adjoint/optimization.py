@@ -179,7 +179,7 @@ def minimize_scipy(forward, M0, *,
     if manager is None:
         manager = _manager()
     manager = manager.new()
-    comm = manager.comm()
+    comm = manager.comm
 
     with duplicated_comm(comm) as comm:
         N = [0]
@@ -910,7 +910,7 @@ def minimize_l_bfgs(forward, M0, *,
     if manager is None:
         manager = _manager()
     manager = manager.new()
-    comm = manager.comm()
+    comm = manager.comm
 
     J_hat = ReducedFunctional(forward, manager=manager)
 
@@ -991,7 +991,7 @@ def minimize_tao(forward, M0, *,
     if manager is None:
         manager = _manager()
     manager = manager.new()
-    comm = manager.comm()
+    comm = manager.comm
     comm = comm_dup_cached(comm, key="minimize_tao")
 
     tao = PETSc.TAO().create(comm=comm)
