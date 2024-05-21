@@ -28,6 +28,7 @@ from .equations import *
 from .fixed_point import *
 from .functional import *
 from .hessian import *
+from .hessian_system import *
 from .instructions import *
 from .interface import *
 from .jax import *

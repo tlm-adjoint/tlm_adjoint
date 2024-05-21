@@ -2,13 +2,10 @@ from ..interface import (
     is_var, space_dtype, var_assign, var_axpy, var_copy, var_copy_conjugate,
     var_dtype, var_inner, var_space_type)
 
-from ..block_system import Preconditioner, iter_sub, tuple_sub
+from ..block_system import Preconditioner
 from ..eigendecomposition import eigendecompose
-from ..hessian_system import HessianMatrix
-from ..manager import manager_disabled
 
-from .block_system import (
-    BlockNullspace, LinearSolver, NoneNullspace, TypedSpace)
+from .block_system import BlockNullspace, NoneNullspace, TypedSpace
 
 from collections.abc import Sequence
 import numpy as np
@@ -17,69 +14,10 @@ import warnings
 
 __all__ = \
     [
-        "HessianLinearSolver",
         "hessian_eigendecompose",
         "B_inv_orthonormality_test",
         "hessian_eigendecomposition_pc",
     ]
-
-
-class HessianLinearSolver(LinearSolver):
-    """Defines a linear system involving a Hessian matrix,
-
-    .. math::
-
-        H u = b.
-
-    :arg H: A :class:`.Hessian` defining :math:`H`.
-    :arg M: A :class:`firedrake.function.Function` or
-        :class:`firedrake.cofunction.Cofunction`, or a :class:`Sequence` of
-        :class:`firedrake.function.Function` or
-        :class:`firedrake.cofunction.Cofunction` objects, defining the control.
-    :arg nullspace: A :class:`.Nullspace` or a :class:`Sequence` of
-        :class:`.Nullspace` objects defining the nullspace and left nullspace
-        of the Hessian matrix. `None` indicates a :class:`.NoneNullspace`.
-
-    Remaining arguments are passed to the
-    :class:`tlm_adjoint.block_system.LinearSolver` constructor.
-    """
-
-    def __init__(self, H, M, *args, nullspace=None, **kwargs):
-        if nullspace is None:
-            nullspace = NoneNullspace()
-        elif not isinstance(nullspace, (NoneNullspace, BlockNullspace)):
-            nullspace = BlockNullspace(nullspace)
-        super().__init__(HessianMatrix(H, M), *args, nullspace=nullspace,
-                         **kwargs)
-
-    @manager_disabled()
-    def solve(self, u, b, **kwargs):
-        """Solve a linear system involving a Hessian matrix,
-
-        .. math::
-
-            H u = b.
-
-        :arg u: A :class:`firedrake.function.Function` or
-            :class:`firedrake.cofunction.Cofunction`, or a :class:`Sequence` of
-            :class:`firedrake.function.Function` or
-            :class:`firedrake.cofunction.Cofunction` objects, defining the
-            solution :math:`u`.
-        :arg b: A :class:`firedrake.function.Function` or
-            :class:`firedrake.cofunction.Cofunction`, or a :class:`Sequence` of
-            :class:`firedrake.function.Function` or
-            :class:`firedrake.cofunction.Cofunction` objects, defining the
-            conjugate of the right-hand-side :math:`b`.
-
-        Remaining arguments are handed to the
-        :meth:`tlm_adjoint.block_system.LinearSolver.solve` method.
-        """
-
-        if is_var(b):
-            b = var_copy_conjugate(b)
-        else:
-            b = tuple_sub(map(var_copy_conjugate, iter_sub(b)), b)
-        return super().solve(u, b, **kwargs)
 
 
 def _default_hessian_eigenproblem_type(dtype):
