@@ -1,6 +1,6 @@
 from .interface import (
-    check_space_types, check_space_types_conjugate, var_axpy_conjugate,
-    var_copy_conjugate, var_space)
+    var_axpy_conjugate, var_copy_conjugate, var_increment_state_lock,
+    var_space)
 
 from .block_system import (
     BlockNullspace, LinearSolver, Matrix, NoneNullspace, TypedSpace)
@@ -28,7 +28,7 @@ class HessianMatrix(Matrix):
 
     :arg H: The :class:`.Hessian`.
     :arg M: A variable or a :class:`Sequence` of variables defining the
-        control.
+        control and its value.
     """
 
     def __init__(self, H, M):
@@ -43,27 +43,12 @@ class HessianMatrix(Matrix):
         self._H = H
         self._M = M
 
+        for m in M:
+            var_increment_state_lock(m, self)
+
     def mult_add(self, x, y):
-        if isinstance(x, Sequence):
-            x = tuple(x)
-        else:
-            x = (x,)
-        if isinstance(y, Sequence):
-            y = tuple(y)
-        else:
-            y = (y,)
-
-        if len(x) != len(self._M):
-            raise ValueError("Invalid length")
-        for x_i, m in zip(x, self._M):
-            check_space_types(x_i, m)
-
         _, _, ddJ = self._H.action(self._M, x)
-
-        if len(y) != len(ddJ):
-            raise ValueError("Invalid length")
-        for y_i, ddJ_i in zip(y, ddJ):
-            check_space_types_conjugate(y_i, ddJ_i)
+        assert len(y) == len(ddJ)
         for y_i, ddJ_i in zip(y, ddJ):
             var_axpy_conjugate(y_i, 1.0, ddJ_i)
 
@@ -77,7 +62,7 @@ class HessianLinearSolver(LinearSolver):
 
     :arg H: A :class:`.Hessian` defining :math:`H`.
     :arg M: A variable or a :class:`Sequence` of variables defining the
-        control.
+        control and its value.
     :arg nullspaces: A :class:`.Nullspace` or a :class:`Sequence` of
         :class:`.Nullspace` objects defining the nullspace. `None` indicates a
         :class:`.NoneNullspace`.
