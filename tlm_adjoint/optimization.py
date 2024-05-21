@@ -1,9 +1,9 @@
 from .interface import (
     comm_dup_cached, garbage_cleanup, is_var, paused_space_type_checking,
     var_axpy, var_comm, var_copy, var_dtype, var_get_values, var_is_cached,
-    var_is_static, var_linf_norm, var_local_size, var_new, var_scalar_value,
-    var_set_values, var_space, vars_assign, vars_axpy, vars_copy, vars_inner,
-    vars_new, vars_new_conjugate_dual)
+    var_is_static, var_linf_norm, var_local_size, var_locked, var_new,
+    var_scalar_value, var_set_values, var_space, vars_assign, vars_axpy,
+    vars_copy, vars_inner, vars_new, vars_new_conjugate_dual)
 
 from .caches import clear_caches, local_caches
 from .hessian import GeneralHessian as Hessian
@@ -303,7 +303,8 @@ def wrapped_action(M):
 
     @functools.wraps(M_arg)
     def M(*X):
-        M_X = M_arg(*vars_copy(X))
+        with var_locked(*X):
+            M_X = M_arg(*X)
         if is_var(M_X):
             M_X = (M_X,)
         if len(M_X) != len(X):
@@ -380,7 +381,8 @@ class LBFGSHessianApproximation:
             more variables as arguments, defining the direction, and returns a
             variable or a :class:`Sequence` of variables defining the action on
             this direction. Should correspond to a positive definite operator.
-            An identity is used if not supplied.
+            Arguments should not be modified. An identity is used if not
+            supplied.
         :returns: A variable or a :class:`Sequence` of variables storing the
             result.
         """
@@ -429,10 +431,12 @@ def line_search(F, Fp, X, minus_P, *,
           Software 20(3), 286--307, 1994, doi: 10.1145/192115.192132
 
     :arg F: A callable defining the functional. Accepts one or more variables
-        as arguments, and returns the value of the functional.
+        as arguments, and returns the value of the functional. Arguments should
+        not be modified.
     :arg Fp: A callable defining the functional gradient. Accepts one or more
         variables as inputs, and returns a variable or :class:`Sequence` of
-        variables storing the value of the gradient.
+        variables storing the value of the gradient. Arguments should not be
+        modified.
     :arg X: A variable or a :class:`Sequence` of variables defining the
         starting point for the line search.
     :arg minus_P: A variable or a :class:`Sequence` of variables defining the
@@ -464,7 +468,12 @@ def line_search(F, Fp, X, minus_P, *,
 
     import petsc4py.PETSc as PETSc
 
-    F_arg, F = F, lambda *X: F_arg(*vars_copy(X))
+    F_arg = F
+
+    def F(*X):
+        with var_locked(*X):
+            return F_arg(*X)
+
     Fp = wrapped_action(Fp)
     if is_var(X):
         X = (X,)
@@ -643,8 +652,8 @@ def l_bfgs(F, Fp, X0, *,
         inverse approximation on some direction. Accepts one or more variables
         as arguments, defining the direction, and returns a variable or a
         :class:`Sequence` of variables defining the action on this direction.
-        Should correspond to a positive definite operator. An identity is used
-        if not supplied.
+        Should correspond to a positive definite operator. Arguments should not
+        be modified. An identity is used if not supplied.
     :arg theta_scale: Whether to apply 'theta scaling', discussed above.
     :arg delta: Controls the initial value of :math:`\theta` in 'theta
         scaling'. If `None` then on the first iteration :math:`\theta` is set
@@ -660,8 +669,8 @@ def l_bfgs(F, Fp, X0, *,
         matrix. Accepts one or more variables as arguments, defining the
         direction, and returns a variable or a :class:`Sequence` of variables
         defining the action of :math:`M` on this direction. An identity is used
-        if not supplied. Required if `H_0_action` or `M_inv_action` are
-        supplied.
+        if not supplied. Arguments should not be modified. Required if
+        `H_0_action` or `M_inv_action` are supplied.
     :arg M_inv_action: A callable defining a (conjugate) dual space inner
         product,
 
@@ -673,8 +682,8 @@ def l_bfgs(F, Fp, X0, *,
         (conjugate) dual space elements and :math:`M` is as for `M_action`.
         Accepts one or more variables as arguments, defining the direction, and
         returns a variable or a :class:`Sequence` of variables defining the
-        action of :math:`M^{-1}` on this direction. `H_0_action` is used if not
-        supplied.
+        action of :math:`M^{-1}` on this direction. Arguments should not be
+        modified. `H_0_action` is used if not supplied.
     :arg c1: Armijo condition parameter. :math:`c_1` in equation (3.6a) of
 
             - Jorge Nocedal and Stephen J. Wright, 'Numerical optimization',
@@ -941,6 +950,7 @@ def minimize_tao(forward, M0, *,
         positive definite matrix. Accepts one or more variables as arguments,
         defining the direction, and returns a variable or a :class:`Sequence`
         of variables defining the action of :math:`M^{-1}` on this direction.
+        Arguments should not be modified.
     :arg pre_callback: A callable accepting a single
         :class:`petsc4py.PETSc.TAO` argument. Used for detailed manual
         configuration. Called after all other configuration options are set.
