@@ -5,9 +5,10 @@ from .backend import (
     Cell, Mesh, MeshEditor, Point, UserExpression, backend_Constant,
     backend_Function, backend_ScalarType, parameters)
 from ..interface import (
-    check_space_type, is_var, space_comm, space_eq, var_assign, var_comm,
-    var_get_values, var_id, var_inner, var_is_scalar, var_local_size, var_new,
-    var_new_conjugate_dual, var_replacement, var_scalar_value, var_set_values)
+    check_space_type, comm_dup_cached, is_var, space_comm, space_eq,
+    var_assign, var_comm, var_get_values, var_id, var_inner, var_is_scalar,
+    var_local_size, var_new, var_new_conjugate_dual, var_replacement,
+    var_scalar_value, var_set_values)
 
 from ..equation import Equation, ZeroAssignment
 from ..equations import MatrixActionRHS
@@ -210,7 +211,7 @@ def local_mesh(mesh):
                     full_vertex_map.append(full_vertex)
             full_cell_map.append(full_cell)
 
-    l_mesh = Mesh(MPI.COMM_SELF)
+    l_mesh = Mesh(comm_dup_cached(MPI.COMM_SELF))
     ed = MeshEditor()
     ed.open(mesh=l_mesh, type=mesh.cell_name(), tdim=mesh.topology().dim(),
             gdim=mesh.geometry().dim(), degree=mesh.geometry().degree())

@@ -1,7 +1,8 @@
 from .interface import (
-    space_global_size, space_local_size, var_dtype, var_get_values,
+    space_comm, space_global_size, space_local_size, var_dtype, var_get_values,
     var_local_size, var_set_values)
 
+from contextlib import contextmanager
 import numpy as np
 try:
     import petsc4py.PETSc as PETSc
@@ -60,11 +61,29 @@ class PETScOptions:
             self[key] = value
 
 
+@contextmanager
+def petsc_option_setdefault(key, value):
+    if PETSc is None:
+        raise RuntimeError("PETSc not available")
+
+    options = PETSc.Options()
+    set_option = key not in options
+    if set_option:
+        options[key] = value
+    try:
+        yield
+    finally:
+        if set_option:
+            del options[key]
+
+
 class PETScVecInterface:
-    def __init__(self, spaces, *, dtype=None):
+    def __init__(self, spaces, *, dtype=None, comm=None):
         if PETSc is None:
             raise RuntimeError("PETSc not available")
 
+        if comm is None:
+            comm = space_comm(spaces[0])
         if dtype is None:
             dtype = PETSc.ScalarType
         dtype = np.dtype(dtype).type
@@ -77,10 +96,15 @@ class PETScVecInterface:
             n += space_local_size(space)
             N += space_global_size(space)
 
+        self._comm = comm
         self._dtype = dtype
         self._indices = tuple(indices)
         self._n = n
         self._N = N
+
+    @property
+    def comm(self):
+        return self._comm
 
     @property
     def dtype(self):
@@ -127,3 +151,32 @@ class PETScVecInterface:
         for (i0, i1), y in zip(self.indices, Y):
             x_a[i0:i1] = var_get_values(y)
         x.setArray(x_a)
+
+    def new_petsc(self):
+        vec = PETSc.Vec().create(comm=self.comm)
+        vec.setSizes((self.local_size, self.global_size))
+        vec.setUp()
+        return vec
+
+
+class PETScVec:
+    def __init__(self, vec_interface):
+        self._vec_interface = vec_interface
+        self._vec = vec_interface.new_petsc()
+
+        def finalize_callback(vec):
+            vec.destroy()
+
+        finalize = weakref.finalize(self, finalize_callback,
+                                    self._vec)
+        finalize.atexit = False
+
+    @property
+    def vec(self):
+        return self._vec
+
+    def to_petsc(self, Y):
+        self._vec_interface.to_petsc(self.vec, Y)
+
+    def from_petsc(self, X):
+        self._vec_interface.from_petsc(self.vec, X)

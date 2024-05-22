@@ -8,23 +8,26 @@ from .interface import (
 from .caches import clear_caches, local_caches
 from .hessian import GeneralHessian as Hessian
 from .manager import manager as _manager
-from .petsc import PETScOptions, PETScVecInterface
+from .petsc import (
+    PETScOptions, PETScVec, PETScVecInterface, petsc_option_setdefault)
 from .manager import (
-    compute_gradient, reset_manager, restore_manager, set_manager,
-    start_manager, stop_manager)
+    compute_gradient, manager_disabled, reset_manager, restore_manager,
+    set_manager, start_manager, stop_manager)
 
 from collections import deque
 import contextlib
-import functools
+from functools import cached_property, wraps
 import logging
 import numbers
 import numpy as np
+import weakref
 
 __all__ = \
     [
         "minimize_scipy",
 
         "LBFGSHessianApproximation",
+        "TAOSolver",
         "l_bfgs",
         "line_search",
         "minimize_l_bfgs",
@@ -44,6 +47,10 @@ class ReducedFunctional:
         self._M = None
         self._M_val = None
         self._J = None
+
+    @property
+    def comm(self):
+        return self._manager.comm
 
     @restore_manager
     def objective(self, M, *,
@@ -301,7 +308,7 @@ def conjugate_dual_identity_action(*X):
 def wrapped_action(M):
     M_arg = M
 
-    @functools.wraps(M_arg)
+    @wraps(M_arg)
     def M(*X):
         with var_locked(*X):
             M_X = M_arg(*X)
@@ -486,12 +493,16 @@ def line_search(F, Fp, X, minus_P, *,
     elif is_var(old_Fp_val):
         old_Fp_val = (old_Fp_val,)
 
+    if comm is None:
+        comm = var_comm(X[0])
+    comm = comm_dup_cached(comm, key="line_search")
+
     vec_interface = PETScVecInterface(tuple(map(var_space, X)),
-                                      dtype=PETSc.RealType)
-    n, N = vec_interface.local_size, vec_interface.global_size
+                                      dtype=PETSc.RealType, comm=comm)
     to_petsc, from_petsc = vec_interface.to_petsc, vec_interface.from_petsc
 
-    Y = vars_new(X)
+    Y = tuple(var_new(x, static=var_is_static(x), cache=var_is_cached(x))
+              for x in X)
 
     def objective(taols, x):
         from_petsc(x, Y)
@@ -510,10 +521,6 @@ def line_search(F, Fp, X, minus_P, *,
         to_petsc(g, dJ)
         return F_val
 
-    if comm is None:
-        comm = var_comm(Y[0])
-    comm = comm_dup_cached(comm, key="line_search")
-
     taols = PETSc.TAOLineSearch().create(comm=comm)
     taols.setObjective(objective)
     taols.setGradient(gradient)
@@ -528,34 +535,25 @@ def line_search(F, Fp, X, minus_P, *,
     taols.setUp()
     taols.setFromOptions()
 
-    x = PETSc.Vec().create(comm=comm)
-    x.setSizes((n, N))
-    x.setUp()
-    to_petsc(x, X)
+    x = PETScVec(vec_interface)
+    x.to_petsc(X)
 
-    g = PETSc.Vec().create(comm=comm)
-    g.setSizes((n, N))
-    g.setUp()
-    to_petsc(g, old_Fp_val)
+    g = PETScVec(vec_interface)
+    g.to_petsc(old_Fp_val)
 
-    s = PETSc.Vec().create(comm=comm)
-    s.setSizes((n, N))
-    s.setUp()
-    to_petsc(s, minus_P)
-    s.scale(-1.0)
+    s = PETScVec(vec_interface)
+    s.to_petsc(minus_P)
+    s.vec.scale(-1.0)
 
-    phi, alpha, reason = taols.apply(x, g, s)
-    if reason != PETSc.TAOLineSearch.Reason.SUCCESS:
-        raise RuntimeError("Line search failure")
+    try:
+        phi, alpha, reason = taols.apply(x.vec, g.vec, s.vec)
+        if reason != PETSc.TAOLineSearch.Reason.SUCCESS:
+            raise RuntimeError("Line search failure")
+    finally:
+        taols.destroy()
 
     new_Fp_val = vars_new_conjugate_dual(X)
-    from_petsc(g, new_Fp_val)
-
-    taols.destroy()
-    x.destroy()
-    g.destroy()
-    s.destroy()
-    options.clear()
+    g.from_petsc(new_Fp_val)
 
     return alpha, phi + old_F_val, new_Fp_val
 
@@ -612,10 +610,12 @@ def l_bfgs(F, Fp, X0, *,
     The line search is performed using :func:`.line_search`.
 
     :arg F: A callable defining the functional. Accepts one or more variables
-        as arguments, and returns the value of the functional.
+        as arguments, and returns the value of the functional. Arguments should
+        not be modified.
     :arg Fp: A callable defining the functional gradient. Accepts one or more
         variables as inputs, and returns a variable or :class:`Sequence` of
-        variables storing the value of the gradient.
+        variables storing the value of the gradient. Arguments should not be
+        modified.
     :arg X0: A variable or a :class:`Sequence` of variables defining the
         initial guess for the parameters.
     :arg m: The maximum number of step + gradient change pairs to use in the
@@ -716,7 +716,8 @@ def l_bfgs(F, Fp, X0, *,
         nonlocal F_calls
 
         F_calls += 1
-        F_val = F_arg(*X)
+        with var_locked(*X):
+            F_val = F_arg(*X)
         if isinstance(F_val, numbers.Integral) \
                 or not isinstance(F_val, numbers.Real):
             raise TypeError("Invalid type")
@@ -729,7 +730,8 @@ def l_bfgs(F, Fp, X0, *,
         nonlocal Fp_calls
 
         Fp_calls += 1
-        Fp_val = Fp_arg(*vars_copy(X))
+        with var_locked(*X):
+            Fp_val = Fp_arg(*X)
         if is_var(Fp_val):
             Fp_val = (Fp_val,)
         if len(Fp_val) != len(X):
@@ -745,7 +747,7 @@ def l_bfgs(F, Fp, X0, *,
     else:
         converged_arg = converged
 
-        @functools.wraps(converged_arg)
+        @wraps(converged_arg)
         def converged(it, F_old, F_new, X_new, G_new, S, Y):
             return converged_arg(it, F_old, F_new,
                                  X_new[0] if len(X_new) == 1 else X_new,
@@ -794,7 +796,8 @@ def l_bfgs(F, Fp, X0, *,
         comm = var_comm(X0[0])
     comm = comm_dup_cached(comm)
 
-    X = vars_copy(X0)
+    X = tuple(var_copy(x0, static=var_is_static(x0), cache=var_is_cached(x0))
+              for x0 in X0)
     del X0
     old_F_val = F(*X)
     old_Fp_val = Fp(*X)
@@ -910,98 +913,43 @@ def minimize_l_bfgs(forward, M0, *,
     if manager is None:
         manager = _manager()
     manager = manager.new()
-    comm = manager.comm
 
     J_hat = ReducedFunctional(forward, manager=manager)
 
     X, optimization_data = l_bfgs(
         lambda *M: J_hat.objective(M), lambda *M: J_hat.gradient(M), M0,
-        m=m, comm=comm, **kwargs)
+        m=m, comm=J_hat.comm, **kwargs)
 
     if is_var(X):
         X = (X,)
     return X, optimization_data
 
 
-@local_caches
-def minimize_tao(forward, M0, *,
-                 method=None, gatol, grtol, gttol=0.0,
-                 M_inv_action=None,
-                 pre_callback=None, post_callback=None, manager=None):
-    r"""Functional minimization using TAO.
-
-    :arg forward: A callable which accepts one or more variable arguments, and
-        which returns a variable defining the forward functional.
-    :arg M0: A variable or :class:`Sequence` of variables defining the control,
-        and the initial guess for the optimization.
-    :arg method: TAO type. Defaults to `PETSc.TAO.Type.LMVM`.
-    :arg gatol: TAO gradient absolute tolerance.
-    :arg grtol: TAO gradient relative tolerance.
-    :arg gttol: TAO gradient norm change relative tolerance.
-    :arg M_inv_action: A callable defining a (conjugate) dual space inner
-        product,
-
-        .. math::
-
-            \left< x, y \right>_{M^{-1}} = y^* M^{-1} x,
-
-        where :math:`x` and :math:`y` are degree of freedom vectors for
-        (conjugate) dual space elements and :math:`M` is a Hermitian and
-        positive definite matrix. Accepts one or more variables as arguments,
-        defining the direction, and returns a variable or a :class:`Sequence`
-        of variables defining the action of :math:`M^{-1}` on this direction.
-        Arguments should not be modified.
-    :arg pre_callback: A callable accepting a single
-        :class:`petsc4py.PETSc.TAO` argument. Used for detailed manual
-        configuration. Called after all other configuration options are set.
-    :arg post_callback: A callable accepting a single
-        :class:`petsc4py.PETSc.TAO` argument. Called after the
-        :meth:`petsc4py.PETSc.TAO.solve` method has been called.
-    :arg manager: An :class:`.EquationManager` used to create an internal
-        manager via :meth:`.EquationManager.new`. `manager()` is used if not
-        supplied.
-    :returns: A variable or a :class:`Sequence` of variables storing the
-        result.
-    """
-
-    if is_var(M0):
-        m, = minimize_tao(
-            forward, (M0,),
-            method=method, gatol=gatol, grtol=grtol, gttol=gttol,
-            M_inv_action=M_inv_action,
-            pre_callback=pre_callback, post_callback=post_callback,
-            manager=manager)
-        return m
-
+def petsc_tao(J_hat, M, *, solver_parameters=None, M_inv_action=None):
     import petsc4py.PETSc as PETSc
 
-    if method is None:
-        method = PETSc.TAO.Type.LMVM
-    for m0 in M0:
-        if not issubclass(var_dtype(m0), np.floating):
+    for m in M:
+        if not issubclass(var_dtype(m), np.floating):
             raise ValueError("Invalid dtype")
+    if solver_parameters is None:
+        solver_parameters = {}
     if M_inv_action is not None:
         M_inv_action = wrapped_action(M_inv_action)
 
-    vec_interface = PETScVecInterface(tuple(map(var_space, M0)),
-                                      dtype=PETSc.RealType)
+    comm = comm_dup_cached(J_hat.comm, key="petsc_tao")
+
+    vec_interface = PETScVecInterface(tuple(map(var_space, M)),
+                                      dtype=PETSc.RealType, comm=comm)
     n, N = vec_interface.local_size, vec_interface.global_size
     to_petsc, from_petsc = vec_interface.to_petsc, vec_interface.from_petsc
 
-    if manager is None:
-        manager = _manager()
-    manager = manager.new()
-    comm = manager.comm
-    comm = comm_dup_cached(comm, key="minimize_tao")
-
     tao = PETSc.TAO().create(comm=comm)
-    tao.setType(method)
-    tao.setTolerances(gatol=gatol, grtol=grtol, gttol=gttol)
+    options = PETScOptions(f"_tlm_adjoint__{tao.name:s}_")
+    options.update(solver_parameters)
+    tao.setOptionsPrefix(options.options_prefix)
 
-    M = tuple(var_new(m0, static=var_is_static(m0),
-                      cache=var_is_cached(m0))
-              for m0 in M0)
-    J_hat = ReducedFunctional(forward, manager=manager)
+    M = tuple(var_new(m, static=var_is_static(m), cache=var_is_cached(m))
+              for m in M)
 
     def objective(tao, x):
         from_petsc(x, M)
@@ -1027,11 +975,11 @@ def minimize_tao(forward, M0, *,
         def __init__(self):
             self._shift = 0.0
 
-        @functools.cached_property
+        @cached_property
         def _M(self):
-            return tuple(var_new(m0, static=var_is_static(m0),
-                                 cache=var_is_cached(m0))
-                         for m0 in M0)
+            return tuple(var_new(m, static=var_is_static(m),
+                                 cache=var_is_cached(m))
+                         for m in M)
 
         def set_M(self, x):
             from_petsc(x, self._M)
@@ -1058,15 +1006,14 @@ def minimize_tao(forward, M0, *,
     tao.setObjectiveGradient(objective_gradient, None)
     tao.setHessian(hessian, H_matrix)
 
-    if M_inv_action is not None:
+    if M_inv_action is None:
+        M_inv_matrix = None
+    else:
         class GradientNorm:
-            @functools.cached_property
-            def _dJ(self):
-                return vars_new_conjugate_dual(M0)
-
             def mult(self, A, x, y):
-                from_petsc(x, self._dJ)
-                M_inv_X = M_inv_action(*self._dJ)
+                dJ = vars_new_conjugate_dual(M)
+                from_petsc(x, dJ)
+                M_inv_X = M_inv_action(*dJ)
                 to_petsc(y, M_inv_X)
 
         M_inv_matrix = PETSc.Mat().createPython(((n, N), (n, N)),
@@ -1075,24 +1022,103 @@ def minimize_tao(forward, M0, *,
         M_inv_matrix.setUp()
         tao.setGradientNorm(M_inv_matrix)
 
-    x = H_matrix.getVecRight()
-    to_petsc(x, M0)
+    # Work around obscure change in behaviour after calling TaoSetFromOptions
+    with petsc_option_setdefault("tao_lmvm_mat_lmvm_theta", 0.0):
+        tao.setFromOptions()
 
-    if pre_callback is not None:
-        pre_callback(tao)
-    tao.solve(x)
-    if post_callback is not None:
-        post_callback(tao)
+    return tao, H_matrix, M_inv_matrix, vec_interface
 
-    if tao.getConvergedReason() <= 0:
-        raise RuntimeError("Convergence failure")
 
-    from_petsc(x, M)
+class TAOSolver:
+    r"""Functional minimization using TAO.
 
-    tao.destroy()
-    H_matrix.destroy()
-    if M_inv_action is not None:
-        M_inv_matrix.destroy()
-    x.destroy()
+    :arg forward: A callable which accepts one or more variable arguments, and
+        which returns a variable defining the forward functional.
+    :arg M: A variable or :class:`Sequence` of variables defining the control.
+    :arg solver_parameters: A :class:`Mapping` defining TAO solver parameters.
+    :arg M_inv_action: A callable defining a (conjugate) dual space inner
+        product,
 
+        .. math::
+
+            \left< x, y \right>_{M^{-1}} = y^* M^{-1} x,
+
+        where :math:`x` and :math:`y` are degree of freedom vectors for
+        (conjugate) dual space elements and :math:`M` is a Hermitian and
+        positive definite matrix. Accepts one or more variables as arguments,
+        defining the direction, and returns a variable or a :class:`Sequence`
+        of variables defining the action of :math:`M^{-1}` on this direction.
+        Arguments should not be modified.
+    :arg manager: An :class:`.EquationManager` used to create an internal
+        manager via :meth:`.EquationManager.new`. `manager()` is used if not
+        supplied.
+    """
+
+    def __init__(self, forward, M, *, solver_parameters=None,
+                 M_inv_action=None, manager=None):
+        if is_var(M):
+            M = (M,)
+        if manager is None:
+            manager = _manager()
+        manager = manager.new()
+
+        J_hat = ReducedFunctional(forward, manager=manager)
+        tao, H_matrix, M_inv_matrix, vec_interface = petsc_tao(
+            J_hat, M, solver_parameters=solver_parameters,
+            M_inv_action=M_inv_action)
+
+        self._tao = tao
+        self._vec_interface = vec_interface
+
+        def finalize_callback(tao, H_matrix, M_inv_matrix):
+            tao.destroy()
+            H_matrix.destroy()
+            if M_inv_matrix is not None:
+                M_inv_matrix.destroy()
+
+        finalize = weakref.finalize(self, finalize_callback,
+                                    tao, H_matrix, M_inv_matrix)
+        finalize.atexit = False
+
+    @property
+    def tao(self):
+        return self._tao
+
+    @local_caches
+    @manager_disabled()
+    def solve(self, M):
+        """Solve the optimization problem.
+
+        :arg M: Defines the solution.
+        """
+
+        if is_var(M):
+            M = (M,)
+
+        x = PETScVec(self._vec_interface)
+        x.to_petsc(M)
+        self.tao.solve(x.vec)
+        x.from_petsc(M)
+        if self.tao.getConvergedReason() <= 0:
+            raise RuntimeError("Convergence failure")
+
+
+def minimize_tao(forward, M0, *args, **kwargs):
+    """Functional minimization using TAO.
+
+    :arg forward: A callable which accepts one or more variable arguments, and
+        which returns a variable defining the forward functional.
+    :arg M0: A variable or :class:`Sequence` of variables defining the control,
+        and the initial guess for the optimization.
+
+    Remaining arguments are passed to the :class:`.TAOSolver` constructor.
+    """
+
+    if is_var(M0):
+        m, = minimize_tao(forward, (M0,), *args, **kwargs)
+        return m
+
+    M = tuple(var_copy(m0, static=var_is_static(m0), cache=var_is_cached(m0))
+              for m0 in M0)
+    TAOSolver(forward, M, *args, **kwargs).solve(M)
     return M
