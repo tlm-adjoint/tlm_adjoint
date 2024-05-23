@@ -70,11 +70,10 @@ representations of a mixed space solution.
 """
 
 from .interface import (
-    DEFAULT_COMM, comm_dup_cached, space_comm, space_default_space_type,
-    space_eq, space_new, var_assign, var_locked, var_zero)
-
+    comm_dup_cached, space_comm, space_default_space_type, space_eq, space_new,
+    var_assign, var_locked, var_zero)
 from .manager import manager_disabled
-from .petsc import PETScOptions, PETScVecInterface
+from .petsc import PETScOptions, PETScVec, PETScVecInterface
 
 from abc import ABC, abstractmethod
 from collections.abc import Mapping, MutableMapping, Sequence
@@ -262,17 +261,9 @@ class MixedSpace(PETScVecInterface, Sequence):
                                  for space in iter_sub(spaces))
         spaces = tuple_sub(flattened_spaces, spaces)
 
-        if len(flattened_spaces) > 0:
-            comm = flattened_spaces[0].comm
-        elif MPI is None:
-            comm = DEFAULT_COMM
-        else:
-            comm = MPI.COMM_SELF
-
         super().__init__(tuple(space.space for space in flattened_spaces))
         self._spaces = spaces
         self._flattened_spaces = flattened_spaces
-        self._comm = comm
 
     def __len__(self):
         return len(self.split_space)
@@ -300,13 +291,6 @@ class MixedSpace(PETScVecInterface, Sequence):
 
     def __ne__(self, other):
         return not (self == other)
-
-    @property
-    def comm(self):
-        """The communicator associated with the mixed space.
-        """
-
-        return self._comm
 
     @property
     def split_space(self):
@@ -764,7 +748,7 @@ def petsc_ksp(A, *, comm=None, solver_parameters=None, pc_fn=None):
     if solver_parameters is None:
         solver_parameters = {}
 
-    comm = comm_dup_cached(comm, key="block_system")
+    comm = comm_dup_cached(comm, key="petsc_ksp")
 
     A_mat = PETSc.Mat().createPython(
         ((action_space.local_size, action_space.global_size),
@@ -914,20 +898,20 @@ class LinearSolver:
             self._A.nullspace.correct_soln(u)
         self._A.nullspace.correct_rhs(b_c)
 
-        u_petsc = self._A_mat.createVecRight()
-        self._A.arg_space.to_petsc(u_petsc, u)
-        b_petsc = self._A_mat.createVecLeft()
-        self._A.action_space.to_petsc(b_petsc, b_c)
+        u_petsc = PETScVec(self._A.arg_space)
+        u_petsc.to_petsc(u)
+        b_petsc = PETScVec(self._A.action_space)
+        b_petsc.to_petsc(b_c)
         del b_c
 
         try:
             self._pc_pc_fn[0] = pc_fn
-            self.ksp.solve(b_petsc, u_petsc)
+            self.ksp.solve(b_petsc.vec, u_petsc.vec)
         finally:
             self._pc_pc_fn[0] = self._pc_fn
         del b_petsc
 
-        self._A.arg_space.from_petsc(u_petsc, u)
+        u_petsc.from_petsc(u)
         del u_petsc
 
         if correct_solution:

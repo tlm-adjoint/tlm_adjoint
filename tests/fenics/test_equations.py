@@ -591,7 +591,7 @@ def test_Assembly_arity_1(setup_test, test_leaks):
 @seed_test
 def test_Storage(setup_test, test_leaks,
                  tmp_path):
-    comm = comm_dup_cached(manager().comm(), key="test_Storage")
+    comm = comm_dup_cached(manager().comm, key="test_Storage")
 
     mesh = UnitSquareMesh(20, 20)
     X = SpatialCoordinate(mesh)

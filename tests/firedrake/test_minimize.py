@@ -3,7 +3,6 @@ from tlm_adjoint.firedrake import *
 
 from .test_base import *
 
-import petsc4py.PETSc as PETSc
 import pytest
 
 pytestmark = pytest.mark.skipif(
@@ -35,14 +34,18 @@ def l_bfgs_minimization(forward, M0):
 
 def tao_lmvm_minimization(forward, m0):
     return minimize_tao(forward, m0,
-                        method=PETSc.TAO.Type.LMVM,
-                        gatol=1.0e-11, grtol=0.0, gttol=0.0)
+                        solver_parameters={"tao_type": "lmvm",
+                                           "tao_gatol": 1.0e-11,
+                                           "tao_grtol": 0.0,
+                                           "tao_gttol": 0.0})
 
 
 def tao_nls_minimization(forward, m0):
     return minimize_tao(forward, m0,
-                        method=PETSc.TAO.Type.NLS,
-                        gatol=1.0e-11, grtol=0.0, gttol=0.0)
+                        solver_parameters={"tao_type": "nls",
+                                           "tao_gatol": 1.0e-11,
+                                           "tao_grtol": 0.0,
+                                           "tao_gttol": 0.0})
 
 
 @pytest.mark.firedrake
