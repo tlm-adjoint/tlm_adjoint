@@ -40,6 +40,22 @@ def tao_lmvm_minimization(forward, m0):
                                            "tao_gttol": 0.0})
 
 
+def tao_lmvm_minimization_M_inv(forward, m0):
+    def M_inv_action(x):
+        return x.riesz_representation("L2", solver_parameters=ls_parameters_cg)
+
+    tao_solver = TAOSolver(forward, m0,
+                           solver_parameters={"tao_type": "lmvm",
+                                              "tao_gatol": 1.0e-11,
+                                              "tao_grtol": 0.0,
+                                              "tao_gttol": 0.0},
+                           H_0_action=M_inv_action)
+    m = var_copy(m0)
+    tao_solver.solve(m)
+    assert tao_solver.tao.getIterationNumber() <= 2
+    return m
+
+
 def tao_nls_minimization(forward, m0):
     return minimize_tao(forward, m0,
                         solver_parameters={"tao_type": "nls",
@@ -53,6 +69,7 @@ def tao_nls_minimization(forward, m0):
                                       scipy_trust_ncg_minimization,
                                       l_bfgs_minimization,
                                       tao_lmvm_minimization,
+                                      tao_lmvm_minimization_M_inv,
                                       tao_nls_minimization])
 @pytest.mark.skipif(complex_mode, reason="real only")
 @seed_test

@@ -73,7 +73,8 @@ from .interface import (
     comm_dup_cached, space_comm, space_default_space_type, space_eq, space_new,
     var_assign, var_locked, var_zero)
 from .manager import manager_disabled
-from .petsc import PETScOptions, PETScVec, PETScVecInterface
+from .petsc import (
+    PETScOptions, PETScVec, PETScVecInterface, attach_destroy_finalizer)
 
 from abc import ABC, abstractmethod
 from collections.abc import Mapping, MutableMapping, Sequence
@@ -87,7 +88,6 @@ try:
     import petsc4py.PETSc as PETSc
 except ModuleNotFoundError:
     PETSc = None
-import weakref
 
 
 __all__ = \
@@ -785,7 +785,9 @@ def petsc_ksp(A, *, comm=None, solver_parameters=None, pc_fn=None):
     ksp.setFromOptions()
     ksp.setUp()
 
-    return ksp, pc, A_mat
+    attach_destroy_finalizer(ksp, pc, A_mat)
+
+    return ksp
 
 
 class LinearSolver:
@@ -833,24 +835,15 @@ class LinearSolver:
                     pc_fn(u, b)
 
         A = SystemMatrix(A, nullspace=nullspace)
-        ksp, pc, A_mat = petsc_ksp(
+        ksp = petsc_ksp(
             A, solver_parameters=solver_parameters, pc_fn=pc_pc_fn, comm=comm)
 
         self._A = A
         self._ksp = ksp
-        self._A_mat = A_mat
         self._pc_fn = pc_fn
         self._pc_pc_fn = [pc_fn]
 
-        def finalize_callback(ksp, pc, A_mat):
-            ksp.destroy()
-            if pc is not None:
-                pc.destroy()
-            A_mat.destroy()
-
-        finalize = weakref.finalize(self, finalize_callback,
-                                    ksp, pc, A_mat)
-        finalize.atexit = False
+        attach_destroy_finalizer(self, ksp)
 
     @property
     def ksp(self):
