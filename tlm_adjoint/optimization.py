@@ -9,7 +9,8 @@ from .caches import clear_caches, local_caches
 from .hessian import GeneralHessian as Hessian
 from .manager import manager as _manager
 from .petsc import (
-    PETScOptions, PETScVec, PETScVecInterface, petsc_option_setdefault)
+    PETScOptions, PETScVec, PETScVecInterface, attach_destroy_finalizer,
+    petsc_option_setdefault)
 from .manager import (
     compute_gradient, manager_disabled, reset_manager, restore_manager,
     set_manager, start_manager, stop_manager)
@@ -20,7 +21,6 @@ from functools import cached_property, wraps
 import logging
 import numbers
 import numpy as np
-import weakref
 
 __all__ = \
     [
@@ -925,7 +925,8 @@ def minimize_l_bfgs(forward, M0, *,
     return X, optimization_data
 
 
-def petsc_tao(J_hat, M, *, solver_parameters=None, M_inv_action=None):
+def petsc_tao(J_hat, M, *, solver_parameters=None,
+              H_0_action=None, M_inv_action=None):
     import petsc4py.PETSc as PETSc
 
     for m in M:
@@ -996,19 +997,17 @@ def petsc_tao(J_hat, M, *, solver_parameters=None, M_inv_action=None):
             if self._shift != 0.0:
                 y.axpy(self._shift, x)
 
-    H_matrix = PETSc.Mat().createPython(((n, N), (n, N)),
-                                        Hessian(), comm=comm)
-    H_matrix.setOption(PETSc.Mat.Option.SYMMETRIC, True)
-    H_matrix.setUp()
+    hessian_matrix = PETSc.Mat().createPython(((n, N), (n, N)),
+                                              Hessian(), comm=comm)
+    hessian_matrix.setOption(PETSc.Mat.Option.SYMMETRIC, True)
+    hessian_matrix.setUp()
 
     tao.setObjective(objective)
     tao.setGradient(gradient, None)
     tao.setObjectiveGradient(objective_gradient, None)
-    tao.setHessian(hessian, H_matrix)
+    tao.setHessian(hessian, hessian_matrix)
 
-    if M_inv_action is None:
-        M_inv_matrix = None
-    else:
+    if M_inv_action is not None:
         class GradientNorm:
             def mult(self, A, x, y):
                 dJ = vars_new_conjugate_dual(M)
@@ -1021,12 +1020,49 @@ def petsc_tao(J_hat, M, *, solver_parameters=None, M_inv_action=None):
         M_inv_matrix.setOption(PETSc.Mat.Option.SYMMETRIC, True)
         M_inv_matrix.setUp()
         tao.setGradientNorm(M_inv_matrix)
+    else:
+        M_inv_matrix = None
 
     # Work around obscure change in behaviour after calling TaoSetFromOptions
     with petsc_option_setdefault("tao_lmvm_mat_lmvm_theta", 0.0):
         tao.setFromOptions()
 
-    return tao, H_matrix, M_inv_matrix, vec_interface
+    if tao.getType() in {PETSc.TAO.Type.LMVM, PETSc.TAO.Type.BLMVM} \
+            and H_0_action is not None:
+        class InitialHessian:
+            pass
+
+        class InitialHessianPreconditioner:
+            def apply(self, pc, x, y):
+                X = vars_new_conjugate_dual(M)
+                from_petsc(x, X)
+                H_0_X = H_0_action(*X)
+                to_petsc(y, H_0_X)
+
+        B_0_matrix = PETSc.Mat().createPython(((n, N), (n, N)),
+                                              InitialHessian(), comm=comm)
+        B_0_matrix.setOption(PETSc.Mat.Option.SYMMETRIC, True)
+        B_0_matrix.setUp()
+
+        B_0_matrix_pc = PETSc.PC().createPython(InitialHessianPreconditioner(),
+                                                comm=comm)
+        B_0_matrix_pc.setOperators(B_0_matrix)
+        B_0_matrix_pc.setUp()
+
+        tao.setLMVMH0(B_0_matrix)
+        ksp = tao.getLMVMH0KSP()
+        ksp.setType(PETSc.KSP.Type.PREONLY)
+        ksp.setTolerances(rtol=0.0, atol=0.0, divtol=None, max_it=1)
+        ksp.setPC(B_0_matrix_pc)
+        ksp.setUp()
+    else:
+        B_0_matrix = None
+        B_0_matrix_pc = None
+
+    attach_destroy_finalizer(tao, hessian_matrix, M_inv_matrix,
+                             B_0_matrix_pc, B_0_matrix)
+
+    return tao, vec_interface
 
 
 class TAOSolver:
@@ -1036,6 +1072,12 @@ class TAOSolver:
         which returns a variable defining the forward functional.
     :arg M: A variable or :class:`Sequence` of variables defining the control.
     :arg solver_parameters: A :class:`Mapping` defining TAO solver parameters.
+    :arg H_0_action: A callable defining the action of the non-updated Hessian
+        inverse approximation on some direction. Accepts one or more variables
+        as arguments, defining the direction, and returns a variable or a
+        :class:`Sequence` of variables defining the action on this direction.
+        Should correspond to a positive definite operator. Arguments should not
+        be modified. An identity is used if not supplied.
     :arg M_inv_action: A callable defining a (conjugate) dual space inner
         product,
 
@@ -1048,37 +1090,36 @@ class TAOSolver:
         positive definite matrix. Accepts one or more variables as arguments,
         defining the direction, and returns a variable or a :class:`Sequence`
         of variables defining the action of :math:`M^{-1}` on this direction.
-        Arguments should not be modified.
+        Arguments should not be modified. H_0_action is used if not supplied.
     :arg manager: An :class:`.EquationManager` used to create an internal
         manager via :meth:`.EquationManager.new`. `manager()` is used if not
         supplied.
     """
 
     def __init__(self, forward, M, *, solver_parameters=None,
-                 M_inv_action=None, manager=None):
+                 H_0_action=None, M_inv_action=None, manager=None):
         if is_var(M):
             M = (M,)
         if manager is None:
             manager = _manager()
         manager = manager.new()
 
+        if H_0_action is not None:
+            H_0_action = wrapped_action(H_0_action)
+        if M_inv_action is None:
+            M_inv_action = H_0_action
+        else:
+            M_inv_action = wrapped_action(M_inv_action)
+
         J_hat = ReducedFunctional(forward, manager=manager)
-        tao, H_matrix, M_inv_matrix, vec_interface = petsc_tao(
+        tao, vec_interface = petsc_tao(
             J_hat, M, solver_parameters=solver_parameters,
-            M_inv_action=M_inv_action)
+            H_0_action=H_0_action, M_inv_action=M_inv_action)
 
         self._tao = tao
         self._vec_interface = vec_interface
 
-        def finalize_callback(tao, H_matrix, M_inv_matrix):
-            tao.destroy()
-            H_matrix.destroy()
-            if M_inv_matrix is not None:
-                M_inv_matrix.destroy()
-
-        finalize = weakref.finalize(self, finalize_callback,
-                                    tao, H_matrix, M_inv_matrix)
-        finalize.atexit = False
+        attach_destroy_finalizer(self, tao)
 
     @property
     def tao(self):
