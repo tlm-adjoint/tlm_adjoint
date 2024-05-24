@@ -2,9 +2,10 @@ from .interface import (
     Packed, packed, var_axpy_conjugate, var_copy_conjugate,
     var_increment_state_lock, var_space)
 
-from .block_system import (
-    BlockNullspace, LinearSolver, Matrix, NoneNullspace, TypedSpace)
+from .block_system import LinearSolver, Matrix, TypedSpace
 from .manager import manager_disabled
+
+from collections import Sequence
 
 __all__ = \
     [
@@ -30,11 +31,14 @@ class HessianMatrix(Matrix):
     """
 
     def __init__(self, H, M):
-        M = packed(M)
-        arg_space = tuple(TypedSpace(var_space(m)) for m in M)
-        action_space = tuple(TypedSpace(var_space(m), space_type="dual") for m in M)  # noqa: E501
+        M_packed = Packed(M)
+        M = tuple(M_packed)
+        arg_space = tuple(map(var_space, M))
+        action_space = tuple(TypedSpace(var_space(m), space_type="dual")
+                             for m in M)
 
-        super().__init__(arg_space, action_space)
+        super().__init__(M_packed.unpack(arg_space),
+                         M_packed.unpack(action_space))
         self._H = H
         self._M = M
 
@@ -42,9 +46,12 @@ class HessianMatrix(Matrix):
             var_increment_state_lock(m, self)
 
     def mult_add(self, x, y):
-        _, _, ddJ = self._H.action(self._M, x)
-        assert len(y) == len(ddJ)
-        for y_i, ddJ_i in zip(y, ddJ):
+        X = x if isinstance(x, Sequence) else (x,)
+        Y = y if isinstance(y, Sequence) else (y,)
+
+        _, _, ddJ = self._H.action(self._M, X)
+        assert len(Y) == len(ddJ)
+        for y_i, ddJ_i in zip(Y, ddJ):
             var_axpy_conjugate(y_i, 1.0, ddJ_i)
 
 
@@ -58,24 +65,16 @@ class HessianLinearSolver(LinearSolver):
     :arg H: A :class:`.Hessian` defining :math:`H`.
     :arg M: A variable or a :class:`Sequence` of variables defining the
         control and its value.
-    :arg nullspaces: A :class:`.Nullspace` or a :class:`Sequence` of
-        :class:`.Nullspace` objects defining the nullspace. `None` indicates a
-        :class:`.NoneNullspace`.
 
     Remaining arguments are passed to the
     :class:`tlm_adjoint.block_system.LinearSolver` constructor.
     """
 
-    def __init__(self, H, M, *args, nullspace=None, **kwargs):
-        if nullspace is None:
-            nullspace = NoneNullspace()
-        elif not isinstance(nullspace, (NoneNullspace, BlockNullspace)):
-            nullspace = BlockNullspace(nullspace)
-        super().__init__(HessianMatrix(H, M), *args, nullspace=nullspace,
-                         **kwargs)
+    def __init__(self, H, M, *args, **kwargs):
+        super().__init__(HessianMatrix(H, M), *args, **kwargs)
 
     @manager_disabled()
-    def solve(self, u, b, **kwargs):
+    def solve(self, u, b, *args, **kwargs):
         """Solve a linear system involving a Hessian matrix,
 
         .. math::
