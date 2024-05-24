@@ -1,16 +1,11 @@
 from ..interface import (
-    is_var, space_dtype, var_assign, var_axpy, var_copy, var_copy_conjugate,
-    var_dtype, var_inner, var_space_type)
+    is_var, var_assign, var_assign_conjugate, var_axpy, var_copy,
+    var_copy_conjugate, var_dtype, var_inner)
 
-from ..block_system import Preconditioner
-from ..eigendecomposition import eigendecompose
-
-from .block_system import BlockNullspace, NoneNullspace, TypedSpace
+from ..block_system import TypedSpace, eigensolve
 
 from collections.abc import Sequence
 import numpy as np
-import petsc4py.PETSc as PETSc
-import warnings
 
 __all__ = \
     [
@@ -20,20 +15,8 @@ __all__ = \
     ]
 
 
-def _default_hessian_eigenproblem_type(dtype):
-    import slepc4py.SLEPc as SLEPc
-    if issubclass(dtype, np.floating):
-        return SLEPc.EPS.ProblemType.GHEP
-    elif issubclass(dtype, np.complexfloating):
-        return SLEPc.EPS.ProblemType.GNHEP
-    else:
-        raise TypeError(f"Unexpected dtype: {dtype}")
-
-
 def hessian_eigendecompose(
-        H, m, B_inv_action, B_action, *,
-        nullspace=None, problem_type=None, pre_callback=None,
-        correct_eigenvectors=True, **kwargs):
+        H, m, B_inv_action, B_action, *args, **kwargs):
     r"""Interface with SLEPc via slepc4py, for the matrix free solution of
     generalized eigenproblems
 
@@ -60,110 +43,29 @@ def hessian_eigendecompose(
         computing the action of :math:`B` on the conjugate of :math:`v`,
         returning the result as a :class:`firedrake.function.Function` or
         :class:`firedrake.cofunction.Cofunction`.
-    :arg nullspace: A :class:`.Nullspace` defining the nullspace and left
-        nullspace of :math:`H` and :math:`B^{-1}`.
-    :arg problem_type: The eigenproblem type -- see
-        `slepc4py.SLEPc.EPS.ProblemType`. Defaults to
-        `slepc4py.SLEPc.EPS.ProblemType.GHEP` in the real case and
-        `slepc4py.SLEPc.EPS.ProblemType.GNHEP` in the complex case.
-    :arg pre_callback: A callable accepting a single `slepc4py.SLEPc.EPS`
-        argument. Used for detailed manual configuration. Called after all
-        other configuration options are set, but before the
-        `slepc4py.SLEPc.EPS.setUp` method is called.
-    :arg correct_eigenvectors: Whether to apply a nullspace correction to the
-        eigenvectors.
 
     Remaining keyword arguments are passed to :func:`.eigendecompose`.
     """
 
     space = m.function_space()
 
-    arg_space_type = var_space_type(m)
-    arg_space = TypedSpace(space, space_type=arg_space_type)
-
-    action_space_type = var_space_type(m, rel_space_type="dual")
-    action_space = TypedSpace(space, space_type=action_space_type)
-
-    if nullspace is None:
-        nullspace = NoneNullspace()
-
-    def H_action(x):
-        x = var_copy(x)
-        nullspace.pre_mult_correct_lhs(x)
-        _, _, y = H.action(m, x)
-        y = var_copy_conjugate(y)
-        nullspace.post_mult_correct_lhs(None, y)
-        return y
+    def H_action(x, y):
+        _, _, ddJ = H.action(m, x)
+        var_assign_conjugate(y, ddJ)
 
     B_inv_action_arg = B_inv_action
 
-    def B_inv_action(x):
-        x = var_copy(x)
-        nullspace.pre_mult_correct_lhs(x)
-        y = B_inv_action_arg(var_copy(x))
-        y = var_copy_conjugate(y)
-        nullspace.post_mult_correct_lhs(x, y)
-        return y
+    def B_inv_action(x, y):
+        var_assign_conjugate(y, B_inv_action_arg(x))
 
     B_action_arg = B_action
 
     def B_action(x, y):
-        x, = x
-        y, = tuple(map(var_copy_conjugate, y))
-        # Nullspace corrections applied by the Preconditioner class
-        var_assign(x, B_action_arg(y))
+        var_assign(y, B_action_arg(var_copy_conjugate(x)))
 
-    pre_callback_arg = pre_callback
-
-    def pre_callback(eps):
-        _, B_inv = eps.getOperators()
-        ksp_solver = eps.getST().getKSP()
-
-        B_pc = Preconditioner(
-            action_space, arg_space,
-            B_action, nullspace=BlockNullspace(nullspace))
-        pc = PETSc.PC().createPython(
-            B_pc, comm=ksp_solver.comm)
-        pc.setOperators(B_inv)
-        pc.setUp()
-
-        ksp_solver.setType(PETSc.KSP.Type.PREONLY)
-        ksp_solver.setTolerances(rtol=0.0, atol=0.0, divtol=None, max_it=1)
-        ksp_solver.setPC(pc)
-        ksp_solver.setUp()
-
-        if hasattr(eps, "setPurify"):
-            eps.setPurify(False)
-        else:
-            warnings.warn("slepc4py.SLEPc.EPS.setPurify not available",
-                          RuntimeWarning)
-
-        if pre_callback_arg is not None:
-            pre_callback_arg(eps)
-
-    if problem_type is None:
-        problem_type = _default_hessian_eigenproblem_type(space_dtype(space))
-
-    Lam, V = eigendecompose(
-        space, H_action, B_action=B_inv_action, arg_space_type=arg_space_type,
-        action_space_type=action_space_type, problem_type=problem_type,
-        pre_callback=pre_callback, **kwargs)
-
-    if correct_eigenvectors:
-        if len(V) == 2 \
-                and not is_var(V[0]) and isinstance(V[0], Sequence) \
-                and not is_var(V[1]) and isinstance(V[1], Sequence):
-            assert len(V[0]) == len(V[1])
-            assert len(V[0]) == len(Lam)
-            for V_r, V_i in zip(*V):
-                nullspace.correct_soln(V_r)
-                nullspace.correct_soln(V_i)
-        else:
-            assert len(V) == len(Lam)
-            for V_r in V:
-                nullspace.correct_soln(V_r)
-
-    return Lam, V
+    return eigensolve(space, TypedSpace(space.dual(), space_type="dual"),
+                      H_action, B_inv_action, B_inv_action=B_action,
+                      *args, **kwargs)
 
 
 def B_inv_orthonormality_test(V, B_inv_action):

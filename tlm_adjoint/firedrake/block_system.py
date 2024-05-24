@@ -6,7 +6,7 @@ from ..interface import packed, space_eq, var_axpy, var_inner, var_new
 
 from ..block_system import (
     BlockMatrix as _BlockMatrix, BlockNullspace, LinearSolver as _LinearSolver,
-    Matrix, MixedSpace, NoneNullspace, Nullspace, TypedSpace)
+    Matrix, MatrixFreeMatrix, MixedSpace, NoneNullspace, Nullspace, TypedSpace)
 
 from .backend_interface import assemble, matrix_multiply
 from .variables import Constant, Function
@@ -26,6 +26,7 @@ __all__ = \
         "DirichletBCNullspace",
 
         "Matrix",
+        "MatrixFreeMatrix",
         "BlockMatrix",
         "PETScMatrix",
         "form_matrix",

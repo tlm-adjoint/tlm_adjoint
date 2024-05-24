@@ -71,7 +71,7 @@ representations of a mixed space solution.
 
 from .interface import (
     Packed, comm_dup_cached, packed, space_comm, space_default_space_type,
-    space_eq, space_new, var_assign, var_locked, var_zero)
+    space_eq, space_new, var_assign, var_axpy, var_locked, var_zero)
 from .manager import manager_disabled
 from .petsc import (
     PETScOptions, PETScVec, PETScVecInterface, attach_destroy_finalizer)
@@ -551,12 +551,12 @@ class BlockNullspace(Nullspace, Sequence):
                 nullspace.pc_constraint_correct_soln(u_i, b_i)
 
 
-class Matrix(ABC):
+class Matrix:
     r"""Represents a matrix defining a mapping
     :math:`A` mapping :math:`V \rightarrow W`.
 
-    :arg arg_space: Defines the space `V`.
-    :arg action_space: Defines the space `W`.
+    :arg arg_space: Defines the space :math:`V`.
+    :arg action_space: Defines the space :math:`W`.
     """
 
     def __init__(self, arg_space, action_space):
@@ -574,6 +574,12 @@ class Matrix(ABC):
         self._arg_space = arg_space
         self._action_space = action_space
 
+    def __init_subclass__(cls, **kwargs):
+        super().__init_subclass__(**kwargs)
+        if cls.action is Matrix.action and cls.mult_add is Matrix.mult_add:
+            raise RuntimeError("Must override at least one of action or "
+                               "mult_add")
+
     @property
     def arg_space(self):
         """The space defining :math:`V`.
@@ -588,7 +594,21 @@ class Matrix(ABC):
 
         return self._action_space
 
-    @abstractmethod
+    def action(self, x, y):
+        """Compute :math:`y = A x`.
+
+        :arg x: Defines :math:`x`. Should not be modified.
+        :arg y: Defines :math:`y`.
+        """
+
+        X = x if isinstance(x, Sequence) else (x,)
+        Y = y if isinstance(y, Sequence) else (y,)
+
+        for y_i in iter_sub(Y):
+            var_zero(y_i)
+        with var_locked(*iter_sub(X)):
+            self.mult_add(x, y)
+
     def mult_add(self, x, y):
         """Add :math:`A x` to :math:`y`.
 
@@ -596,7 +616,19 @@ class Matrix(ABC):
         :arg y: Defines :math:`y`.
         """
 
-        raise NotImplementedError
+        X = x if isinstance(x, Sequence) else (x,)
+        Y = y if isinstance(y, Sequence) else (y,)
+        if isinstance(self.action_space, TypedSpace):
+            y_term = self.action_space.new()
+            Y_term = (y_term,)
+        else:
+            y_term = self.action_space.new_split()
+            Y_term = y_term
+
+        with var_locked(*iter_sub(X)):
+            self.action(x, y_term)
+        for y_i, y_term_i in zip_sub(Y, Y_term):
+            var_axpy(y_i, 1.0, y_term_i)
 
 
 class MatrixFreeMatrix(Matrix):
@@ -604,17 +636,16 @@ class MatrixFreeMatrix(Matrix):
         super().__init__(arg_space, action_space)
         self._action = action
 
-    def mult_add(self, x, y):
-        with var_locked(*(x if isinstance(x, Sequence) else (x,))):
-            self._action(x, y)
+    def action(self, x, y):
+        self._action(x, y)
 
 
 class BlockMatrix(Matrix, MutableMapping):
     r"""A matrix defining a mapping :math:`A` mapping :math:`V \rightarrow W`,
     where :math:`V` and :math:`W` are defined by mixed spaces.
 
-    :arg arg_space: Defines the space `V`.
-    :arg action_space: Defines the space `W`.
+    :arg arg_space: Defines the space :math:`V`.
+    :arg action_space: Defines the space :math:`W`.
     :arg block: A :class:`Mapping` defining the blocks of the matrix. Items are
         `((i, j), block)` where the block in the `i` th and `j` th column is
         defined by `block`. Each `block` is a
@@ -710,9 +741,6 @@ class PETScSquareMatInterface:
             for x_i, x_c_i in zip_sub(self._x, self._x_c):
                 var_assign(x_c_i, x_i)
 
-        for y_i in iter_sub(self._y):
-            var_zero(y_i)
-
     def _post_mult(self, y_petsc):
         self.action_space.to_petsc(y_petsc, self._y)
 
@@ -730,7 +758,7 @@ class SystemMatrix(PETScSquareMatInterface):
 
         if not isinstance(self.nullspace, NoneNullspace):
             self.nullspace.pre_mult_correct_lhs(self._x_c)
-        self._matrix.mult_add(self._x_c, self._y)
+        self._matrix.action(self._x_c, self._y)
         if not isinstance(self.nullspace, NoneNullspace):
             self.nullspace.post_mult_correct_lhs(
                 self._x if self._nullspace_constraint else None, self._y)
@@ -739,19 +767,19 @@ class SystemMatrix(PETScSquareMatInterface):
 
 
 class Preconditioner(PETScSquareMatInterface):
-    def __init__(self, arg_space, action_space, pc_fn, *,
+    def __init__(self, matrix, *,
                  nullspace=None, nullspace_constraint=True):
-        super().__init__(arg_space, action_space,
+        super().__init__(matrix.arg_space, matrix.action_space,
                          nullspace=nullspace,
                          nullspace_constraint=nullspace_constraint)
-        self._pc_fn = pc_fn
+        self._matrix = matrix
 
     def apply(self, pc, x, y):
         self._pre_mult(x)
 
         if not isinstance(self.nullspace, NoneNullspace):
             self.nullspace.pc_pre_mult_correct(self._x_c)
-        self._pc_fn(self._y, self._x_c)
+        self._matrix.action(self._x_c, self._y)
         if not isinstance(self.nullspace, NoneNullspace):
             self.nullspace.pc_post_mult_correct(
                 self._y, self._x if self._nullspace_constraint else None)
@@ -774,8 +802,9 @@ def petsc_ksp(A, *, comm=None, solver_parameters=None, pc_fn=None):
     A_mat.setUp()
 
     if pc_fn is not None:
-        A_pc = Preconditioner(A.action_space, A.arg_space,
-                              pc_fn, nullspace=A.nullspace)
+        A_pc = Preconditioner(MatrixFreeMatrix(A.action_space, A.arg_space,
+                                               lambda b, u: pc_fn(u, b)),
+                              nullspace=A.nullspace)
         pc = PETSc.PC().createPython(A_pc, comm=comm)
         pc.setOperators(A_mat)
         pc.setUp()
@@ -939,7 +968,7 @@ class LinearSolver:
             raise RuntimeError("Convergence failure")
 
 
-def slepc_eps(A, B, *, solver_parameters=None, comm=None):
+def slepc_eps(A, B, *, B_inv=None, solver_parameters=None, comm=None):
     if solver_parameters is None:
         solver_parameters = {}
     if comm is None:
@@ -971,9 +1000,24 @@ def slepc_eps(A, B, *, solver_parameters=None, comm=None):
         eps.setOperators(A_mat, B_mat)
 
     eps.setFromOptions()
+
+    if B_inv is not None:
+        B_pc = PETSc.PC().createPython(B_inv, comm=comm)
+        B_pc.setOperators(B_mat)
+        B_pc.setUp()
+
+        B_ksp = eps.getST().getKSP()
+        B_ksp.setType(PETSc.KSP.Type.PREONLY)
+        B_ksp.setTolerances(rtol=0.0, atol=0.0, divtol=None, max_it=1)
+        B_ksp.setPC(B_pc)
+        B_ksp.setUp()
+    else:
+        B_pc = None
+        B_ksp = None
+
     eps.setUp()
 
-    attach_destroy_finalizer(eps, A_mat, B_mat)
+    attach_destroy_finalizer(eps, A_mat, B_ksp, B_pc, B_mat)
 
     return eps
 
@@ -990,7 +1034,9 @@ class Eigensolver:
     :arg A: A :class:`tlm_adjoint.block_system.Matrix` defining :math:`A`.
     :arg B: A :class:`tlm_adjoint.block_system.Matrix` defining :math:`B`. If
         supplied then a generalized eigenproblem is solved. Otherwise a
-        standard eigenproblem (with `B` equal to an identity) is solved.
+        standard eigenproblem (with :math:`B` equal to an identity) is solved.
+    :arg B_inv: A :class:`tlm_adjoint.block_system.Matrix` defining the inverse
+        of :math:`B`.
     :arg nullspace: A :class:`.Nullspace` or a :class:`Sequence` of
         :class:`.Nullspace` objects defining the nullspace and left nullspace
         of :math:`A` and :math:`B`. `None` indicates a :class:`.NoneNullspace`.
@@ -998,7 +1044,7 @@ class Eigensolver:
     :arg comm: Communicator.
     """
 
-    def __init__(self, A, B=None, *, nullspace=None,
+    def __init__(self, A, B=None, *, B_inv=None, nullspace=None,
                  solver_parameters=None, comm=None):
         if nullspace is None:
             nullspace = NoneNullspace()
@@ -1009,19 +1055,26 @@ class Eigensolver:
             A = BlockMatrix((A.arg_space,), (A.action_space,), A)
             if not isinstance(nullspace, NoneNullspace):
                 nullspace = BlockNullspace((nullspace,))
-        if B is not None and not isinstance(B, BlockMatrix):
-            B = BlockMatrix((B.arg_space,), (B.action_space,), B)
+            if B is not None:
+                B = BlockMatrix((B.arg_space,), (B.action_space,), B)
+            if B_inv is not None:
+                B_inv = BlockMatrix((B_inv.arg_space,), (B_inv.action_space,), B_inv)  # noqa: E501
         if B is not None and (B.arg_space != A.arg_space
                               or B.action_space != A.action_space):
+            raise ValueError("Invalid space")
+        if B_inv is not None and (B_inv.arg_space != A.action_space
+                                  or B_inv.action_space != A.arg_space):
             raise ValueError("Invalid space")
 
         A = SystemMatrix(A, nullspace=nullspace, nullspace_constraint=False)
         if B is not None:
             B = SystemMatrix(B, nullspace=nullspace)
+        if B_inv is not None:
+            B_inv = Preconditioner(B_inv, nullspace=nullspace)
 
         self._A = A
-        self._eps = slepc_eps(A, B, solver_parameters=solver_parameters,
-                              comm=comm)
+        self._eps = slepc_eps(A, B, B_inv=B_inv,
+                              solver_parameters=solver_parameters, comm=comm)
         self._extract_0 = extract_0
 
         attach_destroy_finalizer(self, self.eps)
@@ -1079,7 +1132,8 @@ class Eigensolver:
 
 
 def eigensolve(arg_space, action_space, A_action, B_action=None, *,
-               nullspace=None, solver_parameters=None, comm=None):
+               B_inv_action=None, nullspace=None, solver_parameters=None,
+               comm=None):
     r"""Solve an eigenproblem
 
     .. math::
@@ -1088,16 +1142,28 @@ def eigensolve(arg_space, action_space, A_action, B_action=None, *,
 
     using SLEPc.
 
-    :arg arg_space: Defines the space associated with `v`.
-    :arg action_space: Defines the space associated with `A v`.
-    :arg A_action: A callable. Accepts a variable or :class:`Sequence` of
-        variables, and returns a variable or :class:`Sequence` of variables
-        defining the action of `A` on the direction `v`.
-    :arg B_action: A callable. Accepts a variable or :class:`Sequence` of
-        variables, and returns a variable or :class:`Sequence` of variables
-        defining the action of `B` on the direction `v`. If supplied then a
-        generalized eigenproblem is solved. Otherwise a standard eigenproblem
-        (with `B` equal to an identity) is solved.
+    :arg arg_space: Defines the space associated with :math:`v`.
+    :arg action_space: Defines the space associated with :math:`A v`.
+    :arg A_action: Defines the action :math:`y = A x`. A callable
+
+        .. code-block:: python
+
+            def A_action(x, y):
+
+    :arg B_action: Defines the action :math:`y = B x`. A callable
+
+        .. code-block:: python
+
+            def B_action(x, y):
+
+        If supplied then a generalized eigenproblem is solved. Otherwise a
+        standard eigenproblem is solved.
+    :arg B_inv_action: Defines the action :math:`y = B^{-1} x`. A callable
+
+        .. code-block:: python
+
+            def B_inv_action(x, y):
+
     :arg nullspace: A :class:`.Nullspace` or a :class:`Sequence` of
         :class:`.Nullspace` objects defining the nullspace and left nullspace
         of :math:`A` and (if supplied) :math:`B`. `None` indicates a
@@ -1111,10 +1177,14 @@ def eigensolve(arg_space, action_space, A_action, B_action=None, *,
         B = None
     else:
         B = MatrixFreeMatrix(arg_space, action_space, B_action)
+    if B_inv_action is None:
+        B_inv = None
+    else:
+        B_inv = MatrixFreeMatrix(action_space, arg_space, B_inv_action)
 
     esolver = Eigensolver(
-        A, B, nullspace=nullspace, solver_parameters=solver_parameters,
-        comm=comm)
+        A, B, B_inv=B_inv, nullspace=nullspace,
+        solver_parameters=solver_parameters, comm=comm)
     esolver.solve()
 
     Lam = np.zeros(len(esolver), dtype=(PETSc.RealType
