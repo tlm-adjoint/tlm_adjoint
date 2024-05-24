@@ -1101,6 +1101,10 @@ class TAOSolver:
 
     @property
     def tao(self):
+        """The class:`petsc4py.PETSc.TAO` used to solve the optimization
+        problem.
+        """
+
         return self._tao
 
     @local_caches

@@ -30,24 +30,29 @@ def test_HEP(setup_test, test_leaks):
 
     M = assemble(inner(trial, test) * dx)
 
-    def M_action(x):
-        y = var_new_conjugate_dual(x)
+    def M_action(x, y):
         assemble(inner(x, test) * dx, tensor=y)
-        return y
 
-    lam, V = eigendecompose(
-        space, M_action, action_space_type="conjugate_dual",
-        problem_type=SLEPc.EPS.ProblemType.HEP)
+    Lam, V = eigensolve(space, space, M_action,
+                        solver_parameters={"eps_type": "krylovschur",
+                                           "eps_hermitian": None,
+                                           "eps_largest_magnitude": None,
+                                           "eps_nev": space.dim(),
+                                           "eps_conv_rel": None,
+                                           "eps_tol": 1.0e-12,
+                                           "eps_purify": False})
 
-    assert issubclass(lam.dtype.type, np.floating)
-    assert (lam > 0.0).all()
+    assert issubclass(Lam.dtype.type, np.floating)
+    assert (Lam > 0.0).all()
 
-    diff = Function(space)
-    assert len(lam) == len(V)
-    for lam_val, v in zip(lam, V):
-        matrix_multiply(M, v, tensor=diff)
-        var_axpy(diff, -lam_val, v)
-        assert var_linf_norm(diff) < 1.0e-16
+    error = Function(space)
+    assert len(Lam) == len(V)
+    for lam, (v_r, v_i) in zip(Lam, V):
+        assert abs(var_inner(v_r, v_r) - 1.0) < 1.0e-14
+        matrix_multiply(M, v_r, tensor=error)
+        var_axpy(error, -lam, v_r)
+        assert var_linf_norm(error) < 1.0e-16
+        assert v_i is None
 
 
 @pytest.mark.fenics
@@ -60,39 +65,36 @@ def test_NHEP(setup_test, test_leaks):
 
     N = assemble(inner(trial.dx(0), test) * dx)
 
-    def N_action(x):
-        y = var_new_conjugate_dual(x)
+    def N_action(x, y):
         assemble(inner(x.dx(0), test) * dx, tensor=y)
-        return y
 
-    lam, V = eigendecompose(
-        space, N_action, action_space_type="conjugate_dual")
+    Lam, V = eigensolve(space, space, N_action,
+                        solver_parameters={"eps_type": "krylovschur",
+                                           "eps_non_hermitian": None,
+                                           "eps_largest_magnitude": None,
+                                           "eps_nev": space.dim(),
+                                           "eps_conv_rel": None,
+                                           "eps_tol": 1.0e-12,
+                                           "eps_purify": False})
 
-    assert issubclass(lam.dtype.type, np.complexfloating)
-    assert abs(lam.real).max() < 1.0e-15
+    assert issubclass(Lam.dtype.type, np.complexfloating)
+    assert abs(Lam.real).max() < 1.0e-15
 
-    diff = Function(space)
+    error = Function(space)
+    assert len(Lam) == len(V)
     if issubclass(PETSc.ScalarType, np.floating):
-        V_r, V_i = V
-        assert len(lam) == len(V_r)
-        assert len(lam) == len(V_i)
-        for lam_val, v_r, v_i in zip(lam, V_r, V_i):
-            matrix_multiply(N, v_r, tensor=diff)
-            var_axpy(diff, -lam_val.real, v_r)
-            var_axpy(diff, +lam_val.imag, v_i)
-            assert var_linf_norm(diff) < 1.0e-15
-            matrix_multiply(N, v_i, tensor=diff)
-            var_axpy(diff, -lam_val.real, v_i)
-            var_axpy(diff, -lam_val.imag, v_r)
-            assert var_linf_norm(diff) < 1.0e-15
-    elif issubclass(PETSc.ScalarType, np.complexfloating):
-        assert len(lam) == len(V)
-        for lam_val, v in zip(lam, V):
-            matrix_multiply(N, v, tensor=diff)
-            var_axpy(diff, -lam_val, v)
-            assert var_linf_norm(diff) == 0.0
+        for lam, (v_r, v_i) in zip(Lam, V):
+            assert abs(var_inner(v_r, v_r) + var_inner(v_i, v_i) - 1.0) < 1.0e-14  # noqa: E501
+            matrix_multiply(N, v_r, tensor=error)
+            var_axpy(error, -lam.real, v_r)
+            var_axpy(error, +lam.imag, v_i)
+            assert var_linf_norm(error) < 1.0e-15
+            matrix_multiply(N, v_i, tensor=error)
+            var_axpy(error, -lam.real, v_i)
+            var_axpy(error, -lam.imag, v_r)
+            assert var_linf_norm(error) < 1.0e-15
     else:
-        raise TypeError(f"Unexpected Petsc.ScalarType: {PETSc.ScalarType}")
+        raise ValueError("Unexpected dtype")
 
 
 @pytest.mark.fenics
