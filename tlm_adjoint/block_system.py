@@ -669,7 +669,8 @@ class BlockMatrix(Matrix, MutableMapping):
 
 
 class PETScSquareMatInterface:
-    def __init__(self, arg_space, action_space, *, nullspace=None):
+    def __init__(self, arg_space, action_space, *,
+                 nullspace=None, nullspace_constraint=True):
         if not isinstance(arg_space, MixedSpace):
             arg_space = MixedSpace(arg_space)
         if not isinstance(action_space, MixedSpace):
@@ -678,18 +679,17 @@ class PETScSquareMatInterface:
             nullspace = NoneNullspace()
         elif not isinstance(nullspace, (NoneNullspace, BlockNullspace)):
             nullspace = BlockNullspace(nullspace)
+        nullspace_constraint = (nullspace_constraint
+                                and not isinstance(nullspace, NoneNullspace))
 
         self._arg_space = arg_space
         self._action_space = action_space
         self._nullspace = nullspace
+        self._nullspace_constraint = nullspace_constraint
 
         self._x = arg_space.new_split()
         self._y = action_space.new_split()
-
-        if isinstance(self._nullspace, NoneNullspace):
-            self._x_c = self._x
-        else:
-            self._x_c = arg_space.new_split()
+        self._x_c = arg_space.new_split() if nullspace_constraint else self._x
 
     @property
     def arg_space(self):
@@ -706,7 +706,7 @@ class PETScSquareMatInterface:
     def _pre_mult(self, x_petsc):
         self.arg_space.from_petsc(x_petsc, self._x)
 
-        if not isinstance(self.nullspace, NoneNullspace):
+        if self._nullspace_constraint:
             for x_i, x_c_i in zip_sub(self._x, self._x_c):
                 var_assign(x_c_i, x_i)
 
@@ -718,9 +718,11 @@ class PETScSquareMatInterface:
 
 
 class SystemMatrix(PETScSquareMatInterface):
-    def __init__(self, matrix, *, nullspace=None):
+    def __init__(self, matrix, *,
+                 nullspace=None, nullspace_constraint=True):
         super().__init__(matrix.arg_space, matrix.action_space,
-                         nullspace=nullspace)
+                         nullspace=nullspace,
+                         nullspace_constraint=nullspace_constraint)
         self._matrix = matrix
 
     def mult(self, A, x, y):
@@ -730,15 +732,18 @@ class SystemMatrix(PETScSquareMatInterface):
             self.nullspace.pre_mult_correct_lhs(self._x_c)
         self._matrix.mult_add(self._x_c, self._y)
         if not isinstance(self.nullspace, NoneNullspace):
-            self.nullspace.post_mult_correct_lhs(self._x, self._y)
+            self.nullspace.post_mult_correct_lhs(
+                self._x if self._nullspace_constraint else None, self._y)
 
         self._post_mult(y)
 
 
 class Preconditioner(PETScSquareMatInterface):
-    def __init__(self, arg_space, action_space, pc_fn, *, nullspace=None):
+    def __init__(self, arg_space, action_space, pc_fn, *,
+                 nullspace=None, nullspace_constraint=True):
         super().__init__(arg_space, action_space,
-                         nullspace=nullspace)
+                         nullspace=nullspace,
+                         nullspace_constraint=nullspace_constraint)
         self._pc_fn = pc_fn
 
     def apply(self, pc, x, y):
@@ -748,7 +753,8 @@ class Preconditioner(PETScSquareMatInterface):
             self.nullspace.pc_pre_mult_correct(self._x_c)
         self._pc_fn(self._y, self._x_c)
         if not isinstance(self.nullspace, NoneNullspace):
-            self.nullspace.pc_post_mult_correct(self._y, self._x)
+            self.nullspace.pc_post_mult_correct(
+                self._y, self._x if self._nullspace_constraint else None)
 
         self._post_mult(y)
 
@@ -1009,7 +1015,7 @@ class Eigensolver:
                               or B.action_space != A.action_space):
             raise ValueError("Invalid space")
 
-        A = SystemMatrix(A, nullspace=nullspace)
+        A = SystemMatrix(A, nullspace=nullspace, nullspace_constraint=False)
         if B is not None:
             B = SystemMatrix(B, nullspace=nullspace)
 
