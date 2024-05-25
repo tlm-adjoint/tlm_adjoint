@@ -43,6 +43,7 @@ def test_HEP(setup_test, test_leaks):
                                              "eps_purify": False})
     esolver.solve()
     assert len(esolver) == space.dim()
+    assert esolver.B_orthonormality_test() < 1.0e-14
 
     error = Function(space)
     for lam, (v_r, v_i) in esolver:

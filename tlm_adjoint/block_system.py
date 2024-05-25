@@ -1071,6 +1071,7 @@ class Eigensolver:
             B_inv = Preconditioner(B_inv, nullspace=nullspace)
 
         self._A = A
+        self._B = B
         self._eps = slepc_eps(A, B, B_inv=B_inv,
                               solver_parameters=solver_parameters, comm=comm)
         self._extract_0 = extract_0
@@ -1084,7 +1085,7 @@ class Eigensolver:
     def __len__(self):
         return self.eps.getConverged()
 
-    def __getitem__(self, key):
+    def _eigenpair(self, key):
         x_r = self._A.arg_space.new_petsc()
         x_i = self._A.arg_space.new_petsc()
         lam = self.eps.getEigenpair(key, x_r, x_i)
@@ -1093,14 +1094,19 @@ class Eigensolver:
             if lam.imag != 0.0:
                 raise ValueError("Unexpected complex eigenvalue")
             lam = lam.real
-
-        v_r = self._A.arg_space.new_split()
-        self._A.arg_space.from_petsc(x_r, v_r)
-
         if self.eps.isHermitian() \
                 or issubclass(PETSc.ScalarType, np.complexfloating):
             if x_i.norm(norm_type=PETSc.NormType.NORM_INFINITY) != 0.0:
                 raise ValueError("Unexpected complex eigenvector")
+            x_i = None
+
+        return lam, (x_r, x_i)
+
+    def __getitem__(self, key):
+        lam, (x_r, x_i) = self._eigenpair(key)
+        v_r = self._A.arg_space.new_split()
+        self._A.arg_space.from_petsc(x_r, v_r)
+        if x_i is None:
             v_i = None
         else:
             v_i = self._A.arg_space.new_split()
@@ -1149,3 +1155,32 @@ class Eigensolver:
             Lam[i] = lam
             V.append((v_r, v_i))
         return Lam, tuple(V)
+
+    def B_orthonormality_test(self):
+        r"""Test :math:`B` orthonormality of the eigenvectors for a Hermitian
+        eigenvalue problem.
+
+        :returns: :math:`\left| V^T B V - I \right|_\infty` where
+            :math:`V` is the matrix whose columns are the eigenvectors.
+        """
+
+        if not self.eps.isHermitian():
+            raise ValueError("Hermitian eigenproblem required")
+
+        if self._B is None:
+            B = None
+        else:
+            _, B = self.eps.getOperators()
+            z = self._A.arg_space.new_petsc()
+
+        error_norm = 0.0
+        for i in range(self.eps.getConverged()):
+            _, (x, _) = self._eigenpair(i)
+            for j in range(self.eps.getConverged()):
+                _, (y, _) = self._eigenpair(j)
+                if B is None:
+                    z = y
+                else:
+                    B.mult(y, z)
+                error_norm = max(error_norm, abs(z.dot(x) - int(i == j)))
+        return error_norm

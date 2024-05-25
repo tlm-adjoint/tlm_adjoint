@@ -1,69 +1,12 @@
 from ..interface import (
-    is_var, var_assign, var_axpy, var_copy, var_copy_conjugate, var_dtype,
-    var_inner)
+    is_var, var_assign, var_axpy, var_copy, var_copy_conjugate, var_inner)
 
 from collections.abc import Sequence
-import numpy as np
 
 __all__ = \
     [
-        "B_inv_orthonormality_test",
         "hessian_eigendecomposition_pc",
     ]
-
-
-def B_inv_orthonormality_test(V, B_inv_action):
-    """Check for :math:`B^{-1}`-orthonormality.
-
-    Requires real spaces.
-
-    :arg B_inv_action: A callable accepting a
-        :class:`firedrake.function.Function` or
-        :class:`firedrake.cofunction.Cofunction` defining :math:`v` and
-        computing the action of :math:`B^{-1}` on :math:`v`, returning the
-        result as a :class:`firedrake.function.Function` or
-        :class:`firedrake.cofunction.Cofunction`.
-    :arg V: A :class:`Sequence` of :class:`firedrake.function.Function` or
-        :class:`firedrake.cofunction.Cofunction` objects to test for
-        :math:`B^{-1}`-orthonormality.
-    :returns: A :class:`tuple` `(max_diagonal_error_norm,
-        max_off_diagonal_error_norm)` with
-
-            - `max_diagonal_error_norm`: The maximum :math:`B^{-1}`
-              normalization error magnitude.
-            - `max_diagonal_error_norm`: The maximum :math:`B^{-1}`
-              orthogonality error magnitude.
-    """
-
-    if len(V) == 2 \
-            and not is_var(V[0]) and isinstance(V[0], Sequence) \
-            and not is_var(V[1]) and isinstance(V[1], Sequence):
-        raise ValueError("Cannot supply separate real/complex eigenvector "
-                         "components")
-
-    B_inv_V = []
-    for v in V:
-        if not issubclass(var_dtype(v), np.floating):
-            raise ValueError("Real dtype required")
-        B_inv_V.append(B_inv_action(var_copy(v)))
-        if not issubclass(var_dtype(B_inv_V[-1]), np.floating):
-            raise ValueError("Real dtype required")
-
-    max_diagonal_error_norm = 0.0
-    max_off_diagonal_error_norm = 0.0
-    assert len(V) == len(B_inv_V)
-    for i, v in enumerate(V):
-        for j, B_inv_v in enumerate(B_inv_V):
-            if i == j:
-                max_diagonal_error_norm = max(
-                    max_diagonal_error_norm,
-                    abs(var_inner(v, B_inv_v) - 1.0))
-            else:
-                max_off_diagonal_error_norm = max(
-                    max_off_diagonal_error_norm,
-                    abs(var_inner(v, B_inv_v)))
-
-    return max_diagonal_error_norm, max_off_diagonal_error_norm
 
 
 def hessian_eigendecomposition_pc(B_action, Lam, V):

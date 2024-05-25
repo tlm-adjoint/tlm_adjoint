@@ -110,10 +110,12 @@ def test_hessian_solve(setup_test,
                                "eps_tol": 1.0e-14,
                                "eps_purify": False})
         esolver.solve()
-        Lam, V = esolver.eigenpairs()
-        V = tuple(v_r for v_r, _ in V)
+        assert len(esolver) >= N_eigenvalues
+        assert esolver.B_orthonormality_test() < 1.0e-14
 
+        Lam, V = esolver.eigenpairs()
         assert issubclass(Lam.dtype.type, np.floating)
+        V = tuple(v_r for v_r, _ in V)
 
         assert len(Lam) == len(V)
         for lam_i, v_i in zip(Lam, V):
@@ -121,10 +123,6 @@ def test_hessian_solve(setup_test,
             var_axpy(v_error, -lam_i, B_inv(v_i))
             bc.apply(v_error)
             assert var_linf_norm(v_error) < 1.0e-16
-
-        diag_error_norm, off_diag_error_norm = B_inv_orthonormality_test(V, B_inv)  # noqa: E501
-        assert diag_error_norm < 1.0e-14
-        assert off_diag_error_norm < 1.0e-14
 
         pc_fn = hessian_eigendecomposition_pc(B, Lam, V)
 
