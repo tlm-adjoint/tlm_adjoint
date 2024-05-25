@@ -1,8 +1,10 @@
 from fenics import *
 from tlm_adjoint.fenics import *
+from tlm_adjoint.block_system import Eigensolver
 
 from .test_base import *
 
+import numbers
 import numpy as np
 import pytest
 try:
@@ -13,13 +15,11 @@ except ModuleNotFoundError:
 pytestmark = pytest.mark.skipif(
     DEFAULT_COMM.size not in {1, 4},
     reason="tests must be run in serial, or with 4 processes")
-pytestmark = pytest.mark.skipif(
-    SLEPc is None,
-    reason="SLEPc not available")
 
 
 @pytest.mark.fenics
 @pytest.mark.skipif(complex_mode, reason="real only")
+@pytest.mark.skipif(SLEPc is None, reason="SLEPc not available")
 @seed_test
 def test_CachedHessian(setup_test):
     configure_checkpointing("memory", {"drop_references": False})
@@ -51,6 +51,12 @@ def test_CachedHessian(setup_test):
     H = Hessian(forward)
     H_opt = CachedHessian(J)
 
+    min_order = taylor_test(forward, F, J_val=J.value, ddJ=H)
+    assert min_order > 3.00
+
+    min_order = taylor_test(forward, F, J_val=J.value, ddJ=H_opt)
+    assert min_order > 3.00
+
     # Test consistency of matrix action for static direction
 
     zeta = Function(space, name="zeta", static=True)
@@ -72,41 +78,58 @@ def test_CachedHessian(setup_test):
         var_axpy(error, -1.0, ddJ_opt)
         assert var_linf_norm(error) == 0.0
 
-    with paused_space_type_checking():
-        lam, V = eigendecompose(space, H.action_fn(F),
-                                problem_type=SLEPc.EPS.ProblemType.HEP)
+    esolver = Eigensolver(
+        HessianMatrix(H, F),
+        solver_parameters={"eps_type": "krylovschur",
+                           "eps_hermitian": None,
+                           "eps_largest_magnitude": None,
+                           "eps_nev": space.dim(),
+                           "eps_conv_rel": None,
+                           "eps_tol": 1.0e-12,
+                           "eps_purify": False})
+    esolver.solve()
+    assert len(esolver) == space.dim()
+    assert esolver.B_orthonormality_test() < 1.0e-15
 
-    assert issubclass(lam.dtype.type, np.floating)
+    for lam, (v, _) in esolver:
+        assert isinstance(lam, numbers.Real)
 
-    assert len(lam) == len(V)
-    for lam_i, v_i in zip(lam, V):
-        _, _, v_error = H.action(F, v_i)
+        _, _, v_error = H.action(F, v)
         with paused_space_type_checking():
-            var_axpy(v_error, -lam_i, v_i)
+            var_axpy(v_error, -lam, v)
         assert var_linf_norm(v_error) < 1.0e-19
 
-        _, _, v_error = H_opt.action(F, v_i)
+        _, _, v_error = H_opt.action(F, v)
         with paused_space_type_checking():
-            var_axpy(v_error, -lam_i, v_i)
+            var_axpy(v_error, -lam, v)
         assert var_linf_norm(v_error) < 1.0e-19
 
-    with paused_space_type_checking():
-        lam_opt, V_opt = eigendecompose(space, H_opt.action_fn(F),
-                                        problem_type=SLEPc.EPS.ProblemType.HEP)
+    esolver_opt = Eigensolver(
+        HessianMatrix(H_opt, F),
+        solver_parameters={"eps_type": "krylovschur",
+                           "eps_hermitian": None,
+                           "eps_largest_magnitude": None,
+                           "eps_nev": space.dim(),
+                           "eps_conv_rel": None,
+                           "eps_tol": 1.0e-12,
+                           "eps_purify": False})
+    esolver_opt.solve()
+    assert len(esolver_opt) == space.dim()
+    assert esolver_opt.B_orthonormality_test() < 1.0e-15
 
-    assert issubclass(lam.dtype.type, np.floating)
-    error = (np.array(sorted(lam.real), dtype=float)
-             - np.array(sorted(lam_opt.real), dtype=float))
-    assert abs(error).max() == 0.0
+    for lam, (v, _) in esolver_opt:
+        assert isinstance(lam, numbers.Real)
 
-    assert len(lam) == len(V)
-    for lam_i, v_i in zip(lam_opt, V_opt):
-        _, _, v_error = H.action(F, v_i)
+        _, _, v_error = H.action(F, v)
         with paused_space_type_checking():
-            var_axpy(v_error, -lam_i, v_i)
+            var_axpy(v_error, -lam, v)
         assert var_linf_norm(v_error) < 1.0e-19
 
-        _, _, v_error = H_opt.action(F, v_i)
+        _, _, v_error = H_opt.action(F, v)
         with paused_space_type_checking():
-            var_axpy(v_error, -lam_i, v_i)
+            var_axpy(v_error, -lam, v)
         assert var_linf_norm(v_error) < 1.0e-19
+
+    lam, _ = esolver.eigenpairs()
+    lam_opt, _ = esolver_opt.eigenpairs()
+    assert abs(lam - lam_opt).max() == 0.0

@@ -518,7 +518,7 @@ def test_HEP(setup_test, test_leaks):
     assert len(esolver) == space.dim()
     assert esolver.B_orthonormality_test() < 1.0e-14
 
-    error = Function(space)
+    error = Cofunction(space.dual())
     for lam, (v_r, v_i) in esolver:
         assert isinstance(lam, numbers.Real)
         assert lam > 0.0
@@ -554,7 +554,7 @@ def test_NHEP(setup_test, test_leaks):
     esolver.solve()
     assert len(esolver) == space.dim()
 
-    error = Function(space)
+    error = Cofunction(space.dual())
     if issubclass(PETSc.ScalarType, np.floating):
         for lam, (v_r, v_i) in esolver:
             assert isinstance(lam, numbers.Complex) and not isinstance(lam, numbers.Real)  # noqa: E501

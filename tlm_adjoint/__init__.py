@@ -22,7 +22,6 @@ del _init
 
 from .cached_hessian import *
 from .caches import *
-from .eigendecomposition import *
 from .equation import *
 from .equations import *
 from .fixed_point import *
