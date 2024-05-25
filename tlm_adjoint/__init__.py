@@ -20,7 +20,6 @@ def _init():
 _init()
 del _init
 
-from .block_system import eigensolve
 from .cached_hessian import *
 from .caches import *
 from .eigendecomposition import *

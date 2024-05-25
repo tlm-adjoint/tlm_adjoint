@@ -100,7 +100,7 @@ def test_hessian_solve(setup_test,
         except ModuleNotFoundError:
             pytest.skip(reason="SLEPc not available")
 
-        Lam, V = hessian_eigendecompose(
+        esolver = HessianEigensolver(
             H_mismatch, m, B_inv, B, nullspace=nullspace,
             solver_parameters={"eps_type": "krylovschur",
                                "eps_gen_hermitian": None,
@@ -109,6 +109,8 @@ def test_hessian_solve(setup_test,
                                "eps_conv_rel": None,
                                "eps_tol": 1.0e-14,
                                "eps_purify": False})
+        esolver.solve()
+        Lam, V = esolver.eigenpairs()
         V = tuple(v_r for v_r, _ in V)
 
         assert issubclass(Lam.dtype.type, np.floating)

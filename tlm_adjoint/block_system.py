@@ -105,9 +105,7 @@ __all__ = \
         "BlockMatrix",
 
         "LinearSolver",
-        "Eigensolver",
-
-        "eigensolve"
+        "Eigensolver"
     ]
 
 
@@ -1130,68 +1128,24 @@ class Eigensolver:
         if len(self) < N:
             raise RuntimeError("Convergence failure")
 
+    def eigenpairs(self):
+        """Return converged eigenpairs.
 
-def eigensolve(arg_space, action_space, A_action, B_action=None, *,
-               B_inv_action=None, nullspace=None, solver_parameters=None,
-               comm=None):
-    r"""Solve an eigenproblem
+        :returns: A :class:`tuple` `(Lam, V)`, where
 
-    .. math::
+            - `Lam` is a :class:`numpy.ndarray` containing eigenvalues.
+            - `V` is a :class:`Sequence` of length two :class:`tuple` objects,
+              `(v_r, v_i)`, defining corresponding eigenvectors. Each
+              eigenvectors is defined by `v_r + 1.0j v_i`. `v_i` is `None`,
+              to indicate a value of zero, for Hermitian eigenvalue problems,
+              or with a complex PETSc build.
+        """
 
-        A v = \lambda B v
-
-    using SLEPc.
-
-    :arg arg_space: Defines the space associated with :math:`v`.
-    :arg action_space: Defines the space associated with :math:`A v`.
-    :arg A_action: Defines the action :math:`y = A x`. A callable
-
-        .. code-block:: python
-
-            def A_action(x, y):
-
-    :arg B_action: Defines the action :math:`y = B x`. A callable
-
-        .. code-block:: python
-
-            def B_action(x, y):
-
-        If supplied then a generalized eigenproblem is solved. Otherwise a
-        standard eigenproblem is solved.
-    :arg B_inv_action: Defines the action :math:`y = B^{-1} x`. A callable
-
-        .. code-block:: python
-
-            def B_inv_action(x, y):
-
-    :arg nullspace: A :class:`.Nullspace` or a :class:`Sequence` of
-        :class:`.Nullspace` objects defining the nullspace and left nullspace
-        of :math:`A` and (if supplied) :math:`B`. `None` indicates a
-        :class:`.NoneNullspace`.
-    :arg solver_parameters: A :class:`Mapping` defining solver parameters.
-    :arg comm: Communicator.
-    """
-
-    A = MatrixFreeMatrix(arg_space, action_space, A_action)
-    if B_action is None:
-        B = None
-    else:
-        B = MatrixFreeMatrix(arg_space, action_space, B_action)
-    if B_inv_action is None:
-        B_inv = None
-    else:
-        B_inv = MatrixFreeMatrix(action_space, arg_space, B_inv_action)
-
-    esolver = Eigensolver(
-        A, B, B_inv=B_inv, nullspace=nullspace,
-        solver_parameters=solver_parameters, comm=comm)
-    esolver.solve()
-
-    Lam = np.zeros(len(esolver), dtype=(PETSc.RealType
-                                        if esolver.eps.isHermitian()
-                                        else PETSc.ComplexType))
-    V = []
-    for i, (lam, (v_r, v_i)) in enumerate(esolver):
-        Lam[i] = lam
-        V.append((v_r, v_i))
-    return Lam, V
+        Lam = np.zeros(len(self), dtype=(PETSc.RealType
+                                         if self.eps.isHermitian()
+                                         else PETSc.ComplexType))
+        V = []
+        for i, (lam, (v_r, v_i)) in enumerate(self):
+            Lam[i] = lam
+            V.append((v_r, v_i))
+        return Lam, tuple(V)

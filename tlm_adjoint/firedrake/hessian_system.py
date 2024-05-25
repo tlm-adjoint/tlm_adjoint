@@ -1,71 +1,15 @@
 from ..interface import (
-    is_var, var_assign, var_assign_conjugate, var_axpy, var_copy,
-    var_copy_conjugate, var_dtype, var_inner)
-
-from ..block_system import TypedSpace, eigensolve
+    is_var, var_assign, var_axpy, var_copy, var_copy_conjugate, var_dtype,
+    var_inner)
 
 from collections.abc import Sequence
 import numpy as np
 
 __all__ = \
     [
-        "hessian_eigendecompose",
         "B_inv_orthonormality_test",
         "hessian_eigendecomposition_pc",
     ]
-
-
-def hessian_eigendecompose(
-        H, m, B_inv_action, B_action, *args, **kwargs):
-    r"""Interface with SLEPc via slepc4py, for the matrix free solution of
-    generalized eigenproblems
-
-    .. math::
-
-        H v = \lambda B^{-1} v,
-
-    where :math:`H` is a Hessian matrix.
-
-    Despite the notation :math:`B^{-1}` may be singular, defining an inverse
-    operator only on an appropriate subspace.
-
-    :arg H: A :class:`.Hessian`.
-    :arg m: A :class:`firedrake.function.Function` or
-        :class:`firedrake.cofunction.Cofunction` defining the control.
-    :arg B_inv_action: A callable accepting a
-        :class:`firedrake.function.Function` or
-        :class:`firedrake.cofunction.Cofunction` defining :math:`v` and
-        computing the conjugate of the action of :math:`B^{-1}` on :math:`v`,
-        returning the result as a :class:`firedrake.function.Function` or
-        :class:`firedrake.cofunction.Cofunction`.
-    :arg B_action: A callable accepting a :class:`firedrake.function.Function`
-        or :class:`firedrake.cofunction.Cofunction` defining :math:`v` and
-        computing the action of :math:`B` on the conjugate of :math:`v`,
-        returning the result as a :class:`firedrake.function.Function` or
-        :class:`firedrake.cofunction.Cofunction`.
-
-    Remaining keyword arguments are passed to :func:`.eigendecompose`.
-    """
-
-    space = m.function_space()
-
-    def H_action(x, y):
-        _, _, ddJ = H.action(m, x)
-        var_assign_conjugate(y, ddJ)
-
-    B_inv_action_arg = B_inv_action
-
-    def B_inv_action(x, y):
-        var_assign_conjugate(y, B_inv_action_arg(x))
-
-    B_action_arg = B_action
-
-    def B_action(x, y):
-        var_assign(y, B_action_arg(var_copy_conjugate(x)))
-
-    return eigensolve(space, TypedSpace(space.dual(), space_type="dual"),
-                      H_action, B_inv_action, B_inv_action=B_action,
-                      *args, **kwargs)
 
 
 def B_inv_orthonormality_test(V, B_inv_action):
