@@ -1,9 +1,9 @@
 """Finite element variational problem solution operations with Firedrake.
 """
 
-from .backend import adjoint, backend_DirichletBC, parameters
+from .backend import adjoint, parameters
 from ..interface import (
-    check_space_type, is_var, var_axpy, var_copy, var_id, var_new,
+    check_space_type, is_var, packed, var_axpy, var_copy, var_id, var_new,
     var_new_conjugate_dual, var_replacement, var_update_caches, var_zero)
 
 from ..caches import CacheRef
@@ -43,8 +43,8 @@ class BCIndex(int):
 def unpack_bcs(bcs, *, deps=None):
     if bcs is None:
         bcs = ()
-    elif isinstance(bcs, backend_DirichletBC):
-        bcs = (bcs,)
+    else:
+        bcs = packed(bcs)
     if deps is None:
         deps = []
     dep_ids = set(map(var_id, deps))
@@ -146,10 +146,8 @@ class EquationSolver(ExprEquation):
                  match_quadrature=None):
         if bcs is None:
             bcs = ()
-        elif isinstance(bcs, backend_DirichletBC):
-            bcs = (bcs,)
         else:
-            bcs = tuple(bcs)
+            bcs = packed(bcs)
         if form_compiler_parameters is None:
             form_compiler_parameters = {}
         if solver_parameters is None:

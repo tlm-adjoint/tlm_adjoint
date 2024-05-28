@@ -5,8 +5,8 @@ from .backend import (
     Parameters, adjoint, backend_DirichletBC, backend_LocalSolver,
     backend_solve as solve, parameters)
 from ..interface import (
-    check_space_type, var_axpy, var_copy, var_id, var_new_conjugate_dual,
-    var_replacement, var_update_caches, var_zero)
+    check_space_type, packed, var_axpy, var_copy, var_id,
+    var_new_conjugate_dual, var_replacement, var_update_caches, var_zero)
 
 from ..caches import CacheRef
 from ..equation import ZeroAssignment
@@ -113,10 +113,8 @@ class EquationSolver(ExprEquation):
                  match_quadrature=None):
         if bcs is None:
             bcs = ()
-        elif isinstance(bcs, backend_DirichletBC):
-            bcs = (bcs,)
         else:
-            bcs = tuple(bcs)
+            bcs = packed(bcs)
         if form_compiler_parameters is None:
             form_compiler_parameters = {}
         if solver_parameters is None:

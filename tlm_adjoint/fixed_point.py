@@ -1,5 +1,5 @@
 from .interface import (
-    is_var, no_space_type_checking, var_assign, var_axpy, var_copy, var_id,
+    no_space_type_checking, packed, var_assign, var_axpy, var_copy, var_id,
     var_inner, var_zero)
 
 from .adjoint import AdjointModelRHS
@@ -56,8 +56,7 @@ class CustomNormSq:
         if len(eqs) != len(norm_sqs):
             raise ValueError("Invalid squared norm callable(s)")
         for i, (eq, X_norm_sq) in enumerate(zip(eqs, norm_sqs)):
-            if callable(X_norm_sq):
-                X_norm_sq = (X_norm_sq,)
+            X_norm_sq = packed(X_norm_sq)
             if len(eq.X()) != len(X_norm_sq):
                 raise ValueError("Invalid squared norm callable(s)")
             norm_sqs[i] = tuple(X_norm_sq)
@@ -66,8 +65,7 @@ class CustomNormSq:
         if len(eqs) != len(adj_norm_sqs):
             raise ValueError("Invalid squared norm callable(s)")
         for i, (eq, X_norm_sq) in enumerate(zip(eqs, adj_norm_sqs)):
-            if callable(X_norm_sq):
-                X_norm_sq = (X_norm_sq,)
+            X_norm_sq = packed(X_norm_sq)
             if len(eq.X()) != len(X_norm_sq):
                 raise ValueError("Invalid squared norm callable(s)")
             adj_norm_sqs[i] = tuple(X_norm_sq)
@@ -302,9 +300,6 @@ class FixedPointSolver(Equation, CustomNormSq):
         self._eqs = tuple(map(WeakAlias, self._eqs))
 
     def forward_solve(self, X, deps=None):
-        if is_var(X):
-            X = (X,)
-
         # Based on KrylovSolver parameters in FEniCS 2017.2.0
         absolute_tolerance = self._solver_parameters["absolute_tolerance"]
         relative_tolerance = self._solver_parameters["relative_tolerance"]
@@ -370,12 +365,8 @@ class FixedPointSolver(Equation, CustomNormSq):
                     var_assign(x_0, x)
 
     def adjoint_jacobian_solve(self, adj_X, nl_deps, B):
-        if is_var(B):
-            B = (B,)
         if adj_X is None:
             adj_X = list(self.new_adj_X())
-        elif is_var(adj_X):
-            adj_X = [adj_X]
         else:
             adj_X = list(adj_X)
 
@@ -404,7 +395,7 @@ class FixedPointSolver(Equation, CustomNormSq):
         if nonzero_initial_guess:
             for i, eq in enumerate(self._eqs):
                 eq.subtract_adjoint_derivative_actions(
-                    eq_adj_X[i][0] if len(eq_adj_X[i]) == 1 else eq_adj_X[i],
+                    eq._unpack(eq_adj_X[i]),
                     eq_nl_deps[i], dep_Bs[i])
         else:
             for adj_x in adj_X:
@@ -472,9 +463,6 @@ class FixedPointSolver(Equation, CustomNormSq):
         return adj_X
 
     def subtract_adjoint_derivative_actions(self, adj_X, nl_deps, dep_Bs):
-        if is_var(adj_X):
-            adj_X = (adj_X,)
-
         eq_deps = self.dependencies()
         eq_dep_Bs = tuple({} for _ in self._eqs)
         for dep_index, B in dep_Bs.items():
@@ -487,7 +475,7 @@ class FixedPointSolver(Equation, CustomNormSq):
             eq_adj_X = tuple(adj_X[j] for j in self._eq_X_indices[i])
             eq_nl_deps = tuple(nl_deps[j] for j in self._eq_nl_dep_indices[i])
             eq.subtract_adjoint_derivative_actions(
-                eq_adj_X[0] if len(eq_adj_X) == 1 else eq_adj_X,
+                eq._unpack(eq_adj_X),
                 eq_nl_deps, eq_dep_Bs[i])
 
     def tangent_linear(self, tlm_map):

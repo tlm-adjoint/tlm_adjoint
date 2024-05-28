@@ -70,8 +70,8 @@ representations of a mixed space solution.
 """
 
 from .interface import (
-    comm_dup_cached, space_comm, space_default_space_type, space_eq, space_new,
-    var_assign, var_locked, var_zero)
+    comm_dup_cached, packed, space_comm, space_default_space_type, space_eq,
+    space_new, var_assign, var_locked, var_zero)
 from .manager import manager_disabled
 from .petsc import (
     PETScOptions, PETScVec, PETScVecInterface, attach_destroy_finalizer)
@@ -113,20 +113,23 @@ def iter_sub(iterable, *, expand=None):
 
     q = deque(map(expand, iterable))
     while len(q) > 0:
-        e = q.popleft()
-        if isinstance(e, Sequence) and not isinstance(e, str):
-            q.extendleft(map(expand, reversed(e)))
-        else:
+        e = packed(q.popleft())
+        if e.is_packed:
+            e, = e
             yield e
+        else:
+            q.extendleft(map(expand, reversed(e)))
 
 
 def tuple_sub(iterable, sequence):
     iterator = iter_sub(iterable)
 
     def tuple_sub(iterator, value):
-        if isinstance(value, Sequence) and not isinstance(value, str):
+        value = packed(value)
+        if value.is_packed:
+            return next(iterator)
+        else:
             return tuple(tuple_sub(iterator, e) for e in value)
-        return next(iterator)
 
     t = tuple_sub(iterator, sequence)
 
@@ -252,17 +255,15 @@ class MixedSpace(PETScVecInterface, Sequence):
     def __init__(self, spaces):
         if isinstance(spaces, MixedSpace):
             spaces = spaces.split_space
-        elif isinstance(spaces, Sequence):
-            spaces = tuple(spaces)
         else:
-            spaces = (spaces,)
+            spaces = packed(spaces)
         flattened_spaces = tuple(space if isinstance(space, TypedSpace)
                                  else TypedSpace(space)
                                  for space in iter_sub(spaces))
         spaces = tuple_sub(flattened_spaces, spaces)
 
         super().__init__(tuple(space.space for space in flattened_spaces))
-        self._spaces = spaces
+        self._spaces = tuple_sub(spaces, spaces)
         self._flattened_spaces = flattened_spaces
 
     def __len__(self):
@@ -489,10 +490,7 @@ class BlockNullspace(Nullspace, Sequence):
     """
 
     def __init__(self, nullspaces):
-        if not isinstance(nullspaces, Sequence):
-            nullspaces = (nullspaces,)
-
-        nullspaces = list(nullspaces)
+        nullspaces = list(packed(nullspaces))
         for i, nullspace in enumerate(nullspaces):
             if nullspace is None:
                 nullspaces[i] = NoneNullspace()
@@ -502,8 +500,7 @@ class BlockNullspace(Nullspace, Sequence):
         self._nullspaces = nullspaces
 
     def __new__(cls, nullspaces, *args, **kwargs):
-        if not isinstance(nullspaces, Sequence):
-            nullspaces = (nullspaces,)
+        nullspaces = packed(nullspaces)
         for nullspace in nullspaces:
             if nullspace is not None \
                     and not isinstance(nullspace, NoneNullspace):
@@ -862,17 +859,18 @@ class LinearSolver:
             the solution.
         """
 
+        u = packed(u)
+        b = packed(b)
+
         pc_fn = self._pc_fn
-        if not isinstance(u, Sequence):
-            u = (u,)
+        if u.is_packed:
             pc_fn_u = pc_fn
 
             def pc_fn(u, b):
                 u, = tuple(iter_sub(u))
                 pc_fn_u(u, b)
 
-        if not isinstance(b, Sequence):
-            b = (b,)
+        if b.is_packed:
             pc_fn_b = pc_fn
 
             def pc_fn(u, b):

@@ -1207,8 +1207,7 @@ def var_update_caches(*X, value=None):
             var_check_state_lock(x)
             var_caches(x).update(x)
     else:
-        if is_var(value):
-            value = (value,)
+        value = packed(value)
         var_update_caches(*value)
         assert len(X) == len(value)
         for x, x_value in zip(X, value):
@@ -1598,6 +1597,65 @@ def add_replacement_interface(replacement, x):
                    "caches": var_caches(x)})
 
 
+class Packed(Sequence):
+    """A convenience class for converting objects to and from an immutable
+    :class:`Sequence`. Functionality based on the pyadjoint `Enlist` class
+    (see e.g. pyadjoint master branch revision
+    908b6364e402a6776f2a378297beecaf2bebfb87).
+    """
+
+    def __init__(self, obj):
+        if isinstance(obj, Sequence) \
+                and not is_space(obj) \
+                and not is_var(obj) \
+                and not isinstance(obj, str):
+            t = tuple(obj)
+            is_packed = False
+        else:
+            t = (obj,)
+            is_packed = True
+
+        self._obj = obj
+        self._t = t
+        self._is_packed = is_packed
+
+    def __eq__(self, other):
+        other = Packed(other)
+        return (tuple(self) == tuple(other)
+                and self.is_packed == other.is_packed)
+
+    def __ne__(self, other):
+        return not self == other
+
+    def __hash__(self):
+        return hash((tuple(self), self.is_packed))
+
+    def __len__(self):
+        return len(self._t)
+
+    def __getitem__(self, key):
+        return self._t[key]
+
+    @property
+    def is_packed(self):
+        return self._is_packed
+
+    def unpack(self, obj):
+        obj_packed = Packed(obj)
+        if len(obj_packed) != len(self):
+            raise ValueError("Invalid length")
+        if self.is_packed:
+            obj, = obj_packed
+        return obj
+
+    def mapped(self, fn):
+        return Packed(self.unpack(tuple(map(fn, self))))
+
+
+def packed(obj):
+    return tuple(Packed(obj))
+
+
 @functools.singledispatch
 def subtract_adjoint_derivative_action(x, y):
     """Subtract an adjoint right-hand-side contribution defined by `y` from
@@ -1617,10 +1675,8 @@ def subtract_adjoint_derivative_action(x, y):
 
 def register_subtract_adjoint_derivative_action(x_cls, y_cls, fn, *,
                                                 replace=False):
-    if not isinstance(x_cls, Sequence):
-        x_cls = (x_cls,)
-    if not isinstance(y_cls, Sequence):
-        y_cls = (y_cls,)
+    x_cls = packed(x_cls)
+    y_cls = packed(y_cls)
     for x_cls, y_cls in itertools.product(x_cls, y_cls):
         if x_cls not in subtract_adjoint_derivative_action.registry:
             @functools.singledispatch
@@ -1671,8 +1727,7 @@ def functional_term_eq(x, term):
 
 def register_functional_term_eq(term_cls, fn, *,
                                 replace=False):
-    if not isinstance(term_cls, Sequence):
-        term_cls = (term_cls,)
+    term_cls = packed(term_cls)
     for term_cls in term_cls:
         if term_cls in _functional_term_eq.registry and not replace:
             raise RuntimeError("Case already registered")

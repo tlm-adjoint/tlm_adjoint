@@ -2,7 +2,7 @@
 """
 
 from .backend import TestFunction, backend_assemble, backend_DirichletBC
-from ..interface import space_eq, var_axpy, var_inner, var_new
+from ..interface import packed, space_eq, var_axpy, var_inner, var_new
 
 from ..block_system import (
     BlockMatrix as _BlockMatrix, BlockNullspace, LinearSolver as _LinearSolver,
@@ -11,7 +11,6 @@ from ..block_system import (
 from .backend_interface import assemble, matrix_multiply
 from .variables import Constant, Function
 
-from collections.abc import Sequence
 import ufl
 
 __all__ = \
@@ -36,8 +35,7 @@ __all__ = \
 
 
 def apply_bcs(u, bcs):
-    if not isinstance(bcs, Sequence):
-        bcs = (bcs,)
+    bcs = packed(bcs)
     if len(bcs) > 0 and not isinstance(u.function_space(), type(bcs[0].function_space())):  # noqa: E501
         u_bc = u.riesz_representation("l2")
     else:
@@ -158,11 +156,7 @@ class DirichletBCNullspace(Nullspace):
     """
 
     def __init__(self, bcs, *, alpha=1.0):
-        if isinstance(bcs, Sequence):
-            bcs = tuple(bcs)
-        else:
-            bcs = (bcs,)
-
+        bcs = packed(bcs)
         space = bcs[0].function_space()
         for bc in bcs:
             if not space_eq(bc.function_space(), space):

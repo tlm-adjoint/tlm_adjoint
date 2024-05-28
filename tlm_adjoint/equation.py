@@ -1,12 +1,12 @@
 from .interface import (
-    check_space_types, is_var, var_id, var_is_alias, var_is_static, var_locked,
-    var_new, var_replacement, var_update_caches, var_update_state, var_zero)
+    Packed, check_space_types, is_var, packed, var_id, var_is_alias,
+    var_is_static, var_locked, var_new, var_replacement, var_update_caches,
+    var_update_state, var_zero)
 
 from .alias import WeakAlias, gc_disabled
 from .manager import manager as _manager
 from .manager import annotation_enabled, paused_manager, tlm_enabled
 
-from collections.abc import Sequence
 import functools
 import inspect
 import itertools
@@ -128,8 +128,8 @@ class Equation(Referrer):
                  ic_deps=None, ic=None,
                  adj_ic_deps=None, adj_ic=None,
                  adj_type="conjugate_dual"):
-        if is_var(X):
-            X = (X,)
+        X_packed = Packed(X)
+        X = tuple(X_packed)
         X_ids = set(map(var_id, X))
         dep_ids = {var_id(dep): i for i, dep in enumerate(deps)}
         for x in X:
@@ -193,16 +193,14 @@ class Equation(Referrer):
 
         if adj_type in ["primal", "conjugate_dual"]:
             adj_type = tuple(adj_type for _ in X)
-        elif isinstance(adj_type, Sequence):
-            if len(adj_type) != len(X):
-                raise ValueError("Invalid adjoint type")
-        else:
+        if len(adj_type) != len(X):
             raise ValueError("Invalid adjoint type")
         for adj_x_type in adj_type:
             if adj_x_type not in {"primal", "conjugate_dual"}:
                 raise ValueError("Invalid adjoint type")
 
         super().__init__()
+        self._packed = X_packed.mapped(lambda x: None)
         self._X = tuple(X)
         self._deps = tuple(deps)
         self._nl_deps = tuple(nl_deps)
@@ -253,6 +251,9 @@ class Equation(Referrer):
 
         x, = self._X
         return x
+
+    def _unpack(self, obj):
+        return self._packed.unpack(obj)
 
     def X(self, m=None):
         """Return forward solution variables.
@@ -397,7 +398,7 @@ class Equation(Referrer):
         with var_locked(*(dep for dep in (eq_deps if deps is None else deps)
                           if var_id(dep) not in X_ids)):
             var_update_caches(*eq_deps, value=deps)
-            self.forward_solve(X[0] if len(X) == 1 else X, deps=deps)
+            self.forward_solve(self._unpack(X), deps=deps)
             var_update_state(*X)
             var_update_caches(*self.X(), value=X)
 
@@ -407,11 +408,9 @@ class Equation(Referrer):
         Can assume that the currently active :class:`.EquationManager` is
         paused.
 
-        :arg X: A variable if the forward solution has a single component,
-            otherwise a :class:`Sequence` of variables. May define an initial
-            guess, and should be set by this method. Subclasses may replace
-            this argument with `x` if the forward solution has a single
-            component.
+        :arg X: A variable or a :class:`Sequence` of variables storing the
+            solution. May define an initial guess, and should be set by this
+            method.
         :arg deps: A :class:`tuple` of variables, defining values for
             dependencies. Only the elements corresponding to `X` may be
             modified. `self.dependencies()` should be used if not supplied.
@@ -428,8 +427,8 @@ class Equation(Referrer):
             returned.
         :arg nl_deps: A :class:`Sequence` of variables defining values for
             non-linear dependencies. Should not be modified.
-        :arg B: A sequence of variables defining the right-hand-side of the
-            adjoint equation. May be modified or returned.
+        :arg B: A :class:`Sequence` of variables defining the right-hand-side
+            of the adjoint equation. May be modified or returned.
         :arg dep_Bs: A :class:`Mapping` whose items are `(dep_index, dep_B)`.
             Each `dep_B` is an :class:`.AdjointRHS` which should be updated by
             subtracting adjoint derivative information computed by
@@ -443,12 +442,11 @@ class Equation(Referrer):
             var_update_caches(*self.nonlinear_dependencies(), value=nl_deps)
 
             adj_X = self.adjoint_jacobian_solve(
-                adj_X if adj_X is None or len(adj_X) != 1 else adj_X[0],
-                nl_deps, B[0] if len(B) == 1 else B)
+                None if adj_X is None else self._unpack(adj_X),
+                nl_deps, self._unpack(B))
             if adj_X is None:
                 return None
-            elif is_var(adj_X):
-                adj_X = (adj_X,)
+            adj_X = packed(adj_X)
             var_update_state(*adj_X)
 
             for m, adj_x in enumerate(adj_X):
@@ -456,7 +454,7 @@ class Equation(Referrer):
                                   rel_space_type=self.adj_X_type(m))
 
             self.subtract_adjoint_derivative_actions(
-                adj_X[0] if len(adj_X) == 1 else adj_X, nl_deps, dep_Bs)
+                self._unpack(adj_X), nl_deps, dep_Bs)
 
             return tuple(adj_X)
 
@@ -477,7 +475,7 @@ class Equation(Referrer):
             var_update_caches(*self.nonlinear_dependencies(), value=nl_deps)
 
             self.subtract_adjoint_derivative_actions(
-                adj_X[0] if len(adj_X) == 1 else adj_X, nl_deps, dep_Bs)
+                self._unpack(adj_X), nl_deps, dep_Bs)
 
     def adjoint_derivative_action(self, nl_deps, dep_index, adj_X):
         """Return the action of the adjoint of a derivative of the forward
@@ -489,10 +487,8 @@ class Equation(Referrer):
         :arg dep_index: An :class:`int`. The derivative is defined by
             differentiation of the forward residual with respect to
             `self.dependencies()[dep_index]`.
-        :arg adj_X: The adjoint solution. A variable if the adjoint solution
-            has a single component, otherwise a :class:`Sequence` of variables.
-            Should not be modified. Subclasses may replace this argument with
-            `adj_x` if the adjoint solution has a single component.
+        :arg adj_X: The adjoint solution. A variable or a :class:`Sequence` of
+            variables. Should not be modified.
         :returns: The action of the adjoint of a derivative on the adjoint
             solution. Will be passed to
             :func:`.subtract_adjoint_derivative_action`, and valid types depend
@@ -510,10 +506,8 @@ class Equation(Referrer):
         Can be overridden for an optimized implementation, but otherwise uses
         :meth:`.Equation.adjoint_derivative_action`.
 
-        :arg adj_X: The adjoint solution. A variable if the adjoint solution
-            has a single component, otherwise a :class:`Sequence` of variables.
-            Should not be modified. Subclasses may replace this argument with
-            `adj_x` if the adjoint solution has a single component.
+        :arg adj_X: The adjoint solution. A variable or a :class:`Sequence` of
+            variables. Should not be modified.
         :arg nl_deps: A :class:`Sequence` of variables defining values for
             non-linear dependencies. Should not be modified.
         :arg dep_Bs: A :class:`Mapping` whose items are `(dep_index, dep_B)`.
@@ -529,18 +523,14 @@ class Equation(Referrer):
     def adjoint_jacobian_solve(self, adj_X, nl_deps, B):
         """Compute an adjoint solution.
 
-        :arg adj_X: Either `None`, or a variable (if the adjoint solution has a
-            single component) or :class:`Sequence` of variables (otherwise)
-            defining the initial guess for an iterative solve. May be modified
-            or returned. Subclasses may replace this argument with `adj_x` if
-            the adjoint solution has a single component.
+        :arg adj_X: Either `None`, or a variable or :class:`Sequence` of
+            variables defining the initial guess for an iterative solve. May be
+            modified or returned.
         :arg nl_deps: A :class:`Sequence` of variables defining values for
             non-linear dependencies. Should not be modified.
-        :arg B: The right-hand-side. A variable (if the adjoint solution has a
-            single component) or :class:`Sequence` of variables (otherwise)
-            storing the value of the right-hand-side. May be modified or
-            returned. Subclasses may replace this argument with `b` if the
-            adjoint solution has a single component.
+        :arg B: The right-hand-side. A variable or :class:`Sequence` of
+            variables storing the value of the right-hand-side. May be modified
+            or returned.
         :returns: A variable or :class:`Sequence` of variables storing the
             value of the adjoint solution. May return `None` to indicate a
             value of zero.
@@ -579,13 +569,10 @@ class ZeroAssignment(Equation):
     """
 
     def __init__(self, X):
-        if is_var(X):
-            X = (X,)
+        X = packed(X)
         super().__init__(X, X, nl_deps=[], ic=False, adj_ic=False)
 
     def forward_solve(self, X, deps=None):
-        if is_var(X):
-            X = (X,)
         for x in X:
             var_zero(x)
 

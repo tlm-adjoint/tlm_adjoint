@@ -1,12 +1,10 @@
 from .interface import (
-    var_axpy_conjugate, var_copy_conjugate, var_increment_state_lock,
+    packed, var_axpy_conjugate, var_copy_conjugate, var_increment_state_lock,
     var_space)
 
 from .block_system import (
     BlockNullspace, LinearSolver, Matrix, NoneNullspace, TypedSpace)
 from .manager import manager_disabled
-
-from collections.abc import Sequence
 
 __all__ = \
     [
@@ -32,10 +30,7 @@ class HessianMatrix(Matrix):
     """
 
     def __init__(self, H, M):
-        if isinstance(M, Sequence):
-            M = tuple(M)
-        else:
-            M = (M,)
+        M = packed(M)
         arg_space = tuple(TypedSpace(var_space(m)) for m in M)
         action_space = tuple(TypedSpace(var_space(m), space_type="dual") for m in M)  # noqa: E501
 
@@ -94,8 +89,5 @@ class HessianLinearSolver(LinearSolver):
         :meth:`tlm_adjoint.block_system.LinearSolver.solve` method.
         """
 
-        if isinstance(b, Sequence):
-            b = tuple(map(var_copy_conjugate, b))
-        else:
-            b = var_copy_conjugate(b)
-        return super().solve(u, b, **kwargs)
+        b_conj = tuple(map(var_copy_conjugate, packed(b)))
+        super().solve(u, b_conj, **kwargs)

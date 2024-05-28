@@ -1,6 +1,6 @@
 from .interface import (
     DEFAULT_COMM, SpaceInterface, VariableInterface, add_interface,
-    add_replacement_interface, comm_dup_cached, is_var, new_space_id,
+    add_replacement_interface, comm_dup_cached, packed, new_space_id,
     new_var_id, register_subtract_adjoint_derivative_action,
     subtract_adjoint_derivative_action_base, var_assign, var_axpy, var_comm,
     var_dtype, var_id, var_is_scalar, var_local_size, var_set_values,
@@ -12,7 +12,6 @@ from .equations import Assignment, Axpy, Conversion
 from .manager import (
     annotation_enabled, manager as _manager, paused_manager, tlm_enabled)
 
-from collections.abc import Sequence
 import contextlib
 import functools
 try:
@@ -594,10 +593,8 @@ class VectorEquation(Equation):
     """
 
     def __init__(self, X, Y, fn, *, with_tlm=True, _forward_eq=None):
-        if is_var(X):
-            X = (X,)
-        if is_var(Y):
-            Y = (Y,)
+        X = packed(X)
+        Y = packed(Y)
         if len(X) != len(set(X)):
             raise ValueError("Duplicate solution")
         if len(Y) != len(set(Y)):
@@ -613,8 +610,7 @@ class VectorEquation(Equation):
             if len(args) != n_Y:
                 raise ValueError("Unexpected number of inputs")
             X_val = fn(*args)
-            if not isinstance(X_val, Sequence):
-                X_val = X_val,
+            X_val = packed(X_val)
             if len(X_val) != n_X:
                 raise ValueError("Unexpected number of outputs")
 
@@ -688,8 +684,7 @@ class VectorEquation(Equation):
                 eq._annotate = True
 
     def forward_solve(self, X, deps=None):
-        if is_var(X):
-            X = (X,)
+        X = packed(X)
         if deps is None:
             deps = self.dependencies()
         Y = deps[len(X):]
@@ -708,8 +703,7 @@ class VectorEquation(Equation):
         return B
 
     def subtract_adjoint_derivative_actions(self, adj_X, nl_deps, dep_Bs):
-        if is_var(adj_X):
-            adj_X = (adj_X,)
+        adj_X = packed(adj_X)
         _, vjp = self._jax_reverse(*nl_deps)
         dF = vjp(tuple(adj_x.vector.conjugate() for adj_x in adj_X))
         N_X = len(self.X())
