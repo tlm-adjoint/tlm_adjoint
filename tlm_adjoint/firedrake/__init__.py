@@ -14,7 +14,6 @@ from .assignment import *
 from .block_system import ConstantNullspace, DirichletBCNullspace, UnityNullspace
 from .caches import *
 from .expr import *
-from .hessian_system import *
 from .interpolation import *
 from .parameters import *
 from .projection import *
@@ -24,5 +23,5 @@ from .variables import *
 from .backend_patches import *
 
 del (backend, backend_interface, assembly, assignment, block_system, caches,
-     expr, hessian_system, interpolation, parameters, projection, solve,
-     variables, backend_patches)
+     expr, interpolation, parameters, projection, solve, variables,
+     backend_patches)

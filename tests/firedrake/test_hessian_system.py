@@ -124,7 +124,7 @@ def test_hessian_solve(setup_test,
             bc.apply(v_error)
             assert var_linf_norm(v_error) < 1.0e-16
 
-        pc_fn = hessian_eigendecomposition_pc(B, Lam, V)
+        pc_fn = esolver.spectral_pc_fn()
 
     H_solver = HessianLinearSolver(
         H, m,

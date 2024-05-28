@@ -746,12 +746,16 @@ class SystemMatrix(PETScSquareMatInterface):
                          nullspace_constraint=nullspace_constraint)
         self._matrix = matrix
 
+    @property
+    def matrix(self):
+        return self._matrix
+
     def mult(self, A, x, y):
         self._pre_mult(x)
 
         if not isinstance(self.nullspace, NoneNullspace):
             self.nullspace.pre_mult_correct_lhs(self._x_c)
-        self._matrix.action(self._x_c, self._y)
+        self.matrix.action(self._x_c, self._y)
         if not isinstance(self.nullspace, NoneNullspace):
             self.nullspace.post_mult_correct_lhs(
                 self._x if self._nullspace_constraint else None, self._y)
@@ -767,12 +771,16 @@ class Preconditioner(PETScSquareMatInterface):
                          nullspace_constraint=nullspace_constraint)
         self._matrix = matrix
 
+    @property
+    def matrix(self):
+        return self._matrix
+
     def apply(self, pc, x, y):
         self._pre_mult(x)
 
         if not isinstance(self.nullspace, NoneNullspace):
             self.nullspace.pc_pre_mult_correct(self._x_c)
-        self._matrix.action(self._x_c, self._y)
+        self.matrix.action(self._x_c, self._y)
         if not isinstance(self.nullspace, NoneNullspace):
             self.nullspace.pc_post_mult_correct(
                 self._y, self._x if self._nullspace_constraint else None)
@@ -1043,7 +1051,7 @@ class Eigensolver:
             nullspace = NoneNullspace()
         elif isinstance(nullspace, Sequence):
             nullspace = BlockNullspace(nullspace)
-        extract_0 = not isinstance(A, BlockMatrix)
+        packed = Packed(A).mapped(lambda a: None)
         if not isinstance(A, BlockMatrix):
             A = BlockMatrix((A.arg_space,), (A.action_space,), A)
             if not isinstance(nullspace, NoneNullspace):
@@ -1065,11 +1073,12 @@ class Eigensolver:
         if B_inv is not None:
             B_inv = Preconditioner(B_inv, nullspace=nullspace)
 
+        self._packed = packed
         self._A = A
         self._B = B
+        self._B_inv = B_inv
         self._eps = slepc_eps(A, B, B_inv=B_inv,
                               solver_parameters=solver_parameters, comm=comm)
-        self._extract_0 = extract_0
 
         attach_destroy_finalizer(self, self.eps)
 
@@ -1079,6 +1088,9 @@ class Eigensolver:
 
     def __len__(self):
         return self.eps.getConverged()
+
+    def _unpack(self, obj):
+        return self._packed.unpack(obj)
 
     def _eigenpair(self, key):
         x_r = self._A.arg_space.new_petsc()
@@ -1107,8 +1119,8 @@ class Eigensolver:
             v_i = self._A.arg_space.new()
             self._A.arg_space.from_petsc(x_i, v_i)
 
-        return lam, (v_r[0] if self._extract_0 else v_r,
-                     v_i[0] if self._extract_0 and v_i is not None else v_i)
+        return lam, (self._unpack(v_r),
+                     None if v_i is None else self._unpack(v_i))
 
     @property
     def eps(self):
@@ -1155,7 +1167,7 @@ class Eigensolver:
         r"""Test :math:`B` orthonormality of the eigenvectors for a Hermitian
         eigenvalue problem.
 
-        :returns: :math:`\left| V^T B V - I \right|_\infty` where
+        :returns: :math:`\left| V^* B V - I \right|_\infty` where
             :math:`V` is the matrix whose columns are the eigenvectors.
         """
 

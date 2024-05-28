@@ -1,7 +1,7 @@
 from .interface import (
     Packed, packed, var_copy_conjugate, var_increment_state_lock, var_locked,
-    var_space, vars_assign, vars_assign_conjugate, vars_axpy_conjugate,
-    vars_copy_conjugate)
+    var_space, vars_assign, vars_assign_conjugate, vars_axpy,
+    vars_axpy_conjugate, vars_copy_conjugate, vars_inner)
 
 from .block_system import (
     Eigensolver, LinearSolver, Matrix, MatrixFreeMatrix, TypedSpace)
@@ -130,3 +130,66 @@ class HessianEigensolver(Eigensolver):
         B = MatrixFreeMatrix(A.arg_space, A.action_space, B_action)
         B_inv = MatrixFreeMatrix(A.action_space, A.arg_space, B_inv_action)
         super().__init__(A, B, B_inv=B_inv, *args, **kwargs)
+
+    def spectral_pc_fn(self):
+        r"""Construct a Hessian matrix preconditioner using a partial spectrum
+        generalized eigendecomposition. Assumes that the Hessian matrix
+        consists of two terms
+
+        .. math::
+
+            H = A + B,
+
+        where :math:`A` and :math:`B` are Hermitian and :math:`B` is positive
+        definite.
+
+        The approximation is defined via
+
+        .. math::
+
+            H^{-1} \approx B^{-1}
+                + V \Lambda \left( I + \Lambda \right)^{-1} V^*
+
+        where
+
+        .. math::
+
+            A V = B V \Lambda,
+
+        and where :math:`\Lambda` is a diagonal matrix and :math:`V` has
+        :math:`B`-orthonormal columns, :math:`V^* B V = I`.
+
+        This low rank update approximation for the Hessian matrix inverse is
+        described in
+
+            - Tobin Isaac, Noemi Petra, Georg Stadler, and Omar Ghattas,
+              'Scalable and efficient algorithms for the propagation of
+              uncertainty from data through inference to prediction for
+              large-scale problems, with application to flow of the Antarctic
+              ice sheet', Journal of Computational Physics, 296, pp. 348--368,
+              2015, doi: 10.1016/j.jcp.2015.04.047
+
+        See in particular their equation (20).
+
+        :returns: A callable suitable for use as the `pc_fn` argument to
+            :meth:`.HessianLinearSolver.solve`.
+        """
+
+        if not self.eps.isHermitian():
+            raise ValueError("Hermitian eigenproblem required")
+
+        lam, V = self.eigenpairs()
+
+        def pc_fn(u, b):
+            u = Packed(u)
+            b = Packed(b).mapped(var_copy_conjugate)
+
+            self._B_inv.matrix.action(b, u)
+
+            assert len(lam) == len(V)
+            for lam_i, (v, _) in zip(lam, V):
+                v = packed(v)
+                alpha = -(lam_i / (1.0 + lam_i)) * vars_inner(b, v)
+                vars_axpy(u, alpha, v)
+
+        return pc_fn
