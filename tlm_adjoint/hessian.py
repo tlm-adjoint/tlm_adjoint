@@ -12,6 +12,7 @@ from .manager import (
     reset_manager, restore_manager, set_manager, start_manager, stop_manager)
 
 from abc import ABC, abstractmethod
+import warnings
 
 __all__ = \
     [
@@ -73,16 +74,8 @@ class Hessian(ABC):
         raise NotImplementedError
 
     def action_fn(self, m, m0=None):
-        """Return a callable which can be used to compute Hessian actions.
-
-        :arg m: A variable defining the control.
-        :arg m0: A variable defining the control value. `m` is used if not
-            supplied.
-        :returns: A callable which accepts a single variable argument, and
-            returns the result of the Hessian action on that argument as a
-            variable. Note that the result is *not* the conjugate of the
-            Hessian action on the input argument.
-        """
+        warnings.warn("Hessian.action_fn is deprecated",
+                      DeprecationWarning, stacklevel=2)
 
         def action(dm):
             _, _, ddJ = self.action(m, dm, M0=m0)
@@ -286,17 +279,8 @@ class GaussNewton(ABC):
         return M_packed.unpack(ddJ)
 
     def action_fn(self, m, m0=None):
-        """Return a callable which can be used to compute Hessian actions using
-        the Gauss-Newton approximation.
-
-        :arg m: A variable defining the control.
-        :arg m0: A variable defining the control value. `m` is used if not
-            supplied.
-        :returns: A callable which accepts a single variable argument, and
-            returns the result of the approximated Hessian action on that
-            argument as a variable. Note that the result is *not* the conjugate
-            of the approximated Hessian action on the input argument.
-        """
+        warnings.warn("GaussNewton.action_fn is deprecated",
+                      DeprecationWarning, stacklevel=2)
 
         def action(dm):
             return var_copy_conjugate(self.action(m, dm, M0=m0))
