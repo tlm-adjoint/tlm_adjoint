@@ -184,7 +184,7 @@ class HessianEigensolver(Eigensolver):
             u = Packed(u)
             b = Packed(b).mapped(var_copy_conjugate)
 
-            self._B_inv.matrix.action(b, u)
+            self._B_inv.matrix.mult(b, u)
 
             assert len(lam) == len(V)
             for lam_i, (v, _) in zip(lam, V):

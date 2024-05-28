@@ -574,8 +574,8 @@ class Matrix:
 
     def __init_subclass__(cls, **kwargs):
         super().__init_subclass__(**kwargs)
-        if cls.action is Matrix.action and cls.mult_add is Matrix.mult_add:
-            raise RuntimeError("Must override at least one of action or "
+        if cls.mult is Matrix.mult and cls.mult_add is Matrix.mult_add:
+            raise RuntimeError("Must override at least one of mult or "
                                "mult_add")
 
     @property
@@ -592,7 +592,7 @@ class Matrix:
 
         return self._action_space
 
-    def action(self, x, y):
+    def mult(self, x, y):
         """Compute :math:`y = A x`.
 
         :arg x: Defines :math:`x`. Should not be modified.
@@ -619,18 +619,18 @@ class Matrix:
         y_term = packed(self.action_space.new())
 
         with var_locked(*iter_sub(x)):
-            self.action(x.unpack(x), y.unpack(y_term))
+            self.mult(x.unpack(x), y.unpack(y_term))
         for y_i, y_term_i in zip_sub(y, y_term):
             var_axpy(y_i, 1.0, y_term_i)
 
 
 class MatrixFreeMatrix(Matrix):
-    def __init__(self, arg_space, action_space, action):
+    def __init__(self, arg_space, action_space, mult):
         super().__init__(arg_space, action_space)
-        self._action = action
+        self._mult = mult
 
-    def action(self, x, y):
-        self._action(x, y)
+    def mult(self, x, y):
+        self._mult(x, y)
 
 
 class BlockMatrix(Matrix, MutableMapping):
@@ -755,7 +755,7 @@ class SystemMatrix(PETScSquareMatInterface):
 
         if not isinstance(self.nullspace, NoneNullspace):
             self.nullspace.pre_mult_correct_lhs(self._x_c)
-        self.matrix.action(self._x_c, self._y)
+        self.matrix.mult(self._x_c, self._y)
         if not isinstance(self.nullspace, NoneNullspace):
             self.nullspace.post_mult_correct_lhs(
                 self._x if self._nullspace_constraint else None, self._y)
@@ -780,7 +780,7 @@ class Preconditioner(PETScSquareMatInterface):
 
         if not isinstance(self.nullspace, NoneNullspace):
             self.nullspace.pc_pre_mult_correct(self._x_c)
-        self.matrix.action(self._x_c, self._y)
+        self.matrix.mult(self._x_c, self._y)
         if not isinstance(self.nullspace, NoneNullspace):
             self.nullspace.pc_post_mult_correct(
                 self._y, self._x if self._nullspace_constraint else None)
