@@ -71,7 +71,7 @@ representations of a mixed space solution.
 
 from .interface import (
     Packed, comm_dup_cached, packed, space_comm, space_default_space_type,
-    space_eq, space_new, var_assign, var_locked, var_zero)
+    space_eq, space_new, var_assign, var_axpy, var_locked, var_zero)
 from .manager import manager_disabled
 from .petsc import (
     PETScOptions, PETScVec, PETScVecInterface, attach_destroy_finalizer)
@@ -80,14 +80,15 @@ from abc import ABC, abstractmethod
 from collections.abc import Mapping, MutableMapping, Sequence
 from collections import deque
 import logging
-try:
-    import mpi4py.MPI as MPI
-except ModuleNotFoundError:
-    MPI = None
+import numpy as np
 try:
     import petsc4py.PETSc as PETSc
 except ModuleNotFoundError:
     PETSc = None
+try:
+    import slepc4py.SLEPc as SLEPc
+except ModuleNotFoundError:
+    SLEPc = None
 
 
 __all__ = \
@@ -100,9 +101,11 @@ __all__ = \
         "BlockNullspace",
 
         "Matrix",
+        "MatrixFreeMatrix",
         "BlockMatrix",
 
-        "LinearSolver"
+        "LinearSolver",
+        "Eigensolver"
     ]
 
 
@@ -316,7 +319,7 @@ class MixedSpace(PETScVecInterface, Sequence):
 
         return tuple_sub(u, self.split_space)
 
-    def new_split(self):
+    def new(self):
         """
         :returns: A new element in the split space.
         """
@@ -546,12 +549,12 @@ class BlockNullspace(Nullspace, Sequence):
                 nullspace.pc_constraint_correct_soln(u_i, b_i)
 
 
-class Matrix(ABC):
+class Matrix:
     r"""Represents a matrix defining a mapping
     :math:`A` mapping :math:`V \rightarrow W`.
 
-    :arg arg_space: Defines the space `V`.
-    :arg action_space: Defines the space `W`.
+    :arg arg_space: Defines the space :math:`V`.
+    :arg action_space: Defines the space :math:`W`.
     """
 
     def __init__(self, arg_space, action_space):
@@ -569,6 +572,12 @@ class Matrix(ABC):
         self._arg_space = arg_space
         self._action_space = action_space
 
+    def __init_subclass__(cls, **kwargs):
+        super().__init_subclass__(**kwargs)
+        if cls.mult is Matrix.mult and cls.mult_add is Matrix.mult_add:
+            raise RuntimeError("Must override at least one of mult or "
+                               "mult_add")
+
     @property
     def arg_space(self):
         """The space defining :math:`V`.
@@ -583,7 +592,21 @@ class Matrix(ABC):
 
         return self._action_space
 
-    @abstractmethod
+    def mult(self, x, y):
+        """Compute :math:`y = A x`.
+
+        :arg x: Defines :math:`x`. Should not be modified.
+        :arg y: Defines :math:`y`.
+        """
+
+        x = Packed(x)
+        y = Packed(y)
+
+        for y_i in iter_sub(y):
+            var_zero(y_i)
+        with var_locked(*iter_sub(x)):
+            self.mult_add(x.unpack(x), y.unpack(y))
+
     def mult_add(self, x, y):
         """Add :math:`A x` to :math:`y`.
 
@@ -591,15 +614,32 @@ class Matrix(ABC):
         :arg y: Defines :math:`y`.
         """
 
-        raise NotImplementedError
+        x = Packed(x)
+        y = Packed(y)
+        y_term = packed(self.action_space.new())
+
+        with var_locked(*iter_sub(x)):
+            self.mult(x.unpack(x), y.unpack(y_term))
+        for y_i, y_term_i in zip_sub(y, y_term):
+            var_axpy(y_i, 1.0, y_term_i)
+
+
+class MatrixFreeMatrix(Matrix):
+    def __init__(self, arg_space, action_space, mult):
+        super().__init__(arg_space, action_space)
+        self._mult = mult
+
+    def mult(self, x, y):
+        with var_locked(*iter_sub(packed(x))):
+            self._mult(x, y)
 
 
 class BlockMatrix(Matrix, MutableMapping):
     r"""A matrix defining a mapping :math:`A` mapping :math:`V \rightarrow W`,
     where :math:`V` and :math:`W` are defined by mixed spaces.
 
-    :arg arg_space: Defines the space `V`.
-    :arg action_space: Defines the space `W`.
+    :arg arg_space: Defines the space :math:`V`.
+    :arg action_space: Defines the space :math:`W`.
     :arg block: A :class:`Mapping` defining the blocks of the matrix. Items are
         `((i, j), block)` where the block in the `i` th and `j` th column is
         defined by `block`. Each `block` is a
@@ -654,7 +694,8 @@ class BlockMatrix(Matrix, MutableMapping):
 
 
 class PETScSquareMatInterface:
-    def __init__(self, arg_space, action_space, *, nullspace=None):
+    def __init__(self, arg_space, action_space, *,
+                 nullspace=None, nullspace_constraint=True):
         if not isinstance(arg_space, MixedSpace):
             arg_space = MixedSpace(arg_space)
         if not isinstance(action_space, MixedSpace):
@@ -663,18 +704,17 @@ class PETScSquareMatInterface:
             nullspace = NoneNullspace()
         elif not isinstance(nullspace, (NoneNullspace, BlockNullspace)):
             nullspace = BlockNullspace(nullspace)
+        nullspace_constraint = (nullspace_constraint
+                                and not isinstance(nullspace, NoneNullspace))
 
         self._arg_space = arg_space
         self._action_space = action_space
         self._nullspace = nullspace
+        self._nullspace_constraint = nullspace_constraint
 
-        self._x = arg_space.new_split()
-        self._y = action_space.new_split()
-
-        if isinstance(self._nullspace, NoneNullspace):
-            self._x_c = self._x
-        else:
-            self._x_c = arg_space.new_split()
+        self._x = arg_space.new()
+        self._y = action_space.new()
+        self._x_c = arg_space.new() if nullspace_constraint else self._x
 
     @property
     def arg_space(self):
@@ -691,71 +731,82 @@ class PETScSquareMatInterface:
     def _pre_mult(self, x_petsc):
         self.arg_space.from_petsc(x_petsc, self._x)
 
-        if not isinstance(self.nullspace, NoneNullspace):
+        if self._nullspace_constraint:
             for x_i, x_c_i in zip_sub(self._x, self._x_c):
                 var_assign(x_c_i, x_i)
-
-        for y_i in iter_sub(self._y):
-            var_zero(y_i)
 
     def _post_mult(self, y_petsc):
         self.action_space.to_petsc(y_petsc, self._y)
 
 
 class SystemMatrix(PETScSquareMatInterface):
-    def __init__(self, matrix, *, nullspace=None):
+    def __init__(self, matrix, *,
+                 nullspace=None, nullspace_constraint=True):
         super().__init__(matrix.arg_space, matrix.action_space,
-                         nullspace=nullspace)
+                         nullspace=nullspace,
+                         nullspace_constraint=nullspace_constraint)
         self._matrix = matrix
+
+    @property
+    def matrix(self):
+        return self._matrix
 
     def mult(self, A, x, y):
         self._pre_mult(x)
 
         if not isinstance(self.nullspace, NoneNullspace):
             self.nullspace.pre_mult_correct_lhs(self._x_c)
-        self._matrix.mult_add(self._x_c, self._y)
+        self.matrix.mult(self._x_c, self._y)
         if not isinstance(self.nullspace, NoneNullspace):
-            self.nullspace.post_mult_correct_lhs(self._x, self._y)
+            self.nullspace.post_mult_correct_lhs(
+                self._x if self._nullspace_constraint else None, self._y)
 
         self._post_mult(y)
 
 
 class Preconditioner(PETScSquareMatInterface):
-    def __init__(self, arg_space, action_space, pc_fn, *, nullspace=None):
-        super().__init__(arg_space, action_space,
-                         nullspace=nullspace)
-        self._pc_fn = pc_fn
+    def __init__(self, matrix, *,
+                 nullspace=None, nullspace_constraint=True):
+        super().__init__(matrix.arg_space, matrix.action_space,
+                         nullspace=nullspace,
+                         nullspace_constraint=nullspace_constraint)
+        self._matrix = matrix
+
+    @property
+    def matrix(self):
+        return self._matrix
 
     def apply(self, pc, x, y):
         self._pre_mult(x)
 
         if not isinstance(self.nullspace, NoneNullspace):
             self.nullspace.pc_pre_mult_correct(self._x_c)
-        self._pc_fn(self._y, self._x_c)
+        self.matrix.mult(self._x_c, self._y)
         if not isinstance(self.nullspace, NoneNullspace):
-            self.nullspace.pc_post_mult_correct(self._y, self._x)
+            self.nullspace.pc_post_mult_correct(
+                self._y, self._x if self._nullspace_constraint else None)
 
         self._post_mult(y)
 
 
 def petsc_ksp(A, *, comm=None, solver_parameters=None, pc_fn=None):
-    action_space, arg_space = A.action_space, A.arg_space
     if comm is None:
-        comm = arg_space.comm
+        comm = A.arg_space.comm
     if solver_parameters is None:
         solver_parameters = {}
 
     comm = comm_dup_cached(comm, key="petsc_ksp")
 
     A_mat = PETSc.Mat().createPython(
-        ((action_space.local_size, action_space.global_size),
-         (arg_space.local_size, arg_space.global_size)), A,
+        ((A.action_space.local_size, A.action_space.global_size),
+         (A.arg_space.local_size, A.arg_space.global_size)), A,
         comm=comm)
     A_mat.setUp()
 
     if pc_fn is not None:
-        A_pc = Preconditioner(action_space, arg_space,
-                              pc_fn, nullspace=A.nullspace)
+        A_pc = Preconditioner(MatrixFreeMatrix(A.action_space, A.arg_space,
+                                               lambda b, u: pc_fn(u, b)),
+                              nullspace=A.nullspace)
         pc = PETSc.PC().createPython(A_pc, comm=comm)
         pc.setOperators(A_mat)
         pc.setUp()
@@ -792,7 +843,9 @@ class LinearSolver:
 
     .. math::
 
-        A u = b.
+        A u = b,
+
+    using PETSc.
 
     :arg A: A :class:`tlm_adjoint.block_system.Matrix` defining :math:`A`.
     :arg nullspace: A :class:`.Nullspace` or a :class:`Sequence` of
@@ -844,6 +897,9 @@ class LinearSolver:
 
     @property
     def ksp(self):
+        """The class:`petsc4py.PETSc.KSP` used to solve the linear problem.
+        """
+
         return self._ksp
 
     @manager_disabled()
@@ -882,7 +938,7 @@ class LinearSolver:
         u = self._A.arg_space.tuple_sub(u)
         b = self._A.action_space.tuple_sub(b)
 
-        b_c = self._A.action_space.new_split()
+        b_c = self._A.action_space.new()
         for b_c_i, b_i in zip_sub(b_c, b):
             if b_i is not None:
                 var_assign(b_c_i, b_i)
@@ -912,3 +968,227 @@ class LinearSolver:
 
         if self.ksp.getConvergedReason() <= 0:
             raise RuntimeError("Convergence failure")
+
+
+def slepc_eps(A, B, *, B_inv=None, solver_parameters=None, comm=None):
+    if solver_parameters is None:
+        solver_parameters = {}
+    if comm is None:
+        comm = A.arg_space.comm
+
+    comm = comm_dup_cached(comm, key="slepc_eps")
+
+    A_mat = PETSc.Mat().createPython(
+        ((A.action_space.local_size, A.action_space.global_size),
+         (A.arg_space.local_size, A.arg_space.global_size)), A,
+        comm=comm)
+    A_mat.setUp()
+    if B is not None:
+        B_mat = PETSc.Mat().createPython(
+            ((B.action_space.local_size, B.action_space.global_size),
+             (B.arg_space.local_size, B.arg_space.global_size)), B,
+            comm=comm)
+        B_mat.setUp()
+    else:
+        B_mat = None
+
+    eps = SLEPc.EPS().create(comm=comm)
+    options = PETScOptions(f"_tlm_adjoint__{eps.name:s}_")
+    options.update(solver_parameters)
+    eps.setOptionsPrefix(options.options_prefix)
+    if B is None:
+        eps.setOperators(A_mat)
+    else:
+        eps.setOperators(A_mat, B_mat)
+
+    eps.setFromOptions()
+
+    if B_inv is not None:
+        B_pc = PETSc.PC().createPython(B_inv, comm=comm)
+        B_pc.setOperators(B_mat)
+        B_pc.setUp()
+
+        B_ksp = eps.getST().getKSP()
+        B_ksp.setType(PETSc.KSP.Type.PREONLY)
+        B_ksp.setTolerances(rtol=0.0, atol=0.0, divtol=None, max_it=1)
+        B_ksp.setPC(B_pc)
+        B_ksp.setUp()
+    else:
+        B_pc = None
+        B_ksp = None
+
+    eps.setUp()
+
+    attach_destroy_finalizer(eps, A_mat, B_ksp, B_pc, B_mat)
+
+    return eps
+
+
+class Eigensolver:
+    r"""Solver for an eigenproblem
+
+    .. math::
+
+        A v = \lambda B v
+
+    using SLEPc.
+
+    :arg A: A :class:`tlm_adjoint.block_system.Matrix` defining :math:`A`.
+    :arg B: A :class:`tlm_adjoint.block_system.Matrix` defining :math:`B`. If
+        supplied then a generalized eigenproblem is solved. Otherwise a
+        standard eigenproblem (with :math:`B` equal to an identity) is solved.
+    :arg B_inv: A :class:`tlm_adjoint.block_system.Matrix` defining the inverse
+        of :math:`B`.
+    :arg nullspace: A :class:`.Nullspace` or a :class:`Sequence` of
+        :class:`.Nullspace` objects defining the nullspace and left nullspace
+        of :math:`A` and :math:`B`. `None` indicates a :class:`.NoneNullspace`.
+    :arg solver_parameters: A :class:`Mapping` defining solver parameters.
+    :arg comm: Communicator.
+    """
+
+    def __init__(self, A, B=None, *, B_inv=None, nullspace=None,
+                 solver_parameters=None, comm=None):
+        if nullspace is None:
+            nullspace = NoneNullspace()
+        elif isinstance(nullspace, Sequence):
+            nullspace = BlockNullspace(nullspace)
+        packed = Packed(A).mapped(lambda a: None)
+        if not isinstance(A, BlockMatrix):
+            A = BlockMatrix((A.arg_space,), (A.action_space,), A)
+            if not isinstance(nullspace, NoneNullspace):
+                nullspace = BlockNullspace((nullspace,))
+            if B is not None:
+                B = BlockMatrix((B.arg_space,), (B.action_space,), B)
+            if B_inv is not None:
+                B_inv = BlockMatrix((B_inv.arg_space,), (B_inv.action_space,), B_inv)  # noqa: E501
+        if B is not None and (B.arg_space != A.arg_space
+                              or B.action_space != A.action_space):
+            raise ValueError("Invalid space")
+        if B_inv is not None and (B_inv.arg_space != A.action_space
+                                  or B_inv.action_space != A.arg_space):
+            raise ValueError("Invalid space")
+
+        A = SystemMatrix(A, nullspace=nullspace, nullspace_constraint=False)
+        if B is not None:
+            B = SystemMatrix(B, nullspace=nullspace)
+        if B_inv is not None:
+            B_inv = Preconditioner(B_inv, nullspace=nullspace)
+
+        self._packed = packed
+        self._A = A
+        self._B = B
+        self._B_inv = B_inv
+        self._eps = slepc_eps(A, B, B_inv=B_inv,
+                              solver_parameters=solver_parameters, comm=comm)
+
+        attach_destroy_finalizer(self, self.eps)
+
+    def __iter__(self):
+        for i in range(len(self)):
+            yield self[i]
+
+    def __len__(self):
+        return self.eps.getConverged()
+
+    def _unpack(self, obj):
+        return self._packed.unpack(obj)
+
+    def _eigenpair(self, key):
+        x_r = self._A.arg_space.new_petsc()
+        x_i = self._A.arg_space.new_petsc()
+        lam = self.eps.getEigenpair(key, x_r, x_i)
+
+        if self.eps.isHermitian():
+            if lam.imag != 0.0:
+                raise ValueError("Unexpected complex eigenvalue")
+            lam = lam.real
+        if self.eps.isHermitian() \
+                or issubclass(PETSc.ScalarType, np.complexfloating):
+            if x_i.norm(norm_type=PETSc.NormType.NORM_INFINITY) != 0.0:
+                raise ValueError("Unexpected complex eigenvector component")
+            x_i = None
+
+        return lam, (x_r, x_i)
+
+    def __getitem__(self, key):
+        lam, (x_r, x_i) = self._eigenpair(key)
+        v_r = self._A.arg_space.new()
+        self._A.arg_space.from_petsc(x_r, v_r)
+        if x_i is None:
+            v_i = None
+        else:
+            v_i = self._A.arg_space.new()
+            self._A.arg_space.from_petsc(x_i, v_i)
+
+        return lam, (self._unpack(v_r),
+                     None if v_i is None else self._unpack(v_i))
+
+    @property
+    def eps(self):
+        """The class:`slepc4py.SLEPc.EPS` used to solve the eigenproblem.
+        """
+
+        return self._eps
+
+    @manager_disabled()
+    def solve(self):
+        """Solve the eigenproblem.
+        """
+
+        self.eps.solve()
+        if self.eps.getConvergedReason() <= 0:
+            raise RuntimeError("Convergence failure")
+        N, _, _ = self.eps.getDimensions()
+        if len(self) < N:
+            raise RuntimeError("Convergence failure")
+
+    def eigenpairs(self):
+        """Return converged eigenpairs.
+
+        :returns: A :class:`tuple` `(Lam, V)`, where
+
+            - `Lam` is a :class:`numpy.ndarray` containing eigenvalues.
+            - `V` is a :class:`Sequence` of length two :class:`tuple` objects,
+              `(v_r, v_i)`, defining corresponding eigenvectors. Each
+              eigenvectors is defined by `v_r + 1.0j v_i`. `v_i` is `None`,
+              to indicate a value of zero, for Hermitian eigenvalue problems
+              or with a complex PETSc build.
+        """
+
+        Lam = np.zeros(len(self), dtype=(PETSc.RealType
+                                         if self.eps.isHermitian()
+                                         else PETSc.ComplexType))
+        V = []
+        for i, (lam, (v_r, v_i)) in enumerate(self):
+            Lam[i] = lam
+            V.append((v_r, v_i))
+        return Lam, tuple(V)
+
+    def B_orthonormality_test(self):
+        r"""Test :math:`B` orthonormality of the eigenvectors for a Hermitian
+        eigenvalue problem.
+
+        :returns: :math:`\left| V^* B V - I \right|_\infty` where
+            :math:`V` is the matrix whose columns are the eigenvectors.
+        """
+
+        if not self.eps.isHermitian():
+            raise ValueError("Hermitian eigenproblem required")
+
+        if self._B is None:
+            B = None
+        else:
+            _, B = self.eps.getOperators()
+            z = self._A.arg_space.new_petsc()
+
+        error_norm = 0.0
+        for i in range(self.eps.getConverged()):
+            _, (x, _) = self._eigenpair(i)
+            for j in range(self.eps.getConverged()):
+                _, (y, _) = self._eigenpair(j)
+                if B is None:
+                    z = y
+                else:
+                    B.mult(y, z)
+                error_norm = max(error_norm, abs(z.dot(x) - int(i == j)))
+        return error_norm

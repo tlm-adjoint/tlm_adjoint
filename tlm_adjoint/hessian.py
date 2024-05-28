@@ -1,7 +1,7 @@
 from .interface import (
     Packed, check_space_types_conjugate_dual, packed, var_axpy, var_copy,
-    var_copy_conjugate, var_is_cached, var_is_static, var_name, var_new,
-    var_scalar_value)
+    var_copy_conjugate, var_is_cached, var_is_static, var_locked, var_name,
+    var_new, var_scalar_value)
 
 from .caches import local_caches
 from .equations import InnerProduct
@@ -12,6 +12,7 @@ from .manager import (
     reset_manager, restore_manager, set_manager, start_manager, stop_manager)
 
 from abc import ABC, abstractmethod
+import warnings
 
 __all__ = \
     [
@@ -73,16 +74,8 @@ class Hessian(ABC):
         raise NotImplementedError
 
     def action_fn(self, m, m0=None):
-        """Return a callable which can be used to compute Hessian actions.
-
-        :arg m: A variable defining the control.
-        :arg m0: A variable defining the control value. `m` is used if not
-            supplied.
-        :returns: A callable which accepts a single variable argument, and
-            returns the result of the Hessian action on that argument as a
-            variable. Note that the result is *not* the conjugate of the
-            Hessian action on the input argument.
-        """
+        warnings.warn("Hessian.action_fn is deprecated",
+                      DeprecationWarning, stacklevel=2)
 
         def action(dm):
             _, _, ddJ = self.action(m, dm, M0=m0)
@@ -248,7 +241,8 @@ class GaussNewton(ABC):
         # J dM
         tau_X = tuple(var_tlm(x, (M, dM)) for x in X)
         # conj[ R^{-1} J dM ]
-        R_inv_tau_X = self._R_inv_action(*map(var_copy, tau_X))
+        with var_locked(*tau_X):
+            R_inv_tau_X = self._R_inv_action(*tau_X)
         R_inv_tau_X = packed(R_inv_tau_X)
         assert len(tau_X) == len(R_inv_tau_X)
         for tau_x, R_inv_tau_x in zip(tau_X, R_inv_tau_X):
@@ -271,7 +265,8 @@ class GaussNewton(ABC):
 
         # Prior term: conj[ B^{-1} dM ]
         if self._B_inv_action is not None:
-            B_inv_dM = self._B_inv_action(*map(var_copy, dM))
+            with var_locked(*dM):
+                B_inv_dM = self._B_inv_action(*dM)
             B_inv_dM = packed(B_inv_dM)
             assert len(dM) == len(B_inv_dM)
             for dm, B_inv_dm in zip(dM, B_inv_dM):
@@ -284,17 +279,8 @@ class GaussNewton(ABC):
         return M_packed.unpack(ddJ)
 
     def action_fn(self, m, m0=None):
-        """Return a callable which can be used to compute Hessian actions using
-        the Gauss-Newton approximation.
-
-        :arg m: A variable defining the control.
-        :arg m0: A variable defining the control value. `m` is used if not
-            supplied.
-        :returns: A callable which accepts a single variable argument, and
-            returns the result of the approximated Hessian action on that
-            argument as a variable. Note that the result is *not* the conjugate
-            of the approximated Hessian action on the input argument.
-        """
+        warnings.warn("GaussNewton.action_fn is deprecated",
+                      DeprecationWarning, stacklevel=2)
 
         def action(dm):
             return var_copy_conjugate(self.action(m, dm, M0=m0))

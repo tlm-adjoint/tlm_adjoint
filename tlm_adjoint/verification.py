@@ -84,9 +84,10 @@ e.g. to verify Hessian calculations
 """
 
 from .interface import (
-    garbage_cleanup, packed, space_comm, var_assign, var_axpy, var_copy,
-    var_dtype, var_is_cached, var_is_static, var_local_size, var_name, var_new,
-    var_set_values, vars_inner, vars_linf_norm, var_scalar_value)
+    garbage_cleanup, packed, space_comm, var_copy, var_dtype, var_is_cached,
+    var_is_static, var_local_size, var_name, var_new, var_set_values,
+    vars_assign, vars_axpy, vars_copy, vars_inner, vars_linf_norm,
+    var_scalar_value)
 
 from .caches import clear_caches, local_caches
 from .manager import manager as _manager
@@ -181,7 +182,7 @@ def taylor_test(forward, M, J_val, *, dJ=None, ddJ=None, seed=1.0e-2, dM=None,
     forward = wrapped_forward(forward)
 
     if M0 is None:
-        M0 = tuple(map(var_copy, M))
+        M0 = vars_copy(M)
     M1 = tuple(var_new(m, static=var_is_static(m),
                        cache=var_is_cached(m))
                for m in M)
@@ -200,11 +201,8 @@ def taylor_test(forward, M, J_val, *, dJ=None, ddJ=None, seed=1.0e-2, dM=None,
 
     J_vals = np.full(eps.shape, np.NAN, dtype=complex)
     for i in range(eps.shape[0]):
-        assert len(M0) == len(M1)
-        assert len(M0) == len(dM)
-        for m0, m1, dm in zip(M0, M1, dM):
-            var_assign(m1, m0)
-            var_axpy(m1, eps[i], dm)
+        vars_assign(M1, M0)
+        vars_axpy(M1, eps[i], dM)
         clear_caches()
         J_vals[i] = var_scalar_value(forward(*M1))
 
@@ -325,11 +323,8 @@ def taylor_test_tlm(forward, M, tlm_order, *, seed=1.0e-2, dMs=None, size=5,
 
     J_vals = np.full(eps.shape, np.NAN, dtype=complex)
     for i in range(eps.shape[0]):
-        assert len(M) == len(M1)
-        assert len(M) == len(dMs[-1])
-        for m0, m1, dm in zip(M, M1, dMs[-1]):
-            var_assign(m1, m0)
-            var_axpy(m1, eps[i], dm)
+        vars_assign(M1, M)
+        vars_axpy(M1, eps[i], dMs[-1])
         J_vals[i] = var_scalar_value(forward_tlm(dMs[:-1], *M1))
 
     error_norms_0 = abs(J_vals - J_val)

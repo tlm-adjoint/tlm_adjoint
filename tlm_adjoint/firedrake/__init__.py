@@ -2,10 +2,10 @@
 
 from .. import *
 del (adjoint, alias, block_system, cached_hessian, caches, checkpointing,
-     eigendecomposition, equation, equations, fixed_point, functional, hessian,
-     hessian_system, instructions, interface, jax, linear_equation, markers,
-     optimization, overloaded_float, patch, petsc, storage, tangent_linear,
-     tlm_adjoint, verification)
+     equation, equations, fixed_point, functional, hessian, hessian_system,
+     instructions, interface, jax, linear_equation, markers, optimization,
+     overloaded_float, patch, petsc, storage, tangent_linear, tlm_adjoint,
+     verification)
 
 from .backend import backend, backend_RealType, backend_ScalarType
 from .backend_interface import *
@@ -14,7 +14,6 @@ from .assignment import *
 from .block_system import ConstantNullspace, DirichletBCNullspace, UnityNullspace
 from .caches import *
 from .expr import *
-from .hessian_system import *
 from .interpolation import *
 from .parameters import *
 from .projection import *
@@ -24,5 +23,5 @@ from .variables import *
 from .backend_patches import *
 
 del (backend, backend_interface, assembly, assignment, block_system, caches,
-     expr, hessian_system, interpolation, parameters, projection, solve,
-     variables, backend_patches)
+     expr, interpolation, parameters, projection, solve, variables,
+     backend_patches)

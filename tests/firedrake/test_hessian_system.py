@@ -96,18 +96,26 @@ def test_hessian_solve(setup_test,
         pc_fn = None
     else:
         try:
-            import slepc4py.SLEPc as SLEPc
+            import slepc4py.SLEPc as SLEPc    # noqa: F401
         except ModuleNotFoundError:
             pytest.skip(reason="SLEPc not available")
 
-        Lam, V = hessian_eigendecompose(
+        esolver = HessianEigensolver(
             H_mismatch, m, B_inv, B, nullspace=nullspace,
-            N_eigenvalues=N_eigenvalues,
-            solver_type=SLEPc.EPS.Type.KRYLOVSCHUR,
-            which=SLEPc.EPS.Which.LARGEST_MAGNITUDE,
-            tolerance=1.0e-14)
+            solver_parameters={"eps_type": "krylovschur",
+                               "eps_gen_hermitian": None,
+                               "eps_largest_magnitude": None,
+                               "eps_nev": N_eigenvalues,
+                               "eps_conv_rel": None,
+                               "eps_tol": 1.0e-14,
+                               "eps_purify": False})
+        esolver.solve()
+        assert len(esolver) >= N_eigenvalues
+        assert esolver.B_orthonormality_test() < 1.0e-14
 
+        Lam, V = esolver.eigenpairs()
         assert issubclass(Lam.dtype.type, np.floating)
+        V = tuple(v_r for v_r, _ in V)
 
         assert len(Lam) == len(V)
         for lam_i, v_i in zip(Lam, V):
@@ -116,11 +124,7 @@ def test_hessian_solve(setup_test,
             bc.apply(v_error)
             assert var_linf_norm(v_error) < 1.0e-16
 
-        diag_error_norm, off_diag_error_norm = B_inv_orthonormality_test(V, B_inv)  # noqa: E501
-        assert diag_error_norm < 1.0e-14
-        assert off_diag_error_norm < 1.0e-14
-
-        pc_fn = hessian_eigendecomposition_pc(B, Lam, V)
+        pc_fn = esolver.spectral_pc_fn()
 
     H_solver = HessianLinearSolver(
         H, m,
