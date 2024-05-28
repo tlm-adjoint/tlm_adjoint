@@ -96,10 +96,10 @@ class HessianEigensolver(Eigensolver):
     :arg B_action: A callable defining the conjugate of the action of :math:`B`
         on some direction. Accepts one or more variables as arguments, defining
         the direction, and returns a variable or a :class:`Sequence` of
-        variables defining the action on this direction. Arguments should not
-        be modified.
-    :arg B_inv_action: A callable defining the conjugate of the action of
-        :math:`B^{-1}` on some direction. Accepts one or more variables as
+        variables defining the conjugate of the action on this direction.
+        Arguments should not be modified.
+    :arg B_inv_action: A callable defining the the action of :math:`B^{-1}` on
+        the conjugate of some direction. Accepts one or more variables as
         arguments, defining the direction, and returns a variable or a
         :class:`Sequence` of variables defining the action on this direction.
         Arguments should not be modified.
