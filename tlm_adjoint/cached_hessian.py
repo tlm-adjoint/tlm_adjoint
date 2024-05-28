@@ -222,7 +222,7 @@ class CachedGaussNewton(GaussNewton, HessianOptimization):
                                      cache_adjoint=False)
         GaussNewton.__init__(
             self, R_inv_action, B_inv_action=B_inv_action)
-        self._X = X
+        self._X = tuple(X)
 
     def _setup_manager(self, M, dM, M0=None, *,
                        annotate_tlm=False, solve_tlm=True):

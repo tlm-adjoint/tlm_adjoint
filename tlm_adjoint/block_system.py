@@ -263,7 +263,7 @@ class MixedSpace(PETScVecInterface, Sequence):
         spaces = tuple_sub(flattened_spaces, spaces)
 
         super().__init__(tuple(space.space for space in flattened_spaces))
-        self._spaces = tuple_sub(spaces, spaces)
+        self._spaces = spaces
         self._flattened_spaces = flattened_spaces
 
     def __len__(self):
