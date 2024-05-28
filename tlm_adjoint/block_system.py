@@ -319,7 +319,7 @@ class MixedSpace(PETScVecInterface, Sequence):
 
         return tuple_sub(u, self.split_space)
 
-    def new_split(self):
+    def new(self):
         """
         :returns: A new element in the split space.
         """
@@ -599,13 +599,13 @@ class Matrix:
         :arg y: Defines :math:`y`.
         """
 
-        X = x if isinstance(x, Sequence) else (x,)
-        Y = y if isinstance(y, Sequence) else (y,)
+        x = Packed(x)
+        y = Packed(y)
 
-        for y_i in iter_sub(Y):
+        for y_i in iter_sub(y):
             var_zero(y_i)
-        with var_locked(*iter_sub(X)):
-            self.mult_add(x, y)
+        with var_locked(*iter_sub(x)):
+            self.mult_add(x.unpack(x), y.unpack(y))
 
     def mult_add(self, x, y):
         """Add :math:`A x` to :math:`y`.
@@ -614,18 +614,13 @@ class Matrix:
         :arg y: Defines :math:`y`.
         """
 
-        X = x if isinstance(x, Sequence) else (x,)
-        Y = y if isinstance(y, Sequence) else (y,)
-        if isinstance(self.action_space, TypedSpace):
-            y_term = self.action_space.new()
-            Y_term = (y_term,)
-        else:
-            y_term = self.action_space.new_split()
-            Y_term = y_term
+        x = Packed(x)
+        y = Packed(y)
+        y_term = packed(self.action_space.new())
 
-        with var_locked(*iter_sub(X)):
-            self.action(x, y_term)
-        for y_i, y_term_i in zip_sub(Y, Y_term):
+        with var_locked(*iter_sub(x)):
+            self.action(x.unpack(x), y.unpack(y_term))
+        for y_i, y_term_i in zip_sub(y, y_term):
             var_axpy(y_i, 1.0, y_term_i)
 
 
@@ -716,9 +711,9 @@ class PETScSquareMatInterface:
         self._nullspace = nullspace
         self._nullspace_constraint = nullspace_constraint
 
-        self._x = arg_space.new_split()
-        self._y = action_space.new_split()
-        self._x_c = arg_space.new_split() if nullspace_constraint else self._x
+        self._x = arg_space.new()
+        self._y = action_space.new()
+        self._x_c = arg_space.new() if nullspace_constraint else self._x
 
     @property
     def arg_space(self):
@@ -934,7 +929,7 @@ class LinearSolver:
         u = self._A.arg_space.tuple_sub(u)
         b = self._A.action_space.tuple_sub(b)
 
-        b_c = self._A.action_space.new_split()
+        b_c = self._A.action_space.new()
         for b_c_i, b_i in zip_sub(b_c, b):
             if b_i is not None:
                 var_assign(b_c_i, b_i)
@@ -1104,12 +1099,12 @@ class Eigensolver:
 
     def __getitem__(self, key):
         lam, (x_r, x_i) = self._eigenpair(key)
-        v_r = self._A.arg_space.new_split()
+        v_r = self._A.arg_space.new()
         self._A.arg_space.from_petsc(x_r, v_r)
         if x_i is None:
             v_i = None
         else:
-            v_i = self._A.arg_space.new_split()
+            v_i = self._A.arg_space.new()
             self._A.arg_space.from_petsc(x_i, v_i)
 
         return lam, (v_r[0] if self._extract_0 else v_r,

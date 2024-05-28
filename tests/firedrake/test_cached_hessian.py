@@ -1,6 +1,7 @@
 from firedrake import *
 from tlm_adjoint.firedrake import *
 from tlm_adjoint.firedrake.block_system import Eigensolver
+from tlm_adjoint.hessian_system import HessianMatrix
 
 from .test_base import *
 

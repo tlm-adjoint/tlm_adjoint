@@ -1,6 +1,7 @@
 from fenics import *
 from tlm_adjoint.fenics import *
 from tlm_adjoint.block_system import Eigensolver
+from tlm_adjoint.hessian_system import HessianMatrix
 
 from .test_base import *
 

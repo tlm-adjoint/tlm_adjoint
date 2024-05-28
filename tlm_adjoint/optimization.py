@@ -386,7 +386,7 @@ class LBFGSHessianApproximation:
         """
 
         X_packed = Packed(X)
-        X = tuple(X_packed.mapped(var_copy))
+        X = vars_copy(X_packed)
 
         if H_0_action is None:
             H_0_action = wrapped_action(conjugate_dual_identity_action)

@@ -1,16 +1,14 @@
 from .interface import (
-    Packed, packed, var_assign, var_assign_conjugate, var_axpy_conjugate,
-    var_copy_conjugate, var_increment_state_lock, var_locked, var_space)
+    Packed, packed, var_copy_conjugate, var_increment_state_lock, var_locked,
+    var_space, vars_assign, vars_assign_conjugate, vars_axpy_conjugate,
+    vars_copy_conjugate)
 
 from .block_system import (
     Eigensolver, LinearSolver, Matrix, MatrixFreeMatrix, TypedSpace)
 from .manager import manager_disabled
 
-from collections import Sequence
-
 __all__ = \
     [
-        "HessianMatrix",
         "HessianLinearSolver",
         "HessianEigensolver"
     ]
@@ -25,13 +23,6 @@ __all__ = \
 
 
 class HessianMatrix(Matrix):
-    """A :class:`tlm_adjoint.block_system.Matrix` wrapping a :class:`.Hessian`.
-
-    :arg H: The :class:`.Hessian`.
-    :arg M: A variable or a :class:`Sequence` of variables defining the
-        control and its value.
-    """
-
     def __init__(self, H, M):
         M_packed = Packed(M)
         M = tuple(M_packed)
@@ -48,13 +39,11 @@ class HessianMatrix(Matrix):
             var_increment_state_lock(m, self)
 
     def mult_add(self, x, y):
-        X = x if isinstance(x, Sequence) else (x,)
-        Y = y if isinstance(y, Sequence) else (y,)
+        x = packed(x)
+        y = packed(y)
 
-        _, _, ddJ = self._H.action(self._M, X)
-        assert len(Y) == len(ddJ)
-        for y_i, ddJ_i in zip(Y, ddJ):
-            var_axpy_conjugate(y_i, 1.0, ddJ_i)
+        _, _, ddJ = self._H.action(self._M, x)
+        vars_axpy_conjugate(y, 1.0, ddJ)
 
 
 class HessianLinearSolver(LinearSolver):
@@ -122,37 +111,20 @@ class HessianEigensolver(Eigensolver):
         B_action_arg = B_action
 
         def B_action(x, y):
-            X = x if isinstance(x, Sequence) else (x,)
-            Y = y if isinstance(y, Sequence) else (y,)
+            x = packed(x)
+            y = packed(y)
 
-            with var_locked(*X):
-                Y_conj = B_action_arg(x)
-            if not isinstance(Y_conj, Sequence):
-                Y_conj = (Y_conj,)
-
-            assert len(Y) == len(Y_conj)
-            for y_i, y_conj_i in zip(Y, Y_conj):
-                var_assign_conjugate(y_i, y_conj_i)
+            with var_locked(*x):
+                vars_assign_conjugate(y, packed(B_action_arg(*x)))
 
         B_inv_action_arg = B_inv_action
 
         def B_inv_action(x, y):
-            if isinstance(x, Sequence):
-                x = tuple(map(var_copy_conjugate, x))
-            else:
-                x = var_copy_conjugate(x)
+            x = vars_copy_conjugate(packed(x))
+            y = packed(y)
 
-            X = x if isinstance(x, Sequence) else (x,)
-            Y = y if isinstance(y, Sequence) else (y,)
-
-            with var_locked(*X):
-                Y_conj = B_inv_action_arg(x)
-            if not isinstance(Y_conj, Sequence):
-                Y_conj = (Y_conj,)
-
-            assert len(Y) == len(Y_conj)
-            for y_i, y_conj_i in zip(Y, Y_conj):
-                var_assign(y_i, y_conj_i)
+            with var_locked(*x):
+                vars_assign(y, packed(B_inv_action_arg(*x)))
 
         A = HessianMatrix(H, M)
         B = MatrixFreeMatrix(A.arg_space, A.action_space, B_action)

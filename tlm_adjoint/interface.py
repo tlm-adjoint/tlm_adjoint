@@ -1555,6 +1555,24 @@ def vars_copy(X):
     return tuple(map(var_copy, X))
 
 
+def vars_assign_conjugate(X, Y):
+    if len(X) != len(Y):
+        raise ValueError("Incompatible lengths")
+    for x, y in zip(X, Y):
+        var_assign_conjugate(x, y)
+
+
+def vars_axpy_conjugate(Y, alpha, X, /):
+    if len(X) != len(Y):
+        raise ValueError("Incompatible lengths")
+    for y, x in zip(Y, X):
+        var_axpy_conjugate(y, alpha, x)
+
+
+def vars_copy_conjugate(X):
+    return tuple(map(var_copy_conjugate, X))
+
+
 class ReplacementInterface(VariableInterface):
     def _space(self):
         return self._tlm_adjoint__var_interface_attrs["space"]
