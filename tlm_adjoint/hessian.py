@@ -1,7 +1,7 @@
 from .interface import (
     Packed, check_space_types_conjugate_dual, packed, var_axpy, var_copy,
-    var_copy_conjugate, var_is_cached, var_is_static, var_name, var_new,
-    var_scalar_value)
+    var_copy_conjugate, var_is_cached, var_is_static, var_locked, var_name,
+    var_new, var_scalar_value)
 
 from .caches import local_caches
 from .equations import InnerProduct
@@ -248,7 +248,8 @@ class GaussNewton(ABC):
         # J dM
         tau_X = tuple(var_tlm(x, (M, dM)) for x in X)
         # conj[ R^{-1} J dM ]
-        R_inv_tau_X = self._R_inv_action(*map(var_copy, tau_X))
+        with var_locked(*tau_X):
+            R_inv_tau_X = self._R_inv_action(*tau_X)
         R_inv_tau_X = packed(R_inv_tau_X)
         assert len(tau_X) == len(R_inv_tau_X)
         for tau_x, R_inv_tau_x in zip(tau_X, R_inv_tau_X):
@@ -271,7 +272,8 @@ class GaussNewton(ABC):
 
         # Prior term: conj[ B^{-1} dM ]
         if self._B_inv_action is not None:
-            B_inv_dM = self._B_inv_action(*map(var_copy, dM))
+            with var_locked(*dM):
+                B_inv_dM = self._B_inv_action(*dM)
             B_inv_dM = packed(B_inv_dM)
             assert len(dM) == len(B_inv_dM)
             for dm, B_inv_dm in zip(dM, B_inv_dM):

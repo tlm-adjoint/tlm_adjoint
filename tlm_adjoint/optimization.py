@@ -915,6 +915,8 @@ def petsc_tao(J_hat, M, *, solver_parameters=None,
         solver_parameters = {}
     if M_inv_action is not None:
         M_inv_action = wrapped_action(M_inv_action)
+    if H_0_action is not None:
+        H_0_action = wrapped_action(H_0_action)
 
     comm = comm_dup_cached(J_hat.comm, key="petsc_tao")
 
@@ -1081,13 +1083,8 @@ class TAOSolver:
         if manager is None:
             manager = _manager()
         manager = manager.new()
-
-        if H_0_action is not None:
-            H_0_action = wrapped_action(H_0_action)
         if M_inv_action is None:
             M_inv_action = H_0_action
-        else:
-            M_inv_action = wrapped_action(M_inv_action)
 
         J_hat = ReducedFunctional(forward, manager=manager)
         tao, vec_interface = petsc_tao(
