@@ -630,7 +630,8 @@ class MatrixFreeMatrix(Matrix):
         self._mult = mult
 
     def mult(self, x, y):
-        self._mult(x, y)
+        with var_locked(*iter_sub(packed(x))):
+            self._mult(x, y)
 
 
 class BlockMatrix(Matrix, MutableMapping):
@@ -1104,7 +1105,7 @@ class Eigensolver:
         if self.eps.isHermitian() \
                 or issubclass(PETSc.ScalarType, np.complexfloating):
             if x_i.norm(norm_type=PETSc.NormType.NORM_INFINITY) != 0.0:
-                raise ValueError("Unexpected complex eigenvector")
+                raise ValueError("Unexpected complex eigenvector component")
             x_i = None
 
         return lam, (x_r, x_i)
@@ -1150,7 +1151,7 @@ class Eigensolver:
             - `V` is a :class:`Sequence` of length two :class:`tuple` objects,
               `(v_r, v_i)`, defining corresponding eigenvectors. Each
               eigenvectors is defined by `v_r + 1.0j v_i`. `v_i` is `None`,
-              to indicate a value of zero, for Hermitian eigenvalue problems,
+              to indicate a value of zero, for Hermitian eigenvalue problems
               or with a complex PETSc build.
         """
 
