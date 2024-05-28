@@ -6,7 +6,7 @@ from .backend import (
     backend_ScalarType, backend_Vector, backend_assemble, backend_project,
     backend_solve, cpp_Assembler, cpp_PETScVector, cpp_SystemAssembler)
 from ..interface import (
-    DEFAULT_COMM, add_interface, comm_dup_cached, comm_parent, is_var,
+    DEFAULT_COMM, add_interface, comm_dup_cached, comm_parent, is_var, packed,
     new_space_id, new_var_id, space_eq, space_id, space_new, var_assign,
     var_comm, var_new, var_space, var_update_state)
 
@@ -171,10 +171,8 @@ def Assembler_assemble(self, orig, orig_args, tensor, form):
 def SystemAssembler__init__(self, orig, orig_args, A_form, b_form, bcs=None):
     if bcs is None:
         bcs = ()
-    elif isinstance(bcs, backend_DirichletBC):
-        bcs = (bcs,)
     else:
-        bcs = tuple(bcs)
+        bcs = packed(bcs)
 
     orig_args()
 
@@ -834,10 +832,8 @@ def NonlinearVariationalProblem__init__(
         form_compiler_parameters=None):
     if bcs is None:
         bcs = ()
-    elif isinstance(bcs, backend_DirichletBC):
-        bcs = (bcs,)
     else:
-        bcs = tuple(bcs)
+        bcs = packed(bcs)
 
     orig_args()
 
@@ -907,10 +903,8 @@ def _project(v, V=None, bcs=None, mesh=None, function=None,
 
     if bcs is None:
         bcs = ()
-    elif isinstance(bcs, backend_DirichletBC):
-        bcs = (bcs,)
     else:
-        bcs = tuple(bcs)
+        bcs = packed(bcs)
 
     solver_parameters_ = {"linear_solver": solver_type,
                           "preconditioner": preconditioner_type}

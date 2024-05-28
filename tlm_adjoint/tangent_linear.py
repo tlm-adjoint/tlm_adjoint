@@ -1,5 +1,5 @@
 from .interface import (
-    check_space_types, is_var, var_id, var_is_replacement, var_name,
+    check_space_types, is_var, packed, var_id, var_is_replacement, var_name,
     var_new_tangent_linear)
 
 from .alias import gc_disabled
@@ -18,15 +18,8 @@ __all__ = \
 
 
 def tlm_key(M, dM):
-    if is_var(M):
-        M = (M,)
-    else:
-        M = tuple(M)
-    if is_var(dM):
-        dM = (dM,)
-    else:
-        dM = tuple(dM)
-
+    M = packed(M)
+    dM = packed(dM)
     if any(map(var_is_replacement, M)):
         raise ValueError("Invalid tangent-linear")
     if any(map(var_is_replacement, dM)):

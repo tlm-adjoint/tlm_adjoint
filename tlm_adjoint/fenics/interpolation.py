@@ -5,7 +5,7 @@ from .backend import (
     Cell, Mesh, MeshEditor, Point, UserExpression, backend_Constant,
     backend_Function, backend_ScalarType, parameters)
 from ..interface import (
-    check_space_type, comm_dup_cached, is_var, space_comm, space_eq,
+    check_space_type, comm_dup_cached, packed, space_comm, space_eq,
     var_assign, var_comm, var_get_values, var_id, var_inner, var_is_scalar,
     var_local_size, var_new, var_new_conjugate_dual, var_replacement,
     var_scalar_value, var_set_values)
@@ -525,8 +525,7 @@ class PointInterpolation(Equation):
 
     def __init__(self, X, y, X_coords=None, *,
                  P=None, tolerance=0.0):
-        if is_var(X):
-            X = (X,)
+        X = packed(X)
         for x in X:
             check_space_type(x, "primal")
             if not var_is_scalar(x):
@@ -559,8 +558,6 @@ class PointInterpolation(Equation):
         self._P_T = P.T
 
     def forward_solve(self, X, deps=None):
-        if is_var(X):
-            X = (X,)
         y = (self.dependencies() if deps is None else deps)[-1]
 
         check_space_type(y, "primal")
@@ -577,8 +574,6 @@ class PointInterpolation(Equation):
             var_assign(x, x_v[i])
 
     def adjoint_derivative_action(self, nl_deps, dep_index, adj_X):
-        if is_var(adj_X):
-            adj_X = (adj_X,)
         if dep_index != len(self.X()):
             raise ValueError("Unexpected dep_index")
 

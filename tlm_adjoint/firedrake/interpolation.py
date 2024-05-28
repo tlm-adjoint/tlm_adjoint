@@ -5,7 +5,7 @@ from .backend import (
     FunctionSpace, Interpolator, TestFunction, VertexOnlyMesh,
     backend_Cofunction, backend_Constant, backend_Function)
 from ..interface import (
-    check_space_type, comm_dup_cached, is_var, space_new, var_assign, var_comm,
+    check_space_type, comm_dup_cached, packed, space_new, var_assign, var_comm,
     var_copy, var_id, var_inner, var_is_scalar, var_new_conjugate_dual,
     var_replacement, var_scalar_value)
 
@@ -176,9 +176,7 @@ class PointInterpolation(Equation):
 
     def __init__(self, X, y, X_coords=None, *, tolerance=None,
                  _interp=None):
-        if is_var(X):
-            X = (X,)
-
+        X = packed(X)
         for x in X:
             check_space_type(x, "primal")
             if not var_is_scalar(x):
@@ -211,8 +209,6 @@ class PointInterpolation(Equation):
         self._interp = interp
 
     def forward_solve(self, X, deps=None):
-        if is_var(X):
-            X = (X,)
         y = (self.dependencies() if deps is None else deps)[-1]
 
         Xm = space_new(self._interp.V)
@@ -225,8 +221,6 @@ class PointInterpolation(Equation):
             X[index].assign(x_val)
 
     def adjoint_derivative_action(self, nl_deps, dep_index, adj_X):
-        if is_var(adj_X):
-            adj_X = (adj_X,)
         if dep_index != len(self.X()):
             raise ValueError("Unexpected dep_index")
 

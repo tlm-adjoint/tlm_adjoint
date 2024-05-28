@@ -1,11 +1,10 @@
 from .backend import (
     KrylovSolver, LUSolver, TestFunction, as_backend_type, backend_Constant,
-    backend_DirichletBC, backend_Function, backend_LocalSolver,
-    backend_ScalarType, backend_assemble, backend_assemble_system,
-    has_lu_solver_method)
+    backend_Function, backend_LocalSolver, backend_ScalarType,
+    backend_assemble, backend_assemble_system, has_lu_solver_method)
 from ..interface import (
-    DEFAULT_COMM, check_space_type, check_space_types_conjugate_dual, space_eq,
-    space_new)
+    DEFAULT_COMM, check_space_type, check_space_types_conjugate_dual, packed,
+    space_eq, space_new)
 
 from .expr import eliminate_zeros
 from .parameters import update_parameters
@@ -26,8 +25,8 @@ def assemble_matrix(form, bcs=None, *,
                     form_compiler_parameters=None):
     if bcs is None:
         bcs = ()
-    elif isinstance(bcs, backend_DirichletBC):
-        bcs = (bcs,)
+    else:
+        bcs = packed(bcs)
     if form_compiler_parameters is None:
         form_compiler_parameters = {}
 
@@ -58,8 +57,8 @@ def assemble(form, tensor=None, bcs=None, *,
         check_space_type(tensor._tlm_adjoint__function, "conjugate_dual")
     if bcs is None:
         bcs = ()
-    elif isinstance(bcs, backend_DirichletBC):
-        bcs = (bcs,)
+    else:
+        bcs = packed(bcs)
 
     form = eliminate_zeros(form)
     b = backend_assemble(form, tensor=tensor,
@@ -71,10 +70,15 @@ def assemble(form, tensor=None, bcs=None, *,
 
 def assemble_system(A_form, b_form, bcs=None, *,
                     form_compiler_parameters=None):
+    if bcs is None:
+        bcs = ()
+    else:
+        bcs = packed(bcs)
+
     A_form = eliminate_zeros(A_form)
     b_form = eliminate_zeros(b_form)
     return backend_assemble_system(
-        A_form, b_form, bcs=bcs,
+        A_form, b_form, bcs=tuple(bcs),
         form_compiler_parameters=form_compiler_parameters)
 
 
@@ -115,8 +119,8 @@ def assemble_linear_solver(A_form, b_form=None, bcs=None, *,
                            linear_solver_parameters=None):
     if bcs is None:
         bcs = ()
-    elif isinstance(bcs, backend_DirichletBC):
-        bcs = (bcs,)
+    else:
+        bcs = packed(bcs)
     if form_compiler_parameters is None:
         form_compiler_parameters = {}
     if linear_solver_parameters is None:

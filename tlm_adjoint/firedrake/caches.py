@@ -2,11 +2,9 @@
 caching.
 """
 
-from .backend import (
-    Parameters, TrialFunction, backend_DirichletBC, backend_Function,
-    complex_mode)
+from .backend import Parameters, TrialFunction, backend_Function, complex_mode
 from ..interface import (
-    is_var, var_caches, var_id, var_is_cached, var_is_replacement,
+    is_var, packed, var_caches, var_id, var_is_cached, var_is_replacement,
     var_lock_state, var_replacement, var_space, var_state)
 
 from ..caches import Cache
@@ -19,7 +17,7 @@ from .expr import (
 from .variables import ReplacementFunction
 
 from collections import defaultdict
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 import itertools
 import ufl
 
@@ -345,11 +343,10 @@ def parameters_key(parameters):
     key = []
     for name in sorted(parameters.keys()):
         sub_parameters = parameters[name]
-        if isinstance(sub_parameters, (Parameters, dict)):
+        if isinstance(sub_parameters, (Parameters, Mapping)):
             key.append((name, parameters_key(sub_parameters)))
-        elif isinstance(sub_parameters, Sequence) \
-                and not isinstance(sub_parameters, str):
-            key.append((name, tuple(sub_parameters)))
+        elif isinstance(sub_parameters, Sequence):
+            key.append((name, tuple(packed(sub_parameters))))
         else:
             key.append((name, sub_parameters))
     return tuple(key)
@@ -387,8 +384,8 @@ class AssemblyCache(Cache):
 
         if bcs is None:
             bcs = ()
-        elif isinstance(bcs, backend_DirichletBC):
-            bcs = (bcs,)
+        else:
+            bcs = packed(bcs)
         if form_compiler_parameters is None:
             form_compiler_parameters = {}
         if linear_solver_parameters is None:
@@ -464,8 +461,8 @@ class LinearSolverCache(Cache):
 
         if bcs is None:
             bcs = ()
-        elif isinstance(bcs, backend_DirichletBC):
-            bcs = (bcs,)
+        else:
+            bcs = packed(bcs)
         if form_compiler_parameters is None:
             form_compiler_parameters = {}
         if linear_solver_parameters is None:

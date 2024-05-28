@@ -1,5 +1,5 @@
 from .interface import (
-    DEFAULT_COMM, comm_dup_cached, garbage_cleanup, is_var, var_assign,
+    DEFAULT_COMM, Packed, comm_dup_cached, garbage_cleanup, var_assign,
     var_copy, var_id, var_is_replacement, var_is_scalar, var_name)
 
 from .adjoint import AdjointCache, AdjointModelRHS, TransposeComputationalGraph
@@ -1138,35 +1138,6 @@ class EquationManager:
                 with respect to the :math:`j` th control.
         """
 
-        if is_var(M):
-            if is_var(Js):
-                ((dJ,),) = self.compute_gradient(
-                    (Js,), (M,), callback=callback,
-                    prune_forward=prune_forward, prune_adjoint=prune_adjoint,
-                    prune_replay=prune_replay,
-                    cache_adjoint_degree=cache_adjoint_degree,
-                    store_adjoint=store_adjoint,
-                    adj_ics=None if adj_ics is None else (adj_ics,))
-                return dJ
-            else:
-                dJs = self.compute_gradient(
-                    Js, (M,), callback=callback,
-                    prune_forward=prune_forward, prune_adjoint=prune_adjoint,
-                    prune_replay=prune_replay,
-                    cache_adjoint_degree=cache_adjoint_degree,
-                    store_adjoint=store_adjoint,
-                    adj_ics=adj_ics)
-                return tuple(dJ for dJ, in dJs)
-        elif is_var(Js):
-            dJ, = self.compute_gradient(
-                (Js,), M, callback=callback,
-                prune_forward=prune_forward, prune_adjoint=prune_adjoint,
-                prune_replay=prune_replay,
-                cache_adjoint_degree=cache_adjoint_degree,
-                store_adjoint=store_adjoint,
-                adj_ics=None if adj_ics is None else (adj_ics,))
-            return dJ
-
         set_manager(self)
         self.finalize()
 
@@ -1174,12 +1145,14 @@ class EquationManager:
             raise RuntimeError("Invalid checkpointing state")
 
         # Functionals
-        Js = tuple(Js)
+        Js_packed = Packed(Js)
+        Js = tuple(Js_packed)
         if not all(map(var_is_scalar, Js)):
             raise ValueError("Functional must be a scalar variable")
 
         # Controls
-        M = tuple(M)
+        M_packed = Packed(M)
+        M = tuple(M_packed)
 
         # Derivatives
         dJ = [None for J in Js]
@@ -1312,17 +1285,10 @@ class EquationManager:
                         self._adj_cache.cache(J_i, n, i, adj_X,
                                               copy=True, store=store_adjoint)
 
+                    # Diagnostic callback
                     if callback is not None:
-                        # Diagnostic callback
-                        if adj_X is None:
-                            callback(J_i, n, i, eq,
-                                     None)
-                        elif len(adj_X) == 1:
-                            callback(J_i, n, i, eq,
-                                     var_copy(adj_X[0]))
-                        else:
-                            callback(J_i, n, i, eq,
-                                     tuple(map(var_copy, adj_X)))
+                        callback(J_i, n, i, eq,
+                                 None if adj_X is None else eq._unpack(adj_X))
 
                     if n == -1:
                         assert i == 0
@@ -1372,7 +1338,7 @@ class EquationManager:
         del action
 
         garbage_cleanup(self._comm)
-        return tuple(dJ)
+        return Js_packed.unpack(tuple(M_packed.unpack(dJ_) for dJ_ in dJ))
 
 
 set_manager(EquationManager())

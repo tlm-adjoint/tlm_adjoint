@@ -1,4 +1,4 @@
-from .interface import is_var, var_new
+from .interface import Packed, var_new
 
 from .equation import Equation
 
@@ -28,10 +28,11 @@ class ControlsMarker(Equation):
     """
 
     def __init__(self, M):
-        if is_var(M):
-            M = (M,)
+        M_packed = Packed(M)
+        M = tuple(M_packed)
 
         super(Equation, self).__init__()
+        self._packed = M_packed.mapped(lambda m: None)
         self._X = tuple(M)
         self._deps = tuple(M)
         self._nl_deps = ()
@@ -63,7 +64,7 @@ class FunctionalMarker(Equation):
     def __init__(self, J):
         # Extra variable allocation could be avoided
         J_ = var_new(J)
-        super().__init__([J_], [J_, J], nl_deps=[], ic=False, adj_ic=False)
+        super().__init__(J_, [J_, J], nl_deps=[], ic=False, adj_ic=False)
 
     def adjoint_derivative_action(self, nl_deps, dep_index, adj_x):
         if dep_index != 1:

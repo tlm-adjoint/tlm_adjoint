@@ -1,5 +1,5 @@
 from .interface import (
-    VariableStateLockDictionary, is_var, var_check_state_lock, var_id,
+    Packed, VariableStateLockDictionary, packed, var_check_state_lock, var_id,
     var_increment_state_lock, var_new, var_scalar_value)
 
 from .caches import clear_caches
@@ -152,11 +152,10 @@ class CachedHessian(Hessian, HessianOptimization):
 
     @restore_manager
     def compute_gradient(self, M, M0=None):
-        if is_var(M):
-            J_val, (dJ,) = self.compute_gradient(
-                (M,),
-                M0=None if M0 is None else (M0,))
-            return J_val, dJ
+        M_packed = Packed(M)
+        M = tuple(M_packed)
+        if M0 is not None:
+            M0 = packed(M0)
 
         var_check_state_lock(self._J)
 
@@ -173,15 +172,15 @@ class CachedHessian(Hessian, HessianOptimization):
             store_adjoint=self._cache_adjoint)
 
         reset_manager()
-        return J_val, dJ
+        return J_val, M_packed.unpack(dJ)
 
     @restore_manager
     def action(self, M, dM, M0=None):
-        if is_var(M):
-            J_val, dJ_val, (ddJ,) = self.action(
-                (M,), (dM,),
-                M0=None if M0 is None else (M0,))
-            return J_val, dJ_val, ddJ
+        M_packed = Packed(M)
+        M = tuple(M_packed)
+        dM = packed(dM)
+        if M0 is not None:
+            M0 = packed(M0)
 
         var_check_state_lock(self._J)
 
@@ -198,7 +197,7 @@ class CachedHessian(Hessian, HessianOptimization):
             store_adjoint=self._cache_adjoint)
 
         reset_manager()
-        return J_val, dJ_val, ddJ
+        return J_val, dJ_val, M_packed.unpack(ddJ)
 
 
 class CachedGaussNewton(GaussNewton, HessianOptimization):
@@ -215,9 +214,7 @@ class CachedGaussNewton(GaussNewton, HessianOptimization):
 
     def __init__(self, X, R_inv_action, B_inv_action=None, *,
                  manager=None):
-        if is_var(X):
-            X = (X,)
-
+        X = packed(X)
         for x in X:
             var_increment_state_lock(x, self)
 

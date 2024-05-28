@@ -1,9 +1,10 @@
 from .interface import (
-    comm_dup_cached, garbage_cleanup, is_var, paused_space_type_checking,
-    var_axpy, var_comm, var_copy, var_dtype, var_get_values, var_is_cached,
-    var_is_static, var_linf_norm, var_local_size, var_locked, var_new,
-    var_scalar_value, var_set_values, var_space, vars_assign, vars_axpy,
-    vars_copy, vars_inner, vars_new, vars_new_conjugate_dual)
+    Packed, comm_dup_cached, garbage_cleanup, packed,
+    paused_space_type_checking, var_axpy, var_comm, var_copy, var_dtype,
+    var_get_values, var_is_cached, var_is_static, var_linf_norm,
+    var_local_size, var_locked, var_new, var_scalar_value, var_set_values,
+    var_space, vars_assign, vars_axpy, vars_copy, vars_inner, vars_new,
+    vars_new_conjugate_dual)
 
 from .caches import clear_caches, local_caches
 from .hessian import GeneralHessian as Hessian
@@ -55,8 +56,7 @@ class ReducedFunctional:
     @restore_manager
     def objective(self, M, *,
                   force=False):
-        if is_var(M):
-            M = (M,)
+        M = packed(M)
         if self._M is not None and len(M) != len(self._M):
             raise ValueError("Invalid control")
         for m in M:
@@ -109,10 +109,8 @@ class ReducedFunctional:
 
     @restore_manager
     def gradient(self, M):
-        if is_var(M):
-            dJ, = self.gradient((M,))
-            return dJ
-
+        M_packed = Packed(M)
+        M = tuple(M_packed)
         set_manager(self._manager)
 
         _ = self.objective(M, force=self._manager._cp_schedule.is_exhausted)
@@ -121,13 +119,12 @@ class ReducedFunctional:
         for dJ_i in dJ:
             if not issubclass(var_dtype(dJ_i), np.floating):
                 raise ValueError("Invalid dtype")
-        return dJ
+        return M_packed.unpack(dJ)
 
     def hessian_action(self, M, dM):
-        if is_var(M):
-            ddJ, = self.hessian_action((M,), (dM,))
-            return ddJ
-
+        M_packed = Packed(M)
+        M = tuple(M_packed)
+        dM = packed(dM)
         for m in M:
             if not issubclass(var_dtype(m), np.floating):
                 raise ValueError("Invalid dtype")
@@ -141,7 +138,7 @@ class ReducedFunctional:
         for ddJ_i in ddJ:
             if not issubclass(var_dtype(ddJ_i), np.floating):
                 raise ValueError("Invalid dtype")
-        return ddJ
+        return M_packed.unpack(ddJ)
 
 
 @contextlib.contextmanager
@@ -178,11 +175,8 @@ def minimize_scipy(forward, M0, *,
         :func:`scipy.optimize.minimize`.
     """
 
-    if is_var(M0):
-        (M,), return_value = minimize_scipy(forward, (M0,),
-                                            manager=manager, **kwargs)
-        return M, return_value
-
+    M0_packed = Packed(M0)
+    M0 = tuple(M0_packed)
     if manager is None:
         manager = _manager()
     manager = manager.new()
@@ -295,7 +289,7 @@ def minimize_scipy(forward, M0, *,
         if not return_value.success:
             raise RuntimeError("Convergence failure")
 
-        return M, return_value
+        return M0_packed.unpack(M), return_value
 
 
 def conjugate_dual_identity_action(*X):
@@ -312,8 +306,7 @@ def wrapped_action(M):
     def M(*X):
         with var_locked(*X):
             M_X = M_arg(*X)
-        if is_var(M_X):
-            M_X = (M_X,)
+        M_X = packed(M_X)
         if len(M_X) != len(X):
             raise ValueError("Incompatible shape")
         return vars_copy(M_X)
@@ -343,10 +336,8 @@ class LBFGSHessianApproximation:
             that used in the line search can be supplied.
         """
 
-        if is_var(S):
-            S = (S,)
-        if is_var(Y):
-            Y = (Y,)
+        S = packed(S)
+        Y = packed(Y)
         if len(S) != len(Y):
             raise ValueError("Incompatible shape")
         for s in S:
@@ -394,9 +385,8 @@ class LBFGSHessianApproximation:
             result.
         """
 
-        if is_var(X):
-            X = (X,)
-        X = vars_copy(X)
+        X_packed = Packed(X)
+        X = tuple(X_packed.mapped(var_copy))
 
         if H_0_action is None:
             H_0_action = wrapped_action(conjugate_dual_identity_action)
@@ -420,7 +410,7 @@ class LBFGSHessianApproximation:
             beta = rho * vars_inner(R, Y)
             vars_axpy(R, alpha - beta, S)
 
-        return R[0] if len(R) == 1 else R
+        return X_packed.unpack(R)
 
 
 def line_search(F, Fp, X, minus_P, *,
@@ -482,16 +472,14 @@ def line_search(F, Fp, X, minus_P, *,
             return F_arg(*X)
 
     Fp = wrapped_action(Fp)
-    if is_var(X):
-        X = (X,)
-    if is_var(minus_P):
-        minus_P = (minus_P,)
+    X = packed(X)
+    minus_P = packed(minus_P)
     if old_F_val is None:
         old_F_val = F(*X)
     if old_Fp_val is None:
         old_Fp_val = Fp(*X)
-    elif is_var(old_Fp_val):
-        old_Fp_val = (old_Fp_val,)
+    else:
+        old_Fp_val = packed(old_Fp_val)
 
     if comm is None:
         comm = var_comm(X[0])
@@ -732,14 +720,13 @@ def l_bfgs(F, Fp, X0, *,
         Fp_calls += 1
         with var_locked(*X):
             Fp_val = Fp_arg(*X)
-        if is_var(Fp_val):
-            Fp_val = (Fp_val,)
+        Fp_val = packed(Fp_val)
         if len(Fp_val) != len(X):
             raise ValueError("Incompatible shape")
         return vars_copy(Fp_val)
 
-    if is_var(X0):
-        X0 = (X0,)
+    X0_packed = Packed(X0)
+    X0 = tuple(X0_packed)
 
     if converged is None:
         def converged(it, F_old, F_new, X_new, G_new, S, Y):
@@ -750,10 +737,8 @@ def l_bfgs(F, Fp, X0, *,
         @wraps(converged_arg)
         def converged(it, F_old, F_new, X_new, G_new, S, Y):
             return converged_arg(it, F_old, F_new,
-                                 X_new[0] if len(X_new) == 1 else X_new,
-                                 G_new[0] if len(G_new) == 1 else G_new,
-                                 S[0] if len(S) == 1 else S,
-                                 Y[0] if len(Y) == 1 else Y)
+                                 X0_packed.unpack(X_new), X0_packed.unpack(G_new),  # noqa: E501
+                                 X0_packed.unpack(S), X0_packed.unpack(Y))
 
     if (H_0_action is None and M_inv_action is None) and M_action is not None:
         raise TypeError("If M_action is supplied, then H_0_action or "
@@ -825,8 +810,7 @@ def l_bfgs(F, Fp, X0, *,
         minus_P = hessian_approx.inverse_action(
             old_Fp_val,
             H_0_action=H_0_action, theta=theta)
-        if is_var(minus_P):
-            minus_P = (minus_P,)
+        minus_P = packed(minus_P)
         old_Fp_val_rank0 = -vars_inner(minus_P, old_Fp_val)
         alpha, new_F_val, new_Fp_val = line_search(
             F, Fp, X, minus_P, c1=c1, c2=c2,
@@ -880,7 +864,7 @@ def l_bfgs(F, Fp, X0, *,
         del new_F_val, new_Fp_val, new_Fp_val_rank0
         old_Fp_norm_sq = M_inv_norm_sq(old_Fp_val)
 
-    return X[0] if len(X) == 1 else X, (it, F_calls, Fp_calls, hessian_approx)
+    return X0_packed.unpack(X), (it, F_calls, Fp_calls, hessian_approx)
 
 
 @local_caches
@@ -900,11 +884,8 @@ def minimize_l_bfgs(forward, M0, *,
     :func:`.l_bfgs` documentation.
     """
 
-    if is_var(M0):
-        (x,), optimization_data = minimize_l_bfgs(
-            forward, (M0,),
-            m=m, manager=manager, **kwargs)
-        return x, optimization_data
+    M0_packed = Packed(M0)
+    M0 = tuple(M0_packed)
 
     for m0 in M0:
         if not issubclass(var_dtype(m0), np.floating):
@@ -920,9 +901,7 @@ def minimize_l_bfgs(forward, M0, *,
         lambda *M: J_hat.objective(M), lambda *M: J_hat.gradient(M), M0,
         m=m, comm=J_hat.comm, **kwargs)
 
-    if is_var(X):
-        X = (X,)
-    return X, optimization_data
+    return M0_packed.unpack(X), optimization_data
 
 
 def petsc_tao(J_hat, M, *, solver_parameters=None,
@@ -1098,8 +1077,7 @@ class TAOSolver:
 
     def __init__(self, forward, M, *, solver_parameters=None,
                  H_0_action=None, M_inv_action=None, manager=None):
-        if is_var(M):
-            M = (M,)
+        M = packed(M)
         if manager is None:
             manager = _manager()
         manager = manager.new()
@@ -1133,9 +1111,7 @@ class TAOSolver:
         :arg M: Defines the solution.
         """
 
-        if is_var(M):
-            M = (M,)
-
+        M = packed(M)
         x = PETScVec(self._vec_interface)
         x.to_petsc(M)
         self.tao.solve(x.vec)
@@ -1155,11 +1131,9 @@ def minimize_tao(forward, M0, *args, **kwargs):
     Remaining arguments are passed to the :class:`.TAOSolver` constructor.
     """
 
-    if is_var(M0):
-        m, = minimize_tao(forward, (M0,), *args, **kwargs)
-        return m
-
+    M0_packed = Packed(M0)
+    M0 = tuple(M0_packed)
     M = tuple(var_copy(m0, static=var_is_static(m0), cache=var_is_cached(m0))
               for m0 in M0)
     TAOSolver(forward, M, *args, **kwargs).solve(M)
-    return M
+    return M0_packed.unpack(M)

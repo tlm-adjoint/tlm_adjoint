@@ -1,6 +1,6 @@
 from .interface import (
-    conjugate_dual_space_type, is_var, var_id, var_new, var_new_conjugate_dual,
-    var_replacement, var_zero)
+    Packed, conjugate_dual_space_type, packed, var_id, var_new,
+    var_new_conjugate_dual, var_replacement, var_zero)
 
 from .equation import Equation, Referrer, ZeroAssignment
 
@@ -42,10 +42,9 @@ class LinearEquation(Equation):
     """
 
     def __init__(self, X, B, *, A=None, adj_type=None):
-        if is_var(X):
-            X = (X,)
-        if isinstance(B, RHS):
-            B = (B,)
+        X_packed = Packed(X)
+        X = tuple(X_packed)
+        B = packed(B)
         if adj_type is None:
             if A is None:
                 adj_type = "conjugate_dual"
@@ -119,7 +118,7 @@ class LinearEquation(Equation):
         del x_ids, dep_ids, nl_dep_ids
 
         super().__init__(
-            X, deps, nl_deps=nl_deps,
+            X_packed.unpack(X), deps, nl_deps=nl_deps,
             ic=A is not None and A.has_initial_condition(),
             adj_ic=A is not None and A.adjoint_has_initial_condition(),
             adj_type=adj_type)
@@ -146,8 +145,7 @@ class LinearEquation(Equation):
             self._A = self._A._weak_alias
 
     def forward_solve(self, X, deps=None):
-        if is_var(X):
-            X = (X,)
+        X = packed(X)
         if deps is None:
             deps = self.dependencies()
 
@@ -160,13 +158,13 @@ class LinearEquation(Equation):
                       for m, x in enumerate(X))
 
         for i, b in enumerate(self._B):
-            b.add_forward(B[0] if len(B) == 1 else B,
+            b.add_forward(self._unpack(B),
                           [deps[j] for j in self._b_dep_indices[i]])
 
         if self._A is not None:
-            self._A.forward_solve(X[0] if len(X) == 1 else X,
+            self._A.forward_solve(self._unpack(X),
                                   [deps[j] for j in self._A_dep_indices],
-                                  B[0] if len(B) == 1 else B)
+                                  self._unpack(B))
 
     def adjoint_jacobian_solve(self, adj_X, nl_deps, B):
         if self._A is None:
@@ -176,8 +174,7 @@ class LinearEquation(Equation):
                 adj_X, [nl_deps[j] for j in self._A_nl_dep_indices], B)
 
     def adjoint_derivative_action(self, nl_deps, dep_index, adj_X):
-        if is_var(adj_X):
-            adj_X = (adj_X,)
+        adj_X = packed(adj_X)
         eq_deps = self.dependencies()
         if dep_index < len(self.X()) or dep_index >= len(eq_deps):
             raise ValueError("Unexpected dep_index")
@@ -195,7 +192,7 @@ class LinearEquation(Equation):
             b_nl_deps = tuple(nl_deps[j] for j in self._b_nl_dep_indices[i])
             b.subtract_adjoint_derivative_action(
                 b_nl_deps, b_dep_index,
-                adj_X[0] if len(adj_X) == 1 else adj_X,
+                self._unpack(adj_X),
                 F)
 
         if self._A is not None and dep_id in self._A_nl_dep_ids:
@@ -204,8 +201,8 @@ class LinearEquation(Equation):
             X = tuple(nl_deps[j] for j in self._A_x_indices)
             self._A.adjoint_derivative_action(
                 A_nl_deps, A_nl_dep_index,
-                X[0] if len(X) == 1 else X,
-                adj_X[0] if len(adj_X) == 1 else adj_X,
+                self._unpack(X),
+                self._unpack(adj_X),
                 F, method="add")
 
         return F
@@ -216,26 +213,24 @@ class LinearEquation(Equation):
         if self._A is None:
             tlm_B = []
         else:
-            tlm_B = self._A.tangent_linear_rhs(tlm_map,
-                                               X[0] if len(X) == 1 else X)
+            tlm_B = self._A.tangent_linear_rhs(tlm_map, self._unpack(X))
             if tlm_B is None:
                 tlm_B = []
-            elif isinstance(tlm_B, RHS):
-                tlm_B = [tlm_B]
+            else:
+                tlm_B = list(packed(tlm_B))
         for b in self._B:
             tlm_b = b.tangent_linear_rhs(tlm_map)
             if tlm_b is None:
                 pass
-            elif isinstance(tlm_b, RHS):
-                tlm_B.append(tlm_b)
             else:
-                tlm_B.extend(tlm_b)
+                tlm_B.extend(packed(tlm_b))
 
         if len(tlm_B) == 0:
             return ZeroAssignment([tlm_map[x] for x in self.X()])
         else:
-            return LinearEquation([tlm_map[x] for x in self.X()], tlm_B,
-                                  A=self._A, adj_type=self.adj_X_type())
+            return LinearEquation(
+                self._unpack([tlm_map[x] for x in self.X()]), tlm_B,
+                A=self._A, adj_type=self.adj_X_type())
 
 
 class Matrix(Referrer):

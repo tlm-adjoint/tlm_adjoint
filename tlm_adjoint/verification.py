@@ -84,7 +84,7 @@ e.g. to verify Hessian calculations
 """
 
 from .interface import (
-    garbage_cleanup, is_var, space_comm, var_assign, var_axpy, var_copy,
+    garbage_cleanup, packed, space_comm, var_assign, var_axpy, var_copy,
     var_dtype, var_is_cached, var_is_static, var_local_size, var_name, var_new,
     var_set_values, vars_inner, vars_linf_norm, var_scalar_value)
 
@@ -169,15 +169,13 @@ def taylor_test(forward, M, J_val, *, dJ=None, ddJ=None, seed=1.0e-2, dM=None,
         close to 3 if `ddJ` is supplied.
     """
 
-    if is_var(M):
-        if dJ is not None:
-            dJ = (dJ,)
-        if dM is not None:
-            dM = (dM,)
-        if M0 is not None:
-            M0 = (M0,)
-        return taylor_test(forward, (M,), J_val, dJ=dJ, ddJ=ddJ, seed=seed,
-                           dM=dM, M0=M0, size=size)
+    M = packed(M)
+    if dJ is not None:
+        dJ = packed(dJ)
+    if dM is not None:
+        dM = packed(dM)
+    if M0 is not None:
+        M0 = packed(M0)
 
     logger = logging.getLogger("tlm_adjoint.verification")
     forward = wrapped_forward(forward)
@@ -277,11 +275,9 @@ def taylor_test_tlm(forward, M, tlm_order, *, seed=1.0e-2, dMs=None, size=5,
         verification this should be close to 2.
     """
 
-    if is_var(M):
-        if dMs is not None:
-            dMs = tuple((dM,) for dM in dMs)
-        return taylor_test_tlm(forward, (M,), tlm_order, seed=seed, dMs=dMs,
-                               size=size, manager=manager)
+    M = packed(M)
+    if dMs is not None:
+        dMs = tuple(map(packed, dMs))
 
     logger = logging.getLogger("tlm_adjoint.verification")
     forward = wrapped_forward(forward)
@@ -389,12 +385,9 @@ def taylor_test_tlm_adjoint(forward, M, adjoint_order, *, seed=1.0e-2,
         verification this should be close to 2.
     """
 
-    if is_var(M):
-        if dMs is not None:
-            dMs = tuple((dM,) for dM in dMs)
-        return taylor_test_tlm_adjoint(
-            forward, (M,), adjoint_order, seed=seed, dMs=dMs, size=size,
-            manager=manager)
+    M = packed(M)
+    if dMs is not None:
+        dMs = tuple(map(packed, dMs))
 
     forward = wrapped_forward(forward)
     if manager is None:

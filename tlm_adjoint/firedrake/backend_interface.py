@@ -1,9 +1,8 @@
 from .backend import (
-    LinearSolver, Tensor, backend_Cofunction, backend_DirichletBC,
-    backend_Function, backend_Matrix, backend_assemble, backend_solve,
-    extract_args)
+    LinearSolver, Tensor, backend_Cofunction, backend_Function, backend_Matrix,
+    backend_assemble, backend_solve, extract_args)
 from ..interface import (
-    check_space_type, check_space_types_conjugate_dual,
+    check_space_type, check_space_types_conjugate_dual, packed,
     register_garbage_cleanup, space_eq, space_new)
 
 from ..patch import patch_method
@@ -24,8 +23,8 @@ def _assemble(form, tensor=None, bcs=None, *,
               form_compiler_parameters=None, mat_type=None):
     if bcs is None:
         bcs = ()
-    elif isinstance(bcs, backend_DirichletBC):
-        bcs = (bcs,)
+    else:
+        bcs = packed(bcs)
     if form_compiler_parameters is None:
         form_compiler_parameters = {}
 
@@ -43,7 +42,7 @@ def _assemble(form, tensor=None, bcs=None, *,
             bc.apply(b.riesz_representation("l2"))
     else:
         b = backend_assemble(
-            form, tensor=tensor, bcs=bcs,
+            form, tensor=tensor, bcs=tuple(bcs),
             form_compiler_parameters=form_compiler_parameters,
             mat_type=mat_type)
 
@@ -54,8 +53,8 @@ def _assemble_system(A_form, b_form=None, bcs=None, *,
                      form_compiler_parameters=None, mat_type=None):
     if bcs is None:
         bcs = ()
-    elif isinstance(bcs, backend_DirichletBC):
-        bcs = (bcs,)
+    else:
+        bcs = packed(bcs)
     if form_compiler_parameters is None:
         form_compiler_parameters = {}
 
@@ -108,8 +107,8 @@ def assemble_matrix(form, bcs=None, *,
                     form_compiler_parameters=None, mat_type=None):
     if bcs is None:
         bcs = ()
-    elif isinstance(bcs, backend_DirichletBC):
-        bcs = (bcs,)
+    else:
+        bcs = packed(bcs)
     if form_compiler_parameters is None:
         form_compiler_parameters = {}
 
@@ -173,8 +172,8 @@ def assemble_linear_solver(A_form, b_form=None, bcs=None, *,
                            linear_solver_parameters=None):
     if bcs is None:
         bcs = ()
-    elif isinstance(bcs, backend_DirichletBC):
-        bcs = (bcs,)
+    else:
+        bcs = packed(bcs)
     if form_compiler_parameters is None:
         form_compiler_parameters = {}
     if linear_solver_parameters is None:
@@ -236,8 +235,8 @@ def solve(*args, **kwargs):
     check_space_type(x, "primal")
     if bcs is None:
         bcs = ()
-    elif isinstance(bcs, backend_DirichletBC):
-        bcs = (bcs,)
+    else:
+        bcs = packed(bcs)
     if form_compiler_parameters is None:
         form_compiler_parameters = {}
     if solver_parameters is None:
@@ -271,7 +270,7 @@ def solve(*args, **kwargs):
                                 "solver parameter")
             near_nullspace = tlm_adjoint_parameters["near_nullspace"]
 
-    return backend_solve(eq, x, bcs, J=J, Jp=Jp, M=M,
+    return backend_solve(eq, x, tuple(bcs), J=J, Jp=Jp, M=M,
                          form_compiler_parameters=form_compiler_parameters,
                          solver_parameters=solver_parameters,
                          nullspace=nullspace,

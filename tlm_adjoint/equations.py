@@ -1,6 +1,6 @@
 from .interface import (
-    check_space_types, check_space_types_conjugate_dual,
-    check_space_types_dual, is_var, var_assign, var_axpy, var_axpy_conjugate,
+    Packed, check_space_types, check_space_types_conjugate_dual,
+    check_space_types_dual, packed, var_assign, var_axpy, var_axpy_conjugate,
     var_dot, var_dtype, var_get_values, var_id, var_is_scalar, var_inner,
     var_local_size, var_new_conjugate_dual, var_replacement, var_scalar_value,
     var_set_values, var_zero)
@@ -284,8 +284,8 @@ class MatrixActionRHS(RHS):
     """
 
     def __init__(self, A, X):
-        if is_var(X):
-            X = (X,)
+        X_packed = Packed(X)
+        X = tuple(X_packed)
         if len(set(map(var_id, X))) != len(X):
             raise ValueError("Invalid dependency")
 
@@ -305,6 +305,7 @@ class MatrixActionRHS(RHS):
                 x_indices[nl_dep_ids[x_id]] = i
             super().__init__(nl_deps, nl_deps=nl_deps)
 
+        self._packed = X_packed.mapped(lambda x: None)
         self._A = A
         self._x_indices = x_indices
 
@@ -314,31 +315,31 @@ class MatrixActionRHS(RHS):
         super().drop_references()
         self._A = self._A._weak_alias
 
+    def _unpack(self, obj):
+        return self._packed.unpack(obj)
+
     def add_forward(self, B, deps):
-        if is_var(B):
-            B = (B,)
+        B = packed(B)
         X = tuple(deps[j] for j in self._x_indices)
         self._A.forward_action(deps[:len(self._A.nonlinear_dependencies())],
-                               X[0] if len(X) == 1 else X,
-                               B[0] if len(B) == 1 else B,
+                               self._unpack(X),
+                               self._unpack(B),
                                method="add")
 
     def subtract_adjoint_derivative_action(self, nl_deps, dep_index, adj_X, b):
-        if is_var(adj_X):
-            adj_X = (adj_X,)
-
+        adj_X = packed(adj_X)
         N_A_nl_deps = len(self._A.nonlinear_dependencies())
         if dep_index < N_A_nl_deps:
             X = tuple(nl_deps[j] for j in self._x_indices)
             self._A.adjoint_derivative_action(
                 nl_deps[:N_A_nl_deps], dep_index,
-                X[0] if len(X) == 1 else X,
-                adj_X[0] if len(adj_X) == 1 else adj_X,
+                self._unpack(X),
+                self._unpack(adj_X),
                 b, method="sub")
 
         if dep_index in self._x_indices:
             self._A.adjoint_action(nl_deps[:N_A_nl_deps],
-                                   adj_X[0] if len(adj_X) == 1 else adj_X,
+                                   self._unpack(adj_X),
                                    b, b_index=self._x_indices[dep_index],
                                    method="sub")
 
@@ -348,16 +349,14 @@ class MatrixActionRHS(RHS):
 
         X = tuple(deps[j] for j in self._x_indices)
         tlm_X = tuple(tlm_map[x] for x in X)
-        tlm_B = [MatrixActionRHS(self._A, tlm_X)]
+        tlm_B = [MatrixActionRHS(self._A, self._unpack(tlm_X))]
 
         if N_A_nl_deps > 0:
             tlm_b = self._A.tangent_linear_rhs(tlm_map, X)
             if tlm_b is None:
                 pass
-            elif isinstance(tlm_b, RHS):
-                tlm_B.append(tlm_b)
             else:
-                tlm_B.extend(tlm_b)
+                tlm_B.extend(packed(tlm_b))
 
         return tlm_B
 

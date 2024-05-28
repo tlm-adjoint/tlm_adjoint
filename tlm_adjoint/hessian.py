@@ -1,5 +1,5 @@
 from .interface import (
-    check_space_types_conjugate_dual, is_var, var_axpy, var_copy,
+    Packed, check_space_types_conjugate_dual, packed, var_axpy, var_copy,
     var_copy_conjugate, var_is_cached, var_is_static, var_name, var_new,
     var_scalar_value)
 
@@ -115,10 +115,10 @@ class GeneralHessian(Hessian):
     @local_caches
     @restore_manager
     def compute_gradient(self, M, M0=None):
-        if is_var(M):
-            J, (dJ,) = self.compute_gradient(
-                (M,), M0=None if M0 is None else (M0,))
-            return J, dJ
+        M_packed = Packed(M)
+        M = tuple(M_packed)
+        if M0 is not None:
+            M0 = packed(M0)
 
         set_manager(self._manager)
         reset_manager()
@@ -140,15 +140,16 @@ class GeneralHessian(Hessian):
         dJ = compute_gradient(J, M)
 
         reset_manager()
-        return J_val, dJ
+        return J_val, M_packed.unpack(dJ)
 
     @local_caches
     @restore_manager
     def action(self, M, dM, M0=None):
-        if is_var(M):
-            J_val, dJ_val, (ddJ,) = self.action(
-                (M,), (dM,), M0=None if M0 is None else (M0,))
-            return J_val, dJ_val, ddJ
+        M_packed = Packed(M)
+        M = tuple(M_packed)
+        dM = packed(dM)
+        if M0 is not None:
+            M0 = packed(M0)
 
         set_manager(self._manager)
         reset_manager()
@@ -178,7 +179,7 @@ class GeneralHessian(Hessian):
         ddJ = compute_gradient(dJ, M)
 
         reset_manager()
-        return J_val, dJ_val, ddJ
+        return J_val, dJ_val, M_packed.unpack(ddJ)
 
 
 class GaussNewton(ABC):
@@ -235,10 +236,11 @@ class GaussNewton(ABC):
             variables depending on the type of `M`.
         """
 
-        if is_var(M):
-            ddJ, = self.action(
-                (M,), (dM,), M0=None if M0 is None else (M0,))
-            return ddJ
+        M_packed = Packed(M)
+        M = tuple(M_packed)
+        dM = packed(dM)
+        if M0 is not None:
+            M0 = packed(M0)
 
         manager, M, dM, X = self._setup_manager(M, dM, M0=M0)
         set_manager(manager)
@@ -247,8 +249,7 @@ class GaussNewton(ABC):
         tau_X = tuple(var_tlm(x, (M, dM)) for x in X)
         # conj[ R^{-1} J dM ]
         R_inv_tau_X = self._R_inv_action(*map(var_copy, tau_X))
-        if is_var(R_inv_tau_X):
-            R_inv_tau_X = (R_inv_tau_X,)
+        R_inv_tau_X = packed(R_inv_tau_X)
         assert len(tau_X) == len(R_inv_tau_X)
         for tau_x, R_inv_tau_x in zip(tau_X, R_inv_tau_X):
             check_space_types_conjugate_dual(tau_x, R_inv_tau_x)
@@ -271,8 +272,7 @@ class GaussNewton(ABC):
         # Prior term: conj[ B^{-1} dM ]
         if self._B_inv_action is not None:
             B_inv_dM = self._B_inv_action(*map(var_copy, dM))
-            if is_var(B_inv_dM):
-                B_inv_dM = (B_inv_dM,)
+            B_inv_dM = packed(B_inv_dM)
             assert len(dM) == len(B_inv_dM)
             for dm, B_inv_dm in zip(dM, B_inv_dM):
                 check_space_types_conjugate_dual(dm, B_inv_dm)
@@ -281,7 +281,7 @@ class GaussNewton(ABC):
                 var_axpy(ddJ[i], 1.0, B_inv_dm)
 
         reset_manager()
-        return ddJ
+        return M_packed.unpack(ddJ)
 
     def action_fn(self, m, m0=None):
         """Return a callable which can be used to compute Hessian actions using
@@ -349,8 +349,7 @@ class GeneralGaussNewton(GaussNewton):
         configure_tlm((M, dM), annotate=False)
         start_manager()
         X = self._forward(*M)
-        if is_var(X):
-            X = (X,)
+        X = packed(X)
         stop_manager()
 
         return self._manager, M, dM, X
