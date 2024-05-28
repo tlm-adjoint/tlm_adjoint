@@ -1,6 +1,6 @@
 from .interface import (
-    packed, var_axpy_conjugate, var_copy_conjugate, var_increment_state_lock,
-    var_space)
+    Packed, packed, var_axpy_conjugate, var_copy_conjugate,
+    var_increment_state_lock, var_space)
 
 from .block_system import (
     BlockNullspace, LinearSolver, Matrix, NoneNullspace, TypedSpace)
@@ -89,5 +89,5 @@ class HessianLinearSolver(LinearSolver):
         :meth:`tlm_adjoint.block_system.LinearSolver.solve` method.
         """
 
-        b_conj = tuple(map(var_copy_conjugate, packed(b)))
-        super().solve(u, b_conj, **kwargs)
+        b_conj = Packed(b).mapped(var_copy_conjugate)
+        super().solve(u, b_conj.unpack(b_conj), **kwargs)
