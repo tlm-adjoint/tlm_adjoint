@@ -9,7 +9,7 @@ calculation. Follows the same principles as described in
 
 from .caches import clear_caches
 from .interface import (
-    is_var, var_comm, var_dtype, var_get_values, var_id, var_new,
+    Packed, is_var, var_comm, var_dtype, var_get_values, var_id, var_new,
     var_new_conjugate_dual, var_set_values)
 from .manager import (
     compute_gradient, manager as _manager, reset_manager, restore_manager,
@@ -19,7 +19,7 @@ from .overloaded_float import Float
 
 try:
     import torch
-except ImportError:
+except ModuleNotFoundError:
     torch = None
 
 __all__ = \
@@ -44,10 +44,9 @@ def to_torch_tensors(X, *args, **kwargs):
     Remaining arguments are passed to :func:`torch.tensor`.
     """
 
-    if is_var(X):
-        return (to_torch_tensor(X, *args, **kwargs),)
-    else:
-        return tuple(to_torch_tensor(x, *args, **kwargs) for x in X)
+    X = Packed(X)
+    X_t = tuple(to_torch_tensor(x, *args, **kwargs) for x in X)
+    return X.unpack(X_t)
 
 
 def from_torch_tensor(x, x_t):
@@ -63,14 +62,13 @@ def from_torch_tensors(X, X_t):
         :class:`torch.Tensor` objects.
     """
 
-    if is_var(X):
-        X_t, = X_t
-        from_torch_tensor(X, X_t)
-    else:
-        if len(X) != len(X_t):
-            raise ValueError("Invalid length")
-        for x, x_t in zip(X, X_t):
-            from_torch_tensor(x, x_t)
+    X = Packed(X)
+    if X.is_packed:
+        X_t = (X_t,)
+    if len(X) != len(X_t):
+        raise ValueError("Invalid length")
+    for x, x_t in zip(X, X_t):
+        from_torch_tensor(x, x_t)
 
 
 @restore_manager
@@ -81,24 +79,14 @@ def _forward(forward, M, manager):
 
     start_manager()
     X = forward(*M)
-    if is_var(X):
-        n = None
-        X = (X,)
-    else:
-        n = len(X)
-        if n == 0:
-            raise RuntimeError("forward must return at least one variable")
+    X_packed = Packed(X)
+    X = tuple(X_packed)
     J = Float(dtype=var_dtype(X[0]), comm=var_comm(X[0]))
     adj_X = tuple(map(var_new_conjugate_dual, X))
     AdjointActionMarker(J, X, adj_X).solve()
     stop_manager()
 
-    if n is None:
-        x, = X
-        adj_x, = adj_X
-        return x, J, adj_x
-    else:
-        return X, J, adj_X
+    return X_packed.unpack(X), J, X_packed.unpack(adj_X)
 
 
 class TorchInterface(object if torch is None else torch.autograd.Function):

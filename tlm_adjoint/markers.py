@@ -1,5 +1,5 @@
 from .interface import (
-    Packed, check_space_types_conjugate_dual, is_var, var_assign, var_inner,
+    Packed, packed, check_space_types_conjugate_dual, var_assign, var_inner,
     var_is_scalar, var_new, var_scalar_value)
 
 from .equation import Equation, ZeroAssignment
@@ -105,7 +105,8 @@ class AdjointActionMarker(Equation):
 
         start_manager()
         X = forward(M)
-        adj_X = ...
+        with paused_manager():
+            adj_X = ...
         J = Float(name="J")
         AdjointRHSMarker(J, X, adj_X).solve()
         stop_manager()
@@ -123,10 +124,8 @@ class AdjointActionMarker(Equation):
     def __init__(self, J, X, adj_X):
         if not var_is_scalar(J):
             raise ValueError("Functional must be a scalar variable")
-        if is_var(X):
-            X = (X,)
-        if is_var(adj_X):
-            adj_X = (adj_X,)
+        X = packed(X)
+        adj_X = packed(adj_X)
         if len(X) != len(adj_X):
             raise ValueError("Invalid length")
         for x, adj_x in zip(X, adj_X):

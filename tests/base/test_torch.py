@@ -8,7 +8,7 @@ import numpy as np
 import pytest
 try:
     import torch
-except ImportError:
+except ModuleNotFoundError:
     torch = None
 
 pytestmark = pytest.mark.skipif(
