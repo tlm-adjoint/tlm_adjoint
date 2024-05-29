@@ -5,6 +5,7 @@ from tlm_adjoint.fenics.backend import (
     backend_Constant, backend_Function, complex_mode)
 from tlm_adjoint.fenics.interpolation import interpolate_expression
 from tlm_adjoint.alias import gc_disabled
+from tlm_adjoint.markers import AdjointActionMarker
 from tlm_adjoint.patch import patch_method
 
 from ..test_base import chdir_tmp_path, jax_tlm_config, seed_test, tmp_path
@@ -148,6 +149,10 @@ def test_leaks():
     for tlm_map in manager._tlm_map.values():
         del tlm_map._M, tlm_map._dM
     manager._adj_cache.clear()
+    for block in list(manager._blocks) + [manager._block]:
+        for eq in block:
+            if isinstance(eq, AdjointActionMarker):
+                del eq._adj_X
 
     gc.collect()
     garbage_cleanup(DEFAULT_COMM)

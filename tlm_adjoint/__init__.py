@@ -38,6 +38,7 @@ from .overloaded_float import *
 from .patch import *
 from .storage import *
 from .tangent_linear import *
+from .torch import *
 from .tlm_adjoint import *
 from .verification import *
 

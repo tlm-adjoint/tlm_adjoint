@@ -115,6 +115,16 @@ the L-BFGS algorithm, described in
 - Richard H. Byrd, Peihuang Lu, and Jorge Nocedal, and Ciyou Zhu, 'A limited
   memory algorithm for bound constrained optimization', SIAM Journal on
   Scientific Computing, 16(5), 1190--1208, 1995, doi: 10.1137/0916069
+
+PyTorch
+```````
+
+The PyTorch interface in `tlm_adjoint/torch.py
+<autoapi/tlm_adjoint/torch/index.html>`_ follows the same principles as
+described in
+
+    - Nacime Bouziani and David A. Ham, 'Physics-driven machine learning models
+      coupling PyTorch and Firedrake', 2023, arXiv:2303.06871v3
      
 Funding
 -------
