@@ -38,15 +38,12 @@ def to_torch_tensors(X, *args, **kwargs):
     """Convert one or more variables to :class:`torch.Tensor` objects.
 
     :arg X: A variable or :class:`Sequence` or variables.
-    :returns: A :class:`torch.Tensor` or :class:`tuple` of
-        :class:`torch.Tensor` objects.
+    :returns: A :class:`Sequence` of :class:`torch.Tensor` objects.
 
     Remaining arguments are passed to :func:`torch.tensor`.
     """
 
-    X = Packed(X)
-    X_t = tuple(to_torch_tensor(x, *args, **kwargs) for x in X)
-    return X.unpack(X_t)
+    return tuple(to_torch_tensor(x, *args, **kwargs) for x in packed(X))
 
 
 def from_torch_tensor(x, x_t):
@@ -58,13 +55,10 @@ def from_torch_tensors(X, X_t):
     """Copy data from PyTorch tensors into variables.
 
     :arg X: A variable or :class:`Sequence` or variables.
-    :arg X_t: A :class:`torch.Tensor` or :class:`Sequence` of
-        :class:`torch.Tensor` objects.
+    :arg X_t: A :class:`Sequence` of :class:`torch.Tensor` objects.
     """
 
-    X = Packed(X)
-    if X.is_packed:
-        X_t = (X_t,)
+    X = packed(X)
     if len(X) != len(X_t):
         raise ValueError("Invalid length")
     for x, x_t in zip(X, X_t):
