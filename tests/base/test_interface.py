@@ -87,20 +87,20 @@ def test_state_lock(setup_test):  # noqa: F811
     t = Test()
     assert not var_state_is_locked(f)
     for _ in range(10):
-        var_increment_state_lock(f, t)
+        var_increment_state_lock(t, f)
         assert var_state_is_locked(f)
     # ... then decrement 10 times with the same object
     for _ in range(9):
-        var_decrement_state_lock(f, t)
+        var_decrement_state_lock(t, f)
         assert var_state_is_locked(f)
-    var_decrement_state_lock(f, t)
+    var_decrement_state_lock(t, f)
     assert not var_state_is_locked(f)
 
     # Increment 10 times with the same object ...
     t = Test()
     assert not var_state_is_locked(f)
     for _ in range(10):
-        var_increment_state_lock(f, t)
+        var_increment_state_lock(t, f)
         assert var_state_is_locked(f)
     # ... then destroy the object
     del t
@@ -110,7 +110,7 @@ def test_state_lock(setup_test):  # noqa: F811
     assert not var_state_is_locked(f)
     T = [Test() for _ in range(10)]
     for t, _ in itertools.product(T, range(10)):
-        var_increment_state_lock(f, t)
+        var_increment_state_lock(t, f)
         assert var_state_is_locked(f)
     # ... then destroy the objects
     t = None

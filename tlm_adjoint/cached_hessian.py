@@ -143,7 +143,7 @@ class CachedHessian(Hessian, HessianOptimization):
     """
 
     def __init__(self, J, *, manager=None, cache_adjoint=True):
-        var_increment_state_lock(J, self)
+        var_increment_state_lock(self, J)
 
         HessianOptimization.__init__(self, manager=manager,
                                      cache_adjoint=cache_adjoint)
@@ -215,8 +215,7 @@ class CachedGaussNewton(GaussNewton, HessianOptimization):
     def __init__(self, X, R_inv_action, B_inv_action=None, *,
                  manager=None):
         X = packed(X)
-        for x in X:
-            var_increment_state_lock(x, self)
+        var_increment_state_lock(self, *X)
 
         HessianOptimization.__init__(self, manager=manager,
                                      cache_adjoint=False)

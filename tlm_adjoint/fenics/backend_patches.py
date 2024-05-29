@@ -87,11 +87,11 @@ class Attributes:
         if id(obj) not in self._keys:
             self._keys[id(obj)] = []
 
-            def weakref_finalize(obj_id, d, keys):
+            def finalize_callback(obj_id, d, keys):
                 for key in keys.pop(obj_id, []):
                     d.pop(key, None)
 
-            weakref.finalize(obj, weakref_finalize,
+            weakref.finalize(obj, finalize_callback,
                              id(obj), self._d, self._keys)
 
         self._d[key] = value

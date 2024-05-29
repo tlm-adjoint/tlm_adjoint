@@ -175,13 +175,13 @@ class TangentLinearMap:
         self._dM = dM
 
         @gc_disabled
-        def weakref_finalize(X, tlm_map_id):
+        def finalize_callback(X, tlm_map_id):
             for x_id in sorted(tuple(X)):
                 x = X.get(x_id, None)
                 if x is not None:
                     getattr(x, "_tlm_adjoint__tangent_linears", {}).pop(tlm_map_id, None)  # noqa: E501
 
-        weakref.finalize(self, weakref_finalize,
+        weakref.finalize(self, finalize_callback,
                          self._X, self._id)
 
         if len(M) == 1:
