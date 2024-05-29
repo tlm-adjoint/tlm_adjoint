@@ -252,14 +252,26 @@ def new_space_id_cached(space):
     return space_ids[key]
 
 
+def space_local_indices_cached(space, cls):
+    if not hasattr(space, "_tlm_adjoint__local_indices"):
+        space._tlm_adjoint__local_indices = {}
+    local_indices = space._tlm_adjoint__local_indices
+
+    # Work around Firedrake issue #3130
+    key = (space, ufl.duals.is_primal(space))
+    if key not in local_indices:
+        with cls(space).dat.vec_ro as x_v:
+            local_indices[key] = x_v.getOwnershipRange()
+    return local_indices[key]
+
+
 @patch_method(backend_FunctionSpace, "__init__")
 def FunctionSpace__init__(self, orig, orig_args, *args, **kwargs):
     orig_args()
     add_interface(self, FunctionSpaceInterface,
                   {"space": self, "comm": comm_dup_cached(self.comm),
                    "id": new_space_id_cached(self)})
-    with backend_Function(self).dat.vec_ro as x_v:
-        n0, n1 = x_v.getOwnershipRange()
+    n0, n1 = space_local_indices_cached(self, backend_Function)
     self._tlm_adjoint__space_interface_attrs["local_indices"] = (n0, n1)
 
 
@@ -279,8 +291,7 @@ def CofunctionSpace__init__(self, orig, orig_args, *args, **kwargs):
     add_interface(self, FunctionSpaceInterface,
                   {"space_dual": self, "comm": comm_dup_cached(self.comm),
                    "id": new_space_id_cached(self)})
-    with backend_Cofunction(self).dat.vec_ro as x_v:
-        n0, n1 = x_v.getOwnershipRange()
+    n0, n1 = space_local_indices_cached(self, backend_Cofunction)
     self._tlm_adjoint__space_interface_attrs["local_indices"] = (n0, n1)
 
 
