@@ -653,8 +653,7 @@ def NonlinearVariationalSolver_set_transfer_manager(
 def NonlinearVariationalSolver_solve_post_call(
         self, return_value, *args, **kwargs):
     u = self._problem.u
-    # Backwards compatibility
-    u_restrict = getattr(self._problem, "u_restrict", u)
+    u_restrict = self._problem.u_restrict
     var_update_state(u_restrict)
     if u is not u_restrict:
         var_update_state(u)
@@ -687,14 +686,18 @@ def NonlinearVariationalSolver_solve(
     form_compiler_parameters = self._problem.form_compiler_parameters
 
     u = self._problem.u
-    # Backwards compatibility
-    u_restrict = getattr(self._problem, "u_restrict", u)
+    u_restrict = self._problem.u_restrict
 
     if isinstance(self._problem, LinearVariationalProblem):
         vp_eq = linear_equation_new_x(
             self._problem._tlm_adjoint__a == self._problem._tlm_adjoint__L,
             u_restrict)
         vp_J = expr_new_x(self._problem.J, u_restrict)
+        if u_restrict is not u:
+            arg_replace_map = dict(zip(vp_eq.lhs.arguments(), vp_J.arguments()))
+            vp_eq = (ufl.replace(vp_eq.lhs, arg_replace_map)
+                     == ufl.replace(vp_eq.rhs, arg_replace_map))
+            del arg_replace_map
     else:
         vp_eq = (self._problem.F == 0)
         vp_J = self._problem.J
