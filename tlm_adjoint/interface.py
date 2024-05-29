@@ -1004,13 +1004,13 @@ def var_increment_state_lock(obj, *X):
         if not hasattr(obj, "_tlm_adjoint__state_locks"):
             obj._tlm_adjoint__state_locks = {}
 
-            def weakref_finalize(locks):
+            def finalize_callback(locks):
                 for x_ref, count in locks.values():
                     x = x_ref()
                     if x is not None and hasattr(x, "_tlm_adjoint__state_lock"):  # noqa: E501
                         x._tlm_adjoint__state_lock -= count
 
-            weakref.finalize(obj, weakref_finalize,
+            weakref.finalize(obj, finalize_callback,
                              obj._tlm_adjoint__state_locks)
         if x_id not in obj._tlm_adjoint__state_locks:
             obj._tlm_adjoint__state_locks[x_id] = [weakref.ref(x), 0]
