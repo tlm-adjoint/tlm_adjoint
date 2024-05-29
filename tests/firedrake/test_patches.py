@@ -1043,3 +1043,44 @@ def test_DirichletBC_apply(setup_test, test_leaks, tmp_path):
 
     min_order = taylor_test_tlm_adjoint(forward, y, adjoint_order=2)
     assert min_order > 1.99
+
+
+@pytest.mark.firedrake
+@seed_test
+def test_LinearVariationalProblem_new_x(setup_test, test_leaks):
+    mesh = UnitIntervalMesh(10)
+    space = FunctionSpace(mesh, "Lagrange", 1)
+    test = TestFunction(space)
+    trial = TrialFunction(space)
+
+    def forward(m):
+        u = m.copy(deepcopy=True)
+        for _ in range(3):
+            solve(inner(trial, test) * dx
+                  == inner(Constant(1.0) + u * u, test) * dx, u)
+        return Functional(name="J").assign(u * u * dx)
+
+    m = Function(space, name="m").interpolate(Constant(1.0))
+    start_manager()
+    J = forward(m)
+    stop_manager()
+
+    J_val = J.value
+
+    dJ = compute_gradient(J, m)
+
+    min_order = taylor_test(forward, m, J_val=J_val, dJ=dJ)
+    assert min_order > 2.00
+
+    ddJ = Hessian(forward)
+    min_order = taylor_test(forward, m, J_val=J_val, ddJ=ddJ)
+    assert min_order > 3.00
+
+    min_order = taylor_test_tlm(forward, m, tlm_order=1)
+    assert min_order > 2.00
+
+    min_order = taylor_test_tlm_adjoint(forward, m, adjoint_order=1)
+    assert min_order > 2.00
+
+    min_order = taylor_test_tlm_adjoint(forward, m, adjoint_order=2)
+    assert min_order > 2.00

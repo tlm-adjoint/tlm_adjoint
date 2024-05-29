@@ -1,10 +1,11 @@
 from .backend import (
-    BaseFormAssembler, LinearSolver, NonlinearVariationalSolver,
-    OneFormAssembler, Projector, SameMeshInterpolator, TwoFormAssembler,
-    backend_Cofunction, backend_CofunctionSpace, backend_Constant,
-    backend_DirichletBC, backend_Function, backend_FunctionSpace,
-    backend_ScalarType, backend_Vector, backend_assemble, backend_project,
-    backend_solve, homogenize)
+    BaseFormAssembler, LinearSolver, LinearVariationalProblem,
+    NonlinearVariationalSolver, OneFormAssembler, Projector,
+    SameMeshInterpolator, TwoFormAssembler, backend_Cofunction,
+    backend_CofunctionSpace, backend_Constant, backend_DirichletBC,
+    backend_Function, backend_FunctionSpace, backend_ScalarType,
+    backend_Vector, backend_assemble, backend_project, backend_solve,
+    homogenize)
 from ..interface import (
     DEFAULT_COMM, add_interface, check_space_type, comm_dup_cached,
     comm_parent, is_var, new_space_id, new_var_id, relative_space_type,
@@ -620,6 +621,14 @@ def LinearSolver_solve(self, orig, orig_args, x, b):
     return return_value
 
 
+@patch_method(LinearVariationalProblem, "__init__")
+def LinearVariationalProblem__init__(
+        self, orig, orig_args, a, L, *args, **kwargs):
+    orig_args()
+    self._tlm_adjoint__a = a
+    self._tlm_adjoint__L = L
+
+
 @patch_method(NonlinearVariationalSolver, "__init__")
 def NonlinearVariationalSolver__init__(
         self, orig, orig_args, problem, *, appctx=None,
@@ -644,8 +653,7 @@ def NonlinearVariationalSolver_set_transfer_manager(
 def NonlinearVariationalSolver_solve_post_call(
         self, return_value, *args, **kwargs):
     u = self._problem.u
-    # Backwards compatibility
-    u_restrict = getattr(self._problem, "u_restrict", u)
+    u_restrict = self._problem.u_restrict
     var_update_state(u_restrict)
     if u is not u_restrict:
         var_update_state(u)
@@ -678,12 +686,26 @@ def NonlinearVariationalSolver_solve(
     form_compiler_parameters = self._problem.form_compiler_parameters
 
     u = self._problem.u
-    # Backwards compatibility
-    u_restrict = getattr(self._problem, "u_restrict", u)
+    u_restrict = self._problem.u_restrict
+
+    if isinstance(self._problem, LinearVariationalProblem):
+        vp_eq = linear_equation_new_x(
+            self._problem._tlm_adjoint__a == self._problem._tlm_adjoint__L,
+            u_restrict)
+        vp_J = expr_new_x(self._problem.J, u_restrict)
+        if u_restrict is not u:
+            assert len(vp_eq.lhs.arguments()) == len(vp_J.arguments())
+            arg_replace_map = dict(zip(vp_eq.lhs.arguments(), vp_J.arguments()))  # noqa: E501
+            vp_eq = (ufl.replace(vp_eq.lhs, arg_replace_map)
+                     == ufl.replace(vp_eq.rhs, arg_replace_map))
+            del arg_replace_map
+    else:
+        vp_eq = (self._problem.F == 0)
+        vp_J = self._problem.J
 
     eq = EquationSolver(
-        self._problem.F == 0, u_restrict, self._problem.bcs,
-        J=self._problem.J, solver_parameters=solver_parameters,
+        vp_eq, u_restrict, self._problem.bcs,
+        J=vp_J, solver_parameters=solver_parameters,
         form_compiler_parameters=form_compiler_parameters,
         cache_jacobian=self._problem._constant_jacobian,
         cache_rhs_assembly=False)
