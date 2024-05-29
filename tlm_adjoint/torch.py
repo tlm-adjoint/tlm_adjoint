@@ -9,7 +9,7 @@ calculation. Follows the same principles as described in
 
 from .caches import clear_caches
 from .interface import (
-    Packed, packed, var_comm, var_dtype, var_get_values, var_id, var_new,
+    packed, var_comm, var_dtype, var_get_values, var_id, var_new,
     var_new_conjugate_dual, var_set_values)
 from .manager import (
     compute_gradient, manager as _manager, reset_manager, restore_manager,
@@ -72,15 +72,13 @@ def _forward(forward, M, manager):
     clear_caches()
 
     start_manager()
-    X = forward(*M)
-    X_packed = Packed(X)
-    X = tuple(X_packed)
+    X = packed(forward(*M))
     J = Float(dtype=var_dtype(X[0]), comm=var_comm(X[0]))
     adj_X = tuple(map(var_new_conjugate_dual, X))
     AdjointActionMarker(J, X, adj_X).solve()
     stop_manager()
 
-    return X_packed.unpack(X), J, X_packed.unpack(adj_X)
+    return X, J, adj_X
 
 
 class TorchInterface(object if torch is None else torch.autograd.Function):
