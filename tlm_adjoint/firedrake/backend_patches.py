@@ -695,7 +695,7 @@ def NonlinearVariationalSolver_solve(
         vp_J = expr_new_x(self._problem.J, u_restrict)
         if u_restrict is not u:
             assert len(vp_eq.lhs.arguments()) == len(vp_J.arguments())
-            arg_replace_map = dict(zip(vp_eq.lhs.arguments(), vp_J.arguments()))
+            arg_replace_map = dict(zip(vp_eq.lhs.arguments(), vp_J.arguments()))  # noqa: E501
             vp_eq = (ufl.replace(vp_eq.lhs, arg_replace_map)
                      == ufl.replace(vp_eq.rhs, arg_replace_map))
             del arg_replace_map
