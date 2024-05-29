@@ -9,7 +9,7 @@ calculation. Follows the same principles as described in
 
 from .caches import clear_caches
 from .interface import (
-    Packed, is_var, var_comm, var_dtype, var_get_values, var_id, var_new,
+    Packed, packed, var_comm, var_dtype, var_get_values, var_id, var_new,
     var_new_conjugate_dual, var_set_values)
 from .manager import (
     compute_gradient, manager as _manager, reset_manager, restore_manager,
@@ -136,8 +136,7 @@ def torch_wrapped(forward, M, *, manager=None):
               `forward` evaluated with `M` as input.
     """
 
-    if is_var(M):
-        M = (M,)
+    M = packed(M)
     if manager is None:
         manager = _manager()
     manager = manager.new()
