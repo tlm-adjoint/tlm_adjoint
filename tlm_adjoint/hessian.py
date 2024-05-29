@@ -101,6 +101,12 @@ class GeneralHessian(Hessian):
             manager = _manager()
         manager = manager.new()
 
+        forward_arg = forward
+
+        def forward(*M):
+            with var_locked(*M):
+                return forward_arg(*M)
+
         super().__init__()
         self._forward = forward
         self._manager = manager
@@ -302,6 +308,12 @@ class GeneralGaussNewton(GaussNewton):
         if manager is None:
             manager = _manager()
         manager = manager.new()
+
+        forward_arg = forward
+
+        def forward(*M):
+            with var_locked(*M):
+                return forward_arg(*M)
 
         super().__init__(R_inv_action, B_inv_action=B_inv_action)
         self._forward = forward

@@ -43,6 +43,12 @@ class ReducedFunctional:
             manager = _manager()
         manager = manager.new()
 
+        forward_arg = forward
+
+        def forward(*M):
+            with var_locked(*M):
+                return forward_arg(*M)
+
         self._manager = manager
         self._forward = forward
         self._M = None
