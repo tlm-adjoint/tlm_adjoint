@@ -1639,15 +1639,10 @@ class Packed(Sequence):
         self._is_packed = is_packed
 
     def __eq__(self, other):
-        other = Packed(other)
-        return (tuple(self) == tuple(other)
-                and self.is_packed == other.is_packed)
+        return tuple(self) == tuple(Packed(other))
 
     def __ne__(self, other):
         return not self == other
-
-    def __hash__(self):
-        return hash((tuple(self), self.is_packed))
 
     def __len__(self):
         return len(self._t)
