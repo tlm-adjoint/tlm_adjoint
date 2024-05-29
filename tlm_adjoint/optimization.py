@@ -520,8 +520,8 @@ def line_search(F, Fp, X, minus_P, *,
     options["tao_ls_gtol"] = c2
     taols.setOptionsPrefix(options.options_prefix)
 
-    taols.setUp()
     taols.setFromOptions()
+    taols.setUp()
 
     x = PETScVec(vec_interface)
     x.to_petsc(X)
