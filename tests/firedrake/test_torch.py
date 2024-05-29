@@ -1,7 +1,5 @@
 from firedrake import *
 from tlm_adjoint.firedrake import *
-from tlm_adjoint.torch import (
-    from_torch_tensors, to_torch_tensors, torch_wrapped)
 
 from .test_base import *
 

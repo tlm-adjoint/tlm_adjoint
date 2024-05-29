@@ -1,6 +1,6 @@
-from tlm_adjoint import DEFAULT_COMM, Float, set_default_float_dtype, var_id
-from tlm_adjoint.torch import (
-    from_torch_tensors, to_torch_tensors, torch_wrapped)
+from tlm_adjoint import (
+    DEFAULT_COMM, Float, from_torch_tensors, set_default_float_dtype,
+    to_torch_tensors, torch_wrapped, var_id)
 
 from .test_base import setup_test  # noqa: F401
 
