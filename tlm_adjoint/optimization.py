@@ -309,7 +309,7 @@ def wrapped_action(M):
         M_X = packed(M_X)
         if len(M_X) != len(X):
             raise ValueError("Incompatible shape")
-        return vars_copy(M_X)
+        return M_X
 
     return M
 
@@ -400,7 +400,7 @@ class LBFGSHessianApproximation:
             alphas.append(alpha)
         alphas.reverse()
 
-        R = H_0_action(*X)
+        R = vars_copy(H_0_action(*X))
         if theta != 1.0:
             for r in R:
                 var_set_values(r, var_get_values(r) / theta)
@@ -723,7 +723,7 @@ def l_bfgs(F, Fp, X0, *,
         Fp_val = packed(Fp_val)
         if len(Fp_val) != len(X):
             raise ValueError("Incompatible shape")
-        return vars_copy(Fp_val)
+        return Fp_val
 
     X0_packed = Packed(X0)
     X0 = tuple(X0_packed)

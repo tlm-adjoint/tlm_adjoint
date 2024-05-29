@@ -1,7 +1,7 @@
 from .interface import (
     Packed, packed, var_copy_conjugate, var_increment_state_lock, var_locked,
     var_space, vars_assign, vars_assign_conjugate, vars_axpy,
-    vars_axpy_conjugate, vars_copy_conjugate, vars_inner)
+    vars_axpy_conjugate, vars_inner)
 
 from .block_system import (
     Eigensolver, LinearSolver, Matrix, MatrixFreeMatrix, TypedSpace)
@@ -119,7 +119,7 @@ class HessianEigensolver(Eigensolver):
         B_inv_action_arg = B_inv_action
 
         def B_inv_action(x, y):
-            x = vars_copy_conjugate(packed(x))
+            x = packed(x)
             y = packed(y)
 
             with var_locked(*x):
