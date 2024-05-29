@@ -9,7 +9,7 @@ calculation. Follows the same principles as described in
 
 from .caches import clear_caches
 from .interface import (
-    packed, var_comm, var_dtype, var_get_values, var_id, var_new,
+    packed, var_comm, var_dtype, var_get_values, var_id, var_locked, var_new,
     var_new_conjugate_dual, var_set_values)
 from .manager import (
     compute_gradient, manager as _manager, reset_manager, restore_manager,
@@ -72,7 +72,8 @@ def _forward(forward, M, manager):
     clear_caches()
 
     start_manager()
-    X = packed(forward(*M))
+    with var_locked(*M):
+        X = packed(forward(*M))
     J = Float(dtype=var_dtype(X[0]), comm=var_comm(X[0]))
     adj_X = tuple(map(var_new_conjugate_dual, X))
     AdjointActionMarker(J, X, adj_X).solve()

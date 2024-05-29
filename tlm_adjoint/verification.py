@@ -87,7 +87,7 @@ from .interface import (
     garbage_cleanup, packed, space_comm, var_copy, var_dtype, var_is_cached,
     var_is_static, var_local_size, var_name, var_new, var_set_values,
     vars_assign, vars_axpy, vars_copy, vars_inner, vars_linf_norm,
-    var_scalar_value)
+    var_locked, var_scalar_value)
 
 from .caches import clear_caches, local_caches
 from .manager import manager as _manager
@@ -110,7 +110,8 @@ __all__ = \
 def wrapped_forward(forward):
     @functools.wraps(forward)
     def wrapped_forward(*M):
-        J = forward(*M)
+        with var_locked(*M):
+            J = forward(*M)
         garbage_cleanup(space_comm(J.space))
         return J
 
