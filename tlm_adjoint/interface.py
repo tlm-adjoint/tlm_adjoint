@@ -986,52 +986,55 @@ def var_state(x):
     return x._tlm_adjoint__var_interface_state()
 
 
-def var_increment_state_lock(x, obj):
-    if var_is_replacement(x):
-        raise ValueError("x cannot be a replacement")
-    var_check_state_lock(x)
-    x_id = var_id(x)
+def var_increment_state_lock(obj, *X):
+    for x in X:
+        if var_is_replacement(x):
+            raise ValueError("x cannot be a replacement")
+        var_check_state_lock(x)
+        x_id = var_id(x)
 
-    if not hasattr(x, "_tlm_adjoint__state_lock"):
-        x._tlm_adjoint__state_lock = 0
-    if x._tlm_adjoint__state_lock == 0:
-        x._tlm_adjoint__state_lock_state = var_state(x)
+        if not hasattr(x, "_tlm_adjoint__state_lock"):
+            x._tlm_adjoint__state_lock = 0
+        if x._tlm_adjoint__state_lock == 0:
+            x._tlm_adjoint__state_lock_state = var_state(x)
 
-    # Functionally similar to a weakref.WeakKeyDictionary, using the variable
-    # ID as a key. This approach does not require obj to be hashable.
-    if not hasattr(obj, "_tlm_adjoint__state_locks"):
-        obj._tlm_adjoint__state_locks = {}
+        # Functionally similar to a weakref.WeakKeyDictionary, using the
+        # variable ID as a key. This approach does not require obj to be
+        # hashable.
+        if not hasattr(obj, "_tlm_adjoint__state_locks"):
+            obj._tlm_adjoint__state_locks = {}
 
-        def weakref_finalize(locks):
-            for x_ref, count in locks.values():
-                x = x_ref()
-                if x is not None and hasattr(x, "_tlm_adjoint__state_lock"):
-                    x._tlm_adjoint__state_lock -= count
+            def weakref_finalize(locks):
+                for x_ref, count in locks.values():
+                    x = x_ref()
+                    if x is not None and hasattr(x, "_tlm_adjoint__state_lock"):  # noqa: E501
+                        x._tlm_adjoint__state_lock -= count
 
-        weakref.finalize(obj, weakref_finalize,
-                         obj._tlm_adjoint__state_locks)
-    if x_id not in obj._tlm_adjoint__state_locks:
-        obj._tlm_adjoint__state_locks[x_id] = [weakref.ref(x), 0]
+            weakref.finalize(obj, weakref_finalize,
+                             obj._tlm_adjoint__state_locks)
+        if x_id not in obj._tlm_adjoint__state_locks:
+            obj._tlm_adjoint__state_locks[x_id] = [weakref.ref(x), 0]
 
-    x._tlm_adjoint__state_lock += 1
-    obj._tlm_adjoint__state_locks[x_id][1] += 1
+        x._tlm_adjoint__state_lock += 1
+        obj._tlm_adjoint__state_locks[x_id][1] += 1
 
 
-def var_decrement_state_lock(x, obj):
-    if var_is_replacement(x):
-        raise ValueError("x cannot be a replacement")
-    var_check_state_lock(x)
-    x_id = var_id(x)
+def var_decrement_state_lock(obj, *X):
+    for x in X:
+        if var_is_replacement(x):
+            raise ValueError("x cannot be a replacement")
+        var_check_state_lock(x)
+        x_id = var_id(x)
 
-    if x._tlm_adjoint__state_lock < obj._tlm_adjoint__state_locks[x_id][1]:
-        raise RuntimeError("Invalid state lock")
-    if obj._tlm_adjoint__state_locks[x_id][1] < 1:
-        raise RuntimeError("Invalid state lock")
+        if x._tlm_adjoint__state_lock < obj._tlm_adjoint__state_locks[x_id][1]:
+            raise RuntimeError("Invalid state lock")
+        if obj._tlm_adjoint__state_locks[x_id][1] < 1:
+            raise RuntimeError("Invalid state lock")
 
-    x._tlm_adjoint__state_lock -= 1
-    obj._tlm_adjoint__state_locks[x_id][1] -= 1
-    if obj._tlm_adjoint__state_locks[x_id][1] == 0:
-        del obj._tlm_adjoint__state_locks[x_id]
+        x._tlm_adjoint__state_lock -= 1
+        obj._tlm_adjoint__state_locks[x_id][1] -= 1
+        if obj._tlm_adjoint__state_locks[x_id][1] == 0:
+            del obj._tlm_adjoint__state_locks[x_id]
 
 
 class VariableStateChangeError(RuntimeError):
@@ -1048,7 +1051,7 @@ def var_lock_state(x):
         pass
 
     lock = x._tlm_adjoint__state_lock_lock = Lock()
-    var_increment_state_lock(x, lock)
+    var_increment_state_lock(lock, x)
 
 
 def var_state_is_locked(x):
@@ -1080,7 +1083,7 @@ class VariableStateLockDictionary(MutableMapping):
         self._d = dict(*args, **kwargs)
         for value in self._d.values():
             if is_var(value) and not var_is_replacement(value):
-                var_increment_state_lock(value, self)
+                var_increment_state_lock(self, value)
 
     def __getitem__(self, key):
         value = self._d[key]
@@ -1092,15 +1095,15 @@ class VariableStateLockDictionary(MutableMapping):
         oldvalue = self._d.get(key, None)
         self._d[key] = value
         if is_var(value) and not var_is_replacement(value):
-            var_increment_state_lock(value, self)
+            var_increment_state_lock(self, value)
         if is_var(oldvalue) and not var_is_replacement(oldvalue):
-            var_decrement_state_lock(oldvalue, self)
+            var_decrement_state_lock(self, oldvalue)
 
     def __delitem__(self, key):
         oldvalue = self._d.get(key, None)
         del self._d[key]
         if is_var(oldvalue) and not var_is_replacement(oldvalue):
-            var_decrement_state_lock(oldvalue, self)
+            var_decrement_state_lock(self, oldvalue)
 
     def __iter__(self):
         yield from self._d
@@ -1123,14 +1126,12 @@ def var_locked(*X):
         pass
 
     lock = Lock()
-    for x in X:
-        var_increment_state_lock(x, lock)
+    var_increment_state_lock(lock, *X)
 
     try:
         yield
     finally:
-        for x in X:
-            var_decrement_state_lock(x, lock)
+        var_decrement_state_lock(lock, *X)
 
 
 def var_update_state(*X):

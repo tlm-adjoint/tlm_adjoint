@@ -35,8 +35,7 @@ class HessianMatrix(Matrix):
         self._H = H
         self._M = M
 
-        for m in M:
-            var_increment_state_lock(m, self)
+        var_increment_state_lock(self, *M)
 
     def mult_add(self, x, y):
         x = packed(x)
