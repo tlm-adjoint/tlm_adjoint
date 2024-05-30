@@ -6,8 +6,8 @@ from ..interface import packed, space_eq, var_axpy, var_inner, var_new
 
 from ..block_system import (
     BlockMatrix as _BlockMatrix, BlockNullspace, Eigensolver,
-    LinearSolver as _LinearSolver, Matrix, MatrixFreeMatrix, MixedSpace,
-    NoneNullspace, Nullspace, TypedSpace)
+    LinearSolver as _LinearSolver, Matrix, MatrixFunctionSolver,
+    MatrixFreeMatrix, MixedSpace, NoneNullspace, Nullspace, TypedSpace)
 
 from .backend_interface import assemble, matrix_multiply
 from .variables import Constant, Function
@@ -33,7 +33,8 @@ __all__ = \
         "form_matrix",
 
         "LinearSolver",
-        "Eigensolver"
+        "Eigensolver",
+        "MatrixFunctionSolver"
     ]
 
 
@@ -198,13 +199,13 @@ class PETScMatrix(Matrix):
     :class:`firedrake.matrix.Matrix` :math:`A` defining a mapping
     :math:`V \rightarrow W`.
 
-    :arg arg_space: Defines the space `V`.
-    :arg action_space: Defines the space `W`.
     :arg a: The :class:`firedrake.matrix.Matrix`.
     """
 
-    def __init__(self, arg_space, action_space, A):
-        super().__init__(arg_space, action_space)
+    def __init__(self, A):
+        test, trial = A.form.arguments()
+        assert test.number() < trial.number()
+        super().__init__(trial.function_space(), test.function_space().dual())
         self._A = A
 
     def mult_add(self, x, y):
@@ -222,12 +223,7 @@ def form_matrix(a, *args, **kwargs):
     function.
     """
 
-    test, trial = a.arguments()
-    assert test.number() < trial.number()
-
-    return PETScMatrix(
-        trial.function_space(), test.function_space().dual(),
-        backend_assemble(a, *args, **kwargs))
+    return PETScMatrix(backend_assemble(a, *args, **kwargs))
 
 
 class BlockMatrix(_BlockMatrix):
