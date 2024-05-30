@@ -70,8 +70,9 @@ representations of a mixed space solution.
 """
 
 from .interface import (
-    Packed, comm_dup_cached, packed, space_comm, space_default_space_type,
-    space_eq, space_new, var_assign, var_axpy, var_locked, var_zero)
+    Packed, comm_dup_cached, packed, paused_space_type_checking, space_comm,
+    space_default_space_type, space_eq, space_new, var_assign, var_axpy,
+    var_locked, var_zero)
 from .manager import manager_disabled
 from .petsc import (
     PETScOptions, PETScVec, PETScVecInterface, attach_destroy_finalizer)
@@ -1306,4 +1307,5 @@ class MatrixFunctionSolver:
         if self.mfn.getConvergedReason() <= 0:
             raise RuntimeError("Convergence failure")
 
-        v_petsc.from_petsc(v)
+        with paused_space_type_checking():
+            v_petsc.from_petsc(v)
