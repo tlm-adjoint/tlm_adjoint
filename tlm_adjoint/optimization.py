@@ -489,7 +489,7 @@ def line_search(F, Fp, X, minus_P, *,
 
     if comm is None:
         comm = var_comm(X[0])
-    comm = comm_dup_cached(comm, key="line_search")
+    comm = comm_dup_cached(comm, key="tao")
 
     vec_interface = PETScVecInterface(tuple(map(var_space, X)),
                                       dtype=PETSc.RealType, comm=comm)
@@ -924,7 +924,7 @@ def petsc_tao(J_hat, M, *, solver_parameters=None,
     if H_0_action is not None:
         H_0_action = wrapped_action(H_0_action)
 
-    comm = comm_dup_cached(J_hat.comm, key="petsc_tao")
+    comm = comm_dup_cached(J_hat.comm, key="tao")
 
     vec_interface = PETScVecInterface(tuple(map(var_space, M)),
                                       dtype=PETSc.RealType, comm=comm)

@@ -79,7 +79,6 @@ from .petsc import (
 from abc import ABC, abstractmethod
 from collections.abc import Mapping, MutableMapping, Sequence
 from collections import deque
-import logging
 import numpy as np
 try:
     import petsc4py.PETSc as PETSc
@@ -105,7 +104,8 @@ __all__ = \
         "BlockMatrix",
 
         "LinearSolver",
-        "Eigensolver"
+        "Eigensolver",
+        "MatrixFunctionSolver"
     ]
 
 
@@ -795,7 +795,7 @@ def petsc_ksp(A, *, comm=None, solver_parameters=None, pc_fn=None):
     if solver_parameters is None:
         solver_parameters = {}
 
-    comm = comm_dup_cached(comm, key="petsc_ksp")
+    comm = comm_dup_cached(comm, key="petsc")
 
     A_mat = PETSc.Mat().createPython(
         ((A.action_space.local_size, A.action_space.global_size),
@@ -820,15 +820,6 @@ def petsc_ksp(A, *, comm=None, solver_parameters=None, pc_fn=None):
     if pc is not None:
         ksp.setPC(pc)
     ksp.setOperators(A_mat)
-
-    logger = logging.getLogger("tlm_adjoint.block_system")
-
-    def monitor(ksp, it, r_norm):
-        logger.debug(f"KSP: "
-                     f"iteration {it:d}, "
-                     f"residual norm {r_norm:.16e}")
-
-    ksp.setMonitor(monitor)
 
     ksp.setFromOptions()
     ksp.setUp()
@@ -976,7 +967,7 @@ def slepc_eps(A, B, *, B_inv=None, solver_parameters=None, comm=None):
     if comm is None:
         comm = A.arg_space.comm
 
-    comm = comm_dup_cached(comm, key="slepc_eps")
+    comm = comm_dup_cached(comm, key="slepc")
 
     A_mat = PETSc.Mat().createPython(
         ((A.action_space.local_size, A.action_space.global_size),
@@ -1220,3 +1211,99 @@ class Eigensolver:
                     B.mult(y, z)
                 error_norm = max(error_norm, abs(z.dot(x) - int(i == j)))
         return error_norm
+
+
+def slepc_mfn(A, *, solver_parameters=None, comm=None):
+    if solver_parameters is None:
+        solver_parameters = {}
+    if comm is None:
+        comm = A.arg_space.comm
+
+    comm = comm_dup_cached(comm, key="slepc")
+
+    A_mat = PETSc.Mat().createPython(
+        ((A.action_space.local_size, A.action_space.global_size),
+         (A.arg_space.local_size, A.arg_space.global_size)), A,
+        comm=comm)
+    A_mat.setUp()
+
+    mfn = SLEPc.MFN().create(comm=comm)
+    options = PETScOptions(f"_tlm_adjoint__{mfn.name:s}_")
+    options.update(solver_parameters)
+    mfn.setOptionsPrefix(options.options_prefix)
+    mfn.setOperator(A_mat)
+
+    mfn.setFromOptions()
+    mfn.setUp()
+
+    attach_destroy_finalizer(mfn, A_mat)
+
+    return mfn
+
+
+class MatrixFunctionSolver:
+    r"""Matrix function action evaluation
+
+    .. math::
+
+        v = f ( A ) u
+
+    using SLEPc.
+
+    :arg A: A :class:`tlm_adjoint.block_system.Matrix` defining :math:`A`.
+    :arg nullspace: A :class:`.Nullspace` or a :class:`Sequence` of
+        :class:`.Nullspace` objects defining the nullspace and left nullspace
+        of :math:`A` and :math:`B`. `None` indicates a :class:`.NoneNullspace`.
+    :arg solver_parameters: A :class:`Mapping` defining solver parameters.
+    :arg comm: Communicator.
+    """
+
+    def __init__(self, A, *, nullspace=None,
+                 solver_parameters=None, comm=None):
+        if nullspace is None:
+            nullspace = NoneNullspace()
+        elif isinstance(nullspace, Sequence):
+            nullspace = BlockNullspace(nullspace)
+        if not isinstance(A, BlockMatrix):
+            A = BlockMatrix((A.arg_space,), (A.action_space,), A)
+            if not isinstance(nullspace, NoneNullspace):
+                nullspace = BlockNullspace((nullspace,))
+        if solver_parameters is None:
+            solver_parameters = {}
+
+        A = SystemMatrix(A, nullspace=nullspace, nullspace_constraint=False)
+
+        self._A = A
+        self._mfn = slepc_mfn(A, solver_parameters=solver_parameters,
+                              comm=comm)
+
+        attach_destroy_finalizer(self, self.mfn)
+
+    @property
+    def mfn(self):
+        """The class:`slepc4py.SLEPc.MFN` used to compute the matrix function
+        action.
+        """
+
+        return self._mfn
+
+    def solve(self, u, v):
+        """Compute the matrix function action.
+
+        :arg u: Defines the argument :math:`u`.
+        :arg v: Defines the result :math:`v`.
+        """
+
+        u = packed(u)
+        v = packed(v)
+
+        u_petsc = PETScVec(self._A.arg_space)
+        u_petsc.to_petsc(u)
+        v_petsc = PETScVec(self._A.arg_space)
+        v_petsc.to_petsc(v)
+
+        self.mfn.solve(u_petsc.vec, v_petsc.vec)
+        if self.mfn.getConvergedReason() <= 0:
+            raise RuntimeError("Convergence failure")
+
+        v_petsc.from_petsc(v)

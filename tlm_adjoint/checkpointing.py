@@ -807,7 +807,7 @@ class HDF5Checkpoints(Checkpoints):
     def __init__(self, prefix, *, comm=None):
         if comm is None:
             comm = DEFAULT_COMM
-        comm = comm_dup_cached(comm, key="HDF5Checkpoints")
+        comm = comm_dup_cached(comm, key="h5py")
 
         cp_filenames = {}
 

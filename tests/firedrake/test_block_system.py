@@ -4,7 +4,7 @@ from tlm_adjoint.firedrake.backend_interface import matrix_multiply
 from tlm_adjoint.firedrake.block_system import (
     BlockMatrix, BlockNullspace, ConstantNullspace, DirichletBCNullspace,
     Eigensolver, LinearSolver as _BlockLinearSolver, MatrixFreeMatrix,
-    UnityNullspace)
+    MatrixFunctionSolver, UnityNullspace, form_matrix)
 
 from .test_base import *
 
@@ -577,3 +577,30 @@ def test_NHEP(setup_test, test_leaks):
             var_axpy(error, -lam, v_r)
             assert var_linf_norm(error) < 1.0e-14
             assert v_i is None
+
+
+@pytest.mark.firedrake
+@pytest.mark.skipif(SLEPc is None, reason="SLEPc not available")
+@seed_test
+def test_M_root(setup_test, test_leaks):
+    mesh = UnitSquareMesh(10, 10)
+    X = SpatialCoordinate(mesh)
+    space = FunctionSpace(mesh, "Lagrange", 1)
+    test, trial = TestFunction(space), TrialFunction(space)
+
+    M = form_matrix(inner(trial, test) * dx)
+    mfn = MatrixFunctionSolver(
+        M, solver_parameters={"mfn_type": "krylov",
+                              "fn_type": "sqrt",
+                              "mfn_tol": 1.0e-10})
+
+    u = Function(space, name="u").interpolate(sin(2 * pi * X[0]) * exp(X[1]))
+    M_sqrt_u = Function(space, name="M_sqrt_u")
+    M_u = Cofunction(space.dual(), name="M_u")
+    mfn.solve(u, M_sqrt_u)
+    mfn.solve(M_sqrt_u, M_u)
+
+    m_u_ref = assemble(inner(u, test) * dx)
+    error = var_copy(m_u_ref)
+    var_axpy(error, -1.0, M_u)
+    assert var_linf_norm(error) < 1.0e-15
