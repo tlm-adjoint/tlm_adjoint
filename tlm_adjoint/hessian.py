@@ -1,7 +1,7 @@
 from .interface import (
     Packed, check_space_types_conjugate_dual, packed, var_axpy, var_copy,
-    var_copy_conjugate, var_is_cached, var_is_static, var_locked, var_name,
-    var_scalar_value)
+    var_copy_conjugate, var_is_cached, var_id, var_is_static, var_locked,
+    var_name, var_scalar_value)
 
 from .caches import local_caches
 from .functional import Functional
@@ -147,6 +147,8 @@ class GeneralHessian(Hessian):
         M_packed = Packed(M)
         M = tuple(M_packed)
         dM = packed(dM)
+        if len(set(map(var_id, M)).intersection(map(var_id, dM))) > 0:
+            raise ValueError("Direction and controls must be distinct")
         if M0 is not None:
             M0 = packed(M0)
 
@@ -238,6 +240,8 @@ class GaussNewton(ABC):
         M_packed = Packed(M)
         M = tuple(M_packed)
         dM = packed(dM)
+        if len(set(map(var_id, M)).intersection(map(var_id, dM))) > 0:
+            raise ValueError("Direction and controls must be distinct")
         if M0 is not None:
             M0 = packed(M0)
 

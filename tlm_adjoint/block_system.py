@@ -1098,11 +1098,11 @@ class Eigensolver:
         x_i = self._A.arg_space.new_petsc()
         lam = self.eps.getEigenpair(key, x_r, x_i)
 
-        if self.eps.isHermitian():
+        if self.is_hermitian_and_positive():
             if lam.imag != 0.0:
                 raise ValueError("Unexpected complex eigenvalue")
             lam = lam.real
-        if self.eps.isHermitian() \
+        if self.is_hermitian_and_positive() \
                 or issubclass(PETSc.ScalarType, np.complexfloating):
             if x_i.norm(norm_type=PETSc.NormType.NORM_INFINITY) != 0.0:
                 raise ValueError("Unexpected complex eigenvector component")
@@ -1130,6 +1130,15 @@ class Eigensolver:
 
         return self._eps
 
+    def is_hermitian_and_positive(self):
+        """
+        :returns: Whether the eigenproblem is Hermitian with positive
+            semi-definite :math:`B`.
+        """
+
+        return (self.eps.isHermitian()
+                and (not self.eps.isGeneralized() or self.eps.isPositive()))
+
     @manager_disabled()
     def solve(self):
         """Solve the eigenproblem.
@@ -1141,6 +1150,25 @@ class Eigensolver:
         N, _, _ = self.eps.getDimensions()
         if len(self) < N:
             raise RuntimeError("Convergence failure")
+
+    def eigenvalues(self):
+        """Return converged eigenvalues.
+
+        :returns: A :class:`numpy.ndarray` containing eigenvalues.
+        """
+
+        Lam = np.zeros(len(self), dtype=(PETSc.RealType
+                                         if self.is_hermitian_and_positive()
+                                         else PETSc.ComplexType))
+        for i in range(len(self)):
+            lam = self.eps.getEigenvalue(i)
+            if self.is_hermitian_and_positive():
+                if lam.imag != 0.0:
+                    raise ValueError("Unexpected complex eigenvalue")
+                lam = lam.real
+            Lam[i] = lam
+
+        return Lam
 
     def eigenpairs(self):
         """Return converged eigenpairs.
@@ -1156,7 +1184,7 @@ class Eigensolver:
         """
 
         Lam = np.zeros(len(self), dtype=(PETSc.RealType
-                                         if self.eps.isHermitian()
+                                         if self.is_hermitian_and_positive()
                                          else PETSc.ComplexType))
         V = []
         for i, (lam, (v_r, v_i)) in enumerate(self):
@@ -1172,8 +1200,8 @@ class Eigensolver:
             :math:`V` is the matrix whose columns are the eigenvectors.
         """
 
-        if not self.eps.isHermitian():
-            raise ValueError("Hermitian eigenproblem required")
+        if not self.is_hermitian_and_positive():
+            raise ValueError("Hermitian and positive eigenproblem required")
 
         if self._B is None:
             B = None

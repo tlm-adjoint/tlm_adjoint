@@ -183,7 +183,9 @@ def taylor_test(forward, M, J_val, *, dJ=None, ddJ=None, seed=1.0e-2, dM=None,
     forward = wrapped_forward(forward)
 
     if M0 is None:
-        M0 = vars_copy(M)
+        M0_val = vars_copy(M)
+    else:
+        M0_val = M0
     M1 = tuple(var_new(m, static=var_is_static(m),
                        cache=var_is_cached(m))
                for m in M)
@@ -202,7 +204,7 @@ def taylor_test(forward, M, J_val, *, dJ=None, ddJ=None, seed=1.0e-2, dM=None,
 
     J_vals = np.full(eps.shape, np.NAN, dtype=complex)
     for i in range(eps.shape[0]):
-        vars_assign(M1, M0)
+        vars_assign(M1, M0_val)
         vars_axpy(M1, eps[i], dM)
         clear_caches()
         J_vals[i] = var_scalar_value(forward(*M1))
