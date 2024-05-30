@@ -1,7 +1,7 @@
 from .interface import (
     Packed, packed, var_copy_conjugate, var_increment_state_lock, var_locked,
     var_space, vars_assign, vars_assign_conjugate, vars_axpy,
-    vars_axpy_conjugate, vars_inner)
+    vars_axpy_conjugate, vars_inner, var_new_conjugate_dual)
 
 from .block_system import (
     Eigensolver, LinearSolver, Matrix, MatrixFreeMatrix, TypedSpace)
@@ -130,6 +130,32 @@ class HessianEigensolver(Eigensolver):
         B_inv = MatrixFreeMatrix(A.action_space, A.arg_space, B_inv_action)
         super().__init__(A, B, B_inv=B_inv, *args, **kwargs)
 
+    def spectral_approximation_solve(self, b):
+        r"""Compute the approximate action of an inverse Hessian action --
+        see :meth:`HessianEigensolver.spectral_pc_fn`.
+
+        :arg b: A variable or :class:`Sequence` of variables defining the
+            direction for which the action is evaluated.
+        :returns: A variable or :class:`Sequence` of variables storing the
+            action.
+        """
+
+        if not self.is_hermitian_and_positive():
+            raise ValueError("Hermitian and positive eigenproblem required")
+
+        b_packed = Packed(b)
+        b = tuple(b_packed)
+
+        u = tuple(map(var_new_conjugate_dual, b))
+        self._B_inv.matrix.mult(b, u)
+
+        for lam_i, (v, _) in self:
+            v = packed(v)
+            alpha = -(lam_i / (1.0 + lam_i)) * vars_inner(b, v)
+            vars_axpy(u, alpha, v)
+
+        return b_packed.unpack(u)
+
     def spectral_pc_fn(self):
         r"""Construct a Hessian matrix preconditioner using a partial spectrum
         generalized eigendecomposition. Assumes that the Hessian matrix
@@ -140,14 +166,15 @@ class HessianEigensolver(Eigensolver):
             H = A + B,
 
         where :math:`A` and :math:`B` are Hermitian and :math:`B` is positive
-        definite.
+        definite. :math:`A` is the matrix defining the eigenproblem solved by
+        this :class:`HessianEigensolver`.
 
         The approximation is defined via
 
         .. math::
 
             H^{-1} \approx B^{-1}
-                + V \Lambda \left( I + \Lambda \right)^{-1} V^*
+                - V \Lambda \left( I + \Lambda \right)^{-1} V^*
 
         where
 
@@ -174,8 +201,8 @@ class HessianEigensolver(Eigensolver):
             :meth:`.HessianLinearSolver.solve`.
         """
 
-        if not self.eps.isHermitian():
-            raise ValueError("Hermitian eigenproblem required")
+        if not self.is_hermitian_and_positive():
+            raise ValueError("Hermitian and positive eigenproblem required")
 
         lam, V = self.eigenpairs()
 
