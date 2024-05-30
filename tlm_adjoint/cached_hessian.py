@@ -107,7 +107,8 @@ class HessianOptimization:
                        annotate_tlm=True, solve_tlm=True):
         M = tuple(M)
         dM = tuple(dM)
-        # M0 ignored
+        if M0 is not None:
+            raise TypeError("Cannot supply M0")
 
         clear_caches(*dM)
 
@@ -152,10 +153,18 @@ class CachedHessian(Hessian, HessianOptimization):
 
     @restore_manager
     def compute_gradient(self, M, M0=None):
+        """As for :class:`Hessian.compute_gradient`, but using a cached forward
+        calculation.
+
+        *Important note*: `M` defines the control, but does not define its
+        value. The value of the control used is as for the cached forward
+        calculation.
+        """
+
         M_packed = Packed(M)
         M = tuple(M_packed)
         if M0 is not None:
-            M0 = packed(M0)
+            raise TypeError("Cannot supply M0")
 
         var_check_state_lock(self._J)
 
@@ -176,11 +185,21 @@ class CachedHessian(Hessian, HessianOptimization):
 
     @restore_manager
     def action(self, M, dM, M0=None):
+        """As for :class:`Hessian.action`, but using a cached forward
+        calculation.
+
+        *Important note*: `M` defines the control, but does not define its
+        value. The value of the control used is as for the cached forward
+        calculation.
+        """
+
         M_packed = Packed(M)
         M = tuple(M_packed)
         dM = packed(dM)
+        if len(set(map(var_id, M)).intersection(map(var_id, dM))) > 0:
+            raise ValueError("Direction and controls must be distinct")
         if M0 is not None:
-            M0 = packed(M0)
+            raise TypeError("Cannot supply M0")
 
         var_check_state_lock(self._J)
 
@@ -231,6 +250,16 @@ class CachedGaussNewton(GaussNewton, HessianOptimization):
         return manager, M, dM, self._X
 
     def action(self, M, dM, M0=None):
+        """As for :class:`GaussNewton.action`, but using a cached forward
+        calculation.
+
+        *Important note*: `M` defines the control, but does not define its
+        value. The value of the control used is as used for the cached forward
+        calculation.
+        """
+
+        if M0 is not None:
+            raise TypeError("Cannot supply M0")
         for x in self._X:
             var_check_state_lock(x)
 
