@@ -1,7 +1,7 @@
 from .interface import (
-    Packed, comm_dup_cached, garbage_cleanup, packed,
-    paused_space_type_checking, var_axpy, var_comm, var_copy, var_dtype,
-    var_get_values, var_is_cached, var_is_static, var_linf_norm,
+    Packed, comm_dup_cached, garbage_cleanup, is_var, packed,
+    paused_space_type_checking, space_dtype, var_axpy, var_comm, var_copy,
+    var_dtype, var_get_values, var_is_cached, var_is_static, var_linf_norm,
     var_local_size, var_locked, var_new, var_scalar_value, var_set_values,
     var_space, vars_assign, vars_axpy, vars_copy, vars_inner, vars_new,
     vars_new_conjugate_dual)
@@ -183,10 +183,7 @@ def minimize_scipy(forward, M0, *,
 
     M0_packed = Packed(M0)
     M0 = tuple(M0_packed)
-    if manager is None:
-        manager = _manager()
-    manager = manager.new()
-    comm = manager.comm
+    comm = (_manager() if manager is None else manager).comm
 
     with duplicated_comm(comm) as comm:
         N = [0]
@@ -897,10 +894,6 @@ def minimize_l_bfgs(forward, M0, *,
         if not issubclass(var_dtype(m0), np.floating):
             raise ValueError("Invalid dtype")
 
-    if manager is None:
-        manager = _manager()
-    manager = manager.new()
-
     J_hat = ReducedFunctional(forward, manager=manager)
 
     X, optimization_data = l_bfgs(
@@ -910,154 +903,13 @@ def minimize_l_bfgs(forward, M0, *,
     return M0_packed.unpack(X), optimization_data
 
 
-def petsc_tao(J_hat, M, *, solver_parameters=None,
-              H_0_action=None, M_inv_action=None):
-    import petsc4py.PETSc as PETSc
-
-    for m in M:
-        if not issubclass(var_dtype(m), np.floating):
-            raise ValueError("Invalid dtype")
-    if solver_parameters is None:
-        solver_parameters = {}
-    if M_inv_action is not None:
-        M_inv_action = wrapped_action(M_inv_action)
-    if H_0_action is not None:
-        H_0_action = wrapped_action(H_0_action)
-
-    comm = comm_dup_cached(J_hat.comm, key="tao")
-
-    vec_interface = PETScVecInterface(tuple(map(var_space, M)),
-                                      dtype=PETSc.RealType, comm=comm)
-    n, N = vec_interface.local_size, vec_interface.global_size
-    to_petsc, from_petsc = vec_interface.to_petsc, vec_interface.from_petsc
-
-    tao = PETSc.TAO().create(comm=comm)
-    options = PETScOptions(f"_tlm_adjoint__{tao.name:s}_")
-    options.update(solver_parameters)
-    tao.setOptionsPrefix(options.options_prefix)
-
-    M = tuple(var_new(m, static=var_is_static(m), cache=var_is_cached(m))
-              for m in M)
-
-    def objective(tao, x):
-        from_petsc(x, M)
-        J_val = J_hat.objective(M)
-        return J_val
-
-    def gradient(tao, x, g):
-        from_petsc(x, M)
-        dJ = J_hat.gradient(M)
-        to_petsc(g, dJ)
-
-    def objective_gradient(tao, x, g):
-        from_petsc(x, M)
-        J_val = J_hat.objective(M)
-        dJ = J_hat.gradient(M)
-        to_petsc(g, dJ)
-        return J_val
-
-    def hessian(tao, x, H, P):
-        H.getPythonContext().set_M(x)
-
-    class Hessian:
-        def __init__(self):
-            self._shift = 0.0
-
-        @cached_property
-        def _M(self):
-            return tuple(var_new(m, static=var_is_static(m),
-                                 cache=var_is_cached(m))
-                         for m in M)
-
-        def set_M(self, x):
-            from_petsc(x, self._M)
-            self._shift = 0.0
-
-        def shift(self, A, alpha):
-            self._shift += alpha
-
-        def mult(self, A, x, y):
-            dM = vars_new(self._M)
-            from_petsc(x, dM)
-            ddJ = J_hat.hessian_action(self._M, dM)
-            to_petsc(y, ddJ)
-            if self._shift != 0.0:
-                y.axpy(self._shift, x)
-
-    hessian_matrix = PETSc.Mat().createPython(((n, N), (n, N)),
-                                              Hessian(), comm=comm)
-    hessian_matrix.setOption(PETSc.Mat.Option.SYMMETRIC, True)
-    hessian_matrix.setUp()
-
-    tao.setObjective(objective)
-    tao.setGradient(gradient, None)
-    tao.setObjectiveGradient(objective_gradient, None)
-    tao.setHessian(hessian, hessian_matrix)
-
-    if M_inv_action is not None:
-        class GradientNorm:
-            def mult(self, A, x, y):
-                dJ = vars_new_conjugate_dual(M)
-                from_petsc(x, dJ)
-                M_inv_X = M_inv_action(*dJ)
-                to_petsc(y, M_inv_X)
-
-        M_inv_matrix = PETSc.Mat().createPython(((n, N), (n, N)),
-                                                GradientNorm(), comm=comm)
-        M_inv_matrix.setOption(PETSc.Mat.Option.SYMMETRIC, True)
-        M_inv_matrix.setUp()
-        tao.setGradientNorm(M_inv_matrix)
-    else:
-        M_inv_matrix = None
-
-    # Work around obscure change in behaviour after calling TaoSetFromOptions
-    with petsc_option_setdefault("tao_lmvm_mat_lmvm_theta", 0.0):
-        tao.setFromOptions()
-
-    if tao.getType() in {PETSc.TAO.Type.LMVM, PETSc.TAO.Type.BLMVM} \
-            and H_0_action is not None:
-        class InitialHessian:
-            pass
-
-        class InitialHessianPreconditioner:
-            def apply(self, pc, x, y):
-                X = vars_new_conjugate_dual(M)
-                from_petsc(x, X)
-                H_0_X = H_0_action(*X)
-                to_petsc(y, H_0_X)
-
-        B_0_matrix = PETSc.Mat().createPython(((n, N), (n, N)),
-                                              InitialHessian(), comm=comm)
-        B_0_matrix.setOption(PETSc.Mat.Option.SYMMETRIC, True)
-        B_0_matrix.setUp()
-
-        B_0_matrix_pc = PETSc.PC().createPython(InitialHessianPreconditioner(),
-                                                comm=comm)
-        B_0_matrix_pc.setOperators(B_0_matrix)
-        B_0_matrix_pc.setUp()
-
-        tao.setLMVMH0(B_0_matrix)
-        ksp = tao.getLMVMH0KSP()
-        ksp.setType(PETSc.KSP.Type.PREONLY)
-        ksp.setTolerances(rtol=0.0, atol=0.0, divtol=None, max_it=1)
-        ksp.setPC(B_0_matrix_pc)
-        ksp.setUp()
-    else:
-        B_0_matrix = None
-        B_0_matrix_pc = None
-
-    attach_destroy_finalizer(tao, hessian_matrix, M_inv_matrix,
-                             B_0_matrix_pc, B_0_matrix)
-
-    return tao, vec_interface
-
-
 class TAOSolver:
     r"""Functional minimization using TAO.
 
     :arg forward: A callable which accepts one or more variable arguments, and
         which returns a variable defining the forward functional.
-    :arg M: A variable or :class:`Sequence` of variables defining the control.
+    :arg space: A space or variable, or a :class:`Sequence` of these, defining
+        the control space.
     :arg solver_parameters: A :class:`Mapping` defining TAO solver parameters.
     :arg H_0_action: A callable defining the action of the non-updated Hessian
         inverse approximation on some direction. Accepts one or more variables
@@ -1083,22 +935,152 @@ class TAOSolver:
         supplied.
     """
 
-    def __init__(self, forward, M, *, solver_parameters=None,
+    def __init__(self, forward, space, *, solver_parameters=None,
                  H_0_action=None, M_inv_action=None, manager=None):
-        M = packed(M)
-        if manager is None:
-            manager = _manager()
-        manager = manager.new()
-        if M_inv_action is None:
-            M_inv_action = H_0_action
+        import petsc4py.PETSc as PETSc
+
+        space = tuple(var_space(space) if is_var(space) else space
+                      for space in packed(space))
+        if solver_parameters is None:
+            solver_parameters = {}
+        if H_0_action is not None:
+            H_0_action = wrapped_action(H_0_action)
+        if M_inv_action is not None:
+            M_inv_action = wrapped_action(M_inv_action)
+
+        for space_i in space:
+            if not issubclass(space_dtype(space_i), np.floating):
+                raise ValueError("Invalid dtype")
 
         J_hat = ReducedFunctional(forward, manager=manager)
-        tao, vec_interface = petsc_tao(
-            J_hat, M, solver_parameters=solver_parameters,
-            H_0_action=H_0_action, M_inv_action=M_inv_action)
+        comm = comm_dup_cached(J_hat.comm, key="tao")
+
+        vec_interface = PETScVecInterface(
+            space, dtype=PETSc.RealType, comm=comm)
+        n, N = vec_interface.local_size, vec_interface.global_size
+        to_petsc, from_petsc = vec_interface.to_petsc, vec_interface.from_petsc
+        new_petsc = vec_interface.new_petsc
+
+        tao = PETSc.TAO().create(comm=comm)
+        options = PETScOptions(f"_tlm_adjoint__{tao.name:s}_")
+        options.update(solver_parameters)
+        tao.setOptionsPrefix(options.options_prefix)
+
+        M = [None]
+
+        def objective(tao, x):
+            from_petsc(x, M[0])
+            J_val = J_hat.objective(M[0])
+            return J_val
+
+        def gradient(tao, x, g):
+            from_petsc(x, M[0])
+            dJ = J_hat.gradient(M[0])
+            to_petsc(g, dJ)
+
+        def objective_gradient(tao, x, g):
+            from_petsc(x, M[0])
+            J_val = J_hat.objective(M[0])
+            dJ = J_hat.gradient(M[0])
+            to_petsc(g, dJ)
+            return J_val
+
+        def hessian(tao, x, H, P):
+            H.getPythonContext().set_M(x)
+
+        class Hessian:
+            def __init__(self):
+                self._shift = 0.0
+
+            @cached_property
+            def _M_petsc(self):
+                return new_petsc()
+
+            def set_M(self, x):
+                x.copy(result=self._M_petsc)
+                self._shift = 0.0
+
+            def shift(self, A, alpha):
+                self._shift += alpha
+
+            def mult(self, A, x, y):
+                dM = vars_new(M[0])
+                from_petsc(self._M_petsc, M[0])
+                from_petsc(x, dM)
+                ddJ = J_hat.hessian_action(M[0], dM)
+                to_petsc(y, ddJ)
+                if self._shift != 0.0:
+                    y.axpy(self._shift, x)
+
+        hessian_matrix = PETSc.Mat().createPython(((n, N), (n, N)),
+                                                  Hessian(), comm=comm)
+        hessian_matrix.setOption(PETSc.Mat.Option.SYMMETRIC, True)
+        hessian_matrix.setUp()
+
+        tao.setObjective(objective)
+        tao.setGradient(gradient, None)
+        tao.setObjectiveGradient(objective_gradient, None)
+        tao.setHessian(hessian, hessian_matrix)
+
+        if M_inv_action is not None:
+            class GradientNorm:
+                def mult(self, A, x, y):
+                    dJ = vars_new_conjugate_dual(M[0])
+                    from_petsc(x, dJ)
+                    M_inv_X = M_inv_action(*dJ)
+                    to_petsc(y, M_inv_X)
+
+            M_inv_matrix = PETSc.Mat().createPython(((n, N), (n, N)),
+                                                    GradientNorm(), comm=comm)
+            M_inv_matrix.setOption(PETSc.Mat.Option.SYMMETRIC, True)
+            M_inv_matrix.setUp()
+            tao.setGradientNorm(M_inv_matrix)
+        else:
+            M_inv_matrix = None
+
+        # Work around obscure change in behaviour after calling
+        # TaoSetFromOptions
+        with petsc_option_setdefault("tao_lmvm_mat_lmvm_theta", 0.0):
+            tao.setFromOptions()
+
+        if tao.getType() in {PETSc.TAO.Type.LMVM, PETSc.TAO.Type.BLMVM} \
+                and H_0_action is not None:
+            class InitialHessian:
+                pass
+
+            class InitialHessianPreconditioner:
+                def apply(self, pc, x, y):
+                    X = vars_new_conjugate_dual(M[0])
+                    from_petsc(x, X)
+                    H_0_X = H_0_action(*X)
+                    to_petsc(y, H_0_X)
+
+            B_0_matrix = PETSc.Mat().createPython(
+                ((n, N), (n, N)), InitialHessian(), comm=comm)
+            B_0_matrix.setOption(PETSc.Mat.Option.SYMMETRIC, True)
+            B_0_matrix.setUp()
+
+            B_0_matrix_pc = PETSc.PC().createPython(
+                InitialHessianPreconditioner(), comm=comm)
+            B_0_matrix_pc.setOperators(B_0_matrix)
+            B_0_matrix_pc.setUp()
+
+            tao.setLMVMH0(B_0_matrix)
+            ksp = tao.getLMVMH0KSP()
+            ksp.setType(PETSc.KSP.Type.PREONLY)
+            ksp.setTolerances(rtol=0.0, atol=0.0, divtol=None, max_it=1)
+            ksp.setPC(B_0_matrix_pc)
+            ksp.setUp()
+        else:
+            B_0_matrix = None
+            B_0_matrix_pc = None
+
+        attach_destroy_finalizer(tao, hessian_matrix, M_inv_matrix,
+                                 B_0_matrix_pc, B_0_matrix)
 
         self._tao = tao
         self._vec_interface = vec_interface
+        self._M = M
 
         attach_destroy_finalizer(self, tao)
 
@@ -1115,13 +1097,21 @@ class TAOSolver:
     def solve(self, M):
         """Solve the optimization problem.
 
-        :arg M: Defines the solution.
+        :arg M: Defines the solution, and the initial guess.
         """
 
         M = packed(M)
         x = PETScVec(self._vec_interface)
         x.to_petsc(M)
-        self.tao.solve(x.vec)
+
+        self._M[0] = tuple(var_new(m, static=var_is_static(m),
+                                   cache=var_is_cached(m))
+                           for m in M)
+        try:
+            self.tao.solve(x.vec)
+        finally:
+            self._M[0] = None
+
         x.from_petsc(M)
         if self.tao.getConvergedReason() <= 0:
             raise RuntimeError("Convergence failure")
