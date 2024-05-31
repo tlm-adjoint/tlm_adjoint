@@ -1299,9 +1299,10 @@ class MatrixFunctionSolver:
         v = packed(v)
 
         u_petsc = PETScVec(self._A.arg_space)
-        u_petsc.to_petsc(u)
         v_petsc = PETScVec(self._A.arg_space)
-        v_petsc.to_petsc(v)
+        with paused_space_type_checking():
+            u_petsc.to_petsc(u)
+            v_petsc.to_petsc(v)
 
         self.mfn.solve(u_petsc.vec, v_petsc.vec)
         if self.mfn.getConvergedReason() <= 0:
