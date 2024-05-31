@@ -5,7 +5,7 @@ del (adjoint, alias, block_system, cached_hessian, caches, checkpointing,
      equation, equations, fixed_point, functional, hessian, hessian_system,
      instructions, interface, jax, linear_equation, markers, optimization,
      overloaded_float, patch, petsc, storage, tangent_linear, tlm_adjoint,
-     verification)
+     torch, verification)
 
 from .backend import backend, backend_RealType, backend_ScalarType
 from .backend_interface import *
