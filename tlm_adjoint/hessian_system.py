@@ -131,8 +131,11 @@ class HessianEigensolver(Eigensolver):
         super().__init__(A, B, B_inv=B_inv, *args, **kwargs)
 
     def spectral_approximation_solve(self, b):
-        r"""Compute the approximate action of an inverse Hessian action --
-        see :meth:`HessianEigensolver.spectral_pc_fn`.
+        r"""Compute the approximate action of an inverse Hessian action -- see
+        :meth:`HessianEigensolver.spectral_pc_fn`. Note that this computes the
+        approximation of the action of :math:`(A + B)^{-1}` where :math:`A` and
+        :math:`B` are the matrices defining the eigenproblem solved by this
+        :class:`HessianEigensolver`.
 
         :arg b: A variable or :class:`Sequence` of variables defining the
             direction for which the action is evaluated.
@@ -165,15 +168,14 @@ class HessianEigensolver(Eigensolver):
 
             H = A + B,
 
-        where :math:`A` and :math:`B` are Hermitian and :math:`B` is positive
-        definite. :math:`A` is the matrix defining the eigenproblem solved by
-        this :class:`HessianEigensolver`.
+        where :math:`A` and :math:`B` are the matrices defining the
+        eigenproblem solved by this :class:`HessianEigensolver`.
 
         The approximation is defined via
 
         .. math::
 
-            H^{-1} \approx B^{-1}
+            H^{-1} \approx B
                 - V \Lambda \left( I + \Lambda \right)^{-1} V^*
 
         where
