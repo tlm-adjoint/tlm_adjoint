@@ -889,7 +889,7 @@ class LinearSolver:
 
     @property
     def ksp(self):
-        """The class:`petsc4py.PETSc.KSP` used to solve the linear problem.
+        """The :class:`petsc4py.PETSc.KSP` used to solve the linear problem.
         """
 
         return self._ksp
@@ -1117,7 +1117,7 @@ class Eigensolver:
 
     @property
     def eps(self):
-        """The class:`slepc4py.SLEPc.EPS` used to solve the eigenproblem.
+        """The :class:`slepc4py.SLEPc.EPS` used to solve the eigenproblem.
         """
 
         return self._eps
@@ -1282,7 +1282,7 @@ class MatrixFunctionSolver:
 
     @property
     def mfn(self):
-        """The class:`slepc4py.SLEPc.MFN` used to compute the matrix function
+        """The :class:`slepc4py.SLEPc.MFN` used to compute the matrix function
         action.
         """
 

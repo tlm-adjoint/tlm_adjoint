@@ -1086,7 +1086,7 @@ class TAOSolver:
 
     @property
     def tao(self):
-        """The class:`petsc4py.PETSc.TAO` used to solve the optimization
+        """The :class:`petsc4py.PETSc.TAO` used to solve the optimization
         problem.
         """
 
