@@ -153,7 +153,7 @@ class CachedHessian(Hessian, HessianOptimization):
 
     @restore_manager
     def compute_gradient(self, M, M0=None):
-        """As for :meth:`Hessian.compute_gradient`, but using a cached forward
+        """As for :meth:`.Hessian.compute_gradient`, but using a cached forward
         calculation.
 
         *Important note*: `M` defines the control, but does not define its
@@ -185,7 +185,7 @@ class CachedHessian(Hessian, HessianOptimization):
 
     @restore_manager
     def action(self, M, dM, M0=None):
-        """As for :meth:`Hessian.action`, but using a cached forward
+        """As for :meth:`.Hessian.action`, but using a cached forward
         calculation.
 
         *Important note*: `M` defines the control, but does not define its
@@ -250,7 +250,7 @@ class CachedGaussNewton(GaussNewton, HessianOptimization):
         return manager, M, dM, self._X
 
     def action(self, M, dM, M0=None):
-        """As for :meth:`GaussNewton.action`, but using a cached forward
+        """As for :meth:`.GaussNewton.action`, but using a cached forward
         calculation.
 
         *Important note*: `M` defines the control, but does not define its
