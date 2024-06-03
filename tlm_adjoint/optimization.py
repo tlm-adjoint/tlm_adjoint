@@ -959,7 +959,7 @@ class TAOSolver:
             space, dtype=PETSc.RealType, comm=comm)
         n, N = vec_interface.local_size, vec_interface.global_size
         to_petsc, from_petsc = vec_interface.to_petsc, vec_interface.from_petsc
-        new_petsc = vec_interface.new_petsc
+        new_vec = vec_interface.new_vec
 
         tao = PETSc.TAO().create(comm=comm)
         options = PETScOptions(f"_tlm_adjoint__{tao.name:s}_")
@@ -994,10 +994,10 @@ class TAOSolver:
 
             @cached_property
             def _M_petsc(self):
-                return new_petsc()
+                return new_vec()
 
             def set_M(self, x):
-                x.copy(result=self._M_petsc)
+                x.copy(result=self._M_petsc.vec)
                 self._shift = 0.0
 
             def shift(self, A, alpha):
@@ -1005,7 +1005,7 @@ class TAOSolver:
 
             def mult(self, A, x, y):
                 dM = vars_new(M[0])
-                from_petsc(self._M_petsc, M[0])
+                self._M_petsc.from_petsc(M[0])
                 from_petsc(x, dM)
                 ddJ = J_hat.hessian_action(M[0], dM)
                 to_petsc(y, ddJ)
