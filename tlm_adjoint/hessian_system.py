@@ -1,7 +1,8 @@
 from .interface import (
-    Packed, packed, var_copy_conjugate, var_increment_state_lock, var_locked,
-    var_space, vars_assign, vars_assign_conjugate, vars_axpy,
-    vars_axpy_conjugate, vars_inner, var_new_conjugate_dual)
+    Packed, packed, var_copy_conjugate, var_increment_state_lock, var_copy,
+    var_is_cached, var_is_static, var_locked, var_space, vars_assign,
+    vars_assign_conjugate, vars_axpy, vars_axpy_conjugate, vars_inner,
+    var_new_conjugate_dual)
 
 from .block_system import (
     Eigensolver, LinearSolver, Matrix, MatrixFreeMatrix, TypedSpace)
@@ -41,7 +42,12 @@ class HessianMatrix(Matrix):
         x = packed(x)
         y = packed(y)
 
-        _, _, ddJ = self._H.action(self._M, x)
+        assert len(x) == len(self._M)
+        dM = tuple(var_copy(x_i, static=var_is_static(m),
+                            cache=var_is_cached(m))
+                   for x_i, m in zip(x, self._M))
+
+        _, _, ddJ = self._H.action(self._M, dM)
         vars_axpy_conjugate(y, 1.0, ddJ)
 
 

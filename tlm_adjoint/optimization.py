@@ -251,7 +251,9 @@ def minimize_scipy(forward, M0, *,
 
         def hessp(x, p):
             set(M, x)
-            P = vars_new(M)
+            P = tuple(var_new(m, static=var_is_static(m),
+                              cache=var_is_cached(m))
+                      for m in M)
             set(P, p)
             ddJ = J_hat.hessian_action(M, P)
             return get(ddJ)
@@ -1004,7 +1006,9 @@ class TAOSolver:
                 self._shift += alpha
 
             def mult(self, A, x, y):
-                dM = vars_new(M[0])
+                dM = tuple(var_new(m, static=var_is_static(m),
+                                   cache=var_is_cached(m))
+                           for m in M[0])
                 self._M_petsc.from_petsc(M[0])
                 from_petsc(x, dM)
                 ddJ = J_hat.hessian_action(M[0], dM)

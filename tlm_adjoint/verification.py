@@ -193,7 +193,9 @@ def taylor_test(forward, M, J_val, *, dJ=None, ddJ=None, seed=1.0e-2, dM=None,
     eps = seed * np.array([2 ** -p for p in range(size)], dtype=float)
     if dM is None:
         M_0_norm = vars_linf_norm(M)
-        dM = tuple(var_new(m1, static=True) for m1 in M1)
+        dM = tuple(var_new(m1, static=var_is_static(m1),
+                           cache=var_is_cached(m1))
+                   for m1 in M1)
         for dm in dM:
             dm_arr = np.random.random(var_local_size(dm))
             if issubclass(var_dtype(dm), np.complexfloating):
@@ -297,7 +299,9 @@ def taylor_test_tlm(forward, M, tlm_order, *, seed=1.0e-2, dMs=None, size=5,
     eps = seed * np.array([2 ** -p for p in range(size)], dtype=float)
     if dMs is None:
         M_0_norm = vars_linf_norm(M)
-        dMs = tuple(tuple(var_new(m, static=True) for m in M)
+        dMs = tuple(tuple(var_new(m, static=var_is_static(m),
+                                  cache=var_is_cached(m))
+                          for m in M)
                     for _ in range(tlm_order))
         for dM in dMs:
             for dm in dM:
@@ -399,7 +403,9 @@ def taylor_test_tlm_adjoint(forward, M, adjoint_order, *, seed=1.0e-2,
 
     if dMs is None:
         dM_test = None
-        dMs = tuple(tuple(var_new(m, static=True) for m in M)
+        dMs = tuple(tuple(var_new(m, static=var_is_static(m),
+                                  cache=var_is_cached(m))
+                          for m in M)
                     for _ in range(adjoint_order - 1))
         for dM in dMs:
             for dm in dM:
