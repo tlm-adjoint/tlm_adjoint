@@ -1,5 +1,5 @@
 from .interface import (
-    Packed, packed, var_copy_conjugate, var_increment_state_lock, var_copy,
+    Packed, packed, var_copy, var_copy_conjugate, var_increment_state_lock,
     var_is_cached, var_is_static, var_locked, var_space, vars_assign,
     vars_assign_conjugate, vars_axpy, vars_axpy_conjugate, vars_inner,
     var_new_conjugate_dual)
@@ -138,10 +138,10 @@ class HessianEigensolver(Eigensolver):
 
     def spectral_approximation_solve(self, b):
         r"""Compute the approximate action of an inverse Hessian action -- see
-        :meth:`HessianEigensolver.spectral_pc_fn`. Note that this computes the
+        :meth:`.HessianEigensolver.spectral_pc_fn`. Note that this computes the
         approximation of the action of :math:`(A + B)^{-1}` where :math:`A` and
         :math:`B` are the matrices defining the eigenproblem solved by this
-        :class:`HessianEigensolver`.
+        :class:`.HessianEigensolver`.
 
         :arg b: A variable or :class:`Sequence` of variables defining the
             direction for which the action is evaluated.
@@ -175,7 +175,7 @@ class HessianEigensolver(Eigensolver):
             H = A + B,
 
         where :math:`A` and :math:`B` are the matrices defining the
-        eigenproblem solved by this :class:`HessianEigensolver`.
+        eigenproblem solved by this :class:`.HessianEigensolver`.
 
         The approximation is defined via
 
