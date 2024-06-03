@@ -889,7 +889,7 @@ class LinearSolver:
 
     @property
     def ksp(self):
-        """The class:`petsc4py.PETSc.KSP` used to solve the linear problem.
+        """The :class:`petsc4py.PETSc.KSP` used to solve the linear problem.
         """
 
         return self._ksp
@@ -1086,9 +1086,9 @@ class Eigensolver:
         return self._packed.unpack(obj)
 
     def _eigenpair(self, key):
-        x_r = self._A.arg_space.new_petsc()
-        x_i = self._A.arg_space.new_petsc()
-        lam = self.eps.getEigenpair(key, x_r, x_i)
+        x_r = self._A.arg_space.new_vec()
+        x_i = self._A.arg_space.new_vec()
+        lam = self.eps.getEigenpair(key, x_r.vec, x_i.vec)
 
         if self.is_hermitian_and_positive():
             if lam.imag != 0.0:
@@ -1096,7 +1096,7 @@ class Eigensolver:
             lam = lam.real
         if self.is_hermitian_and_positive() \
                 or issubclass(PETSc.ScalarType, np.complexfloating):
-            if x_i.norm(norm_type=PETSc.NormType.NORM_INFINITY) != 0.0:
+            if x_i.vec.norm(norm_type=PETSc.NormType.NORM_INFINITY) != 0.0:
                 raise ValueError("Unexpected complex eigenvector component")
             x_i = None
 
@@ -1105,19 +1105,19 @@ class Eigensolver:
     def __getitem__(self, key):
         lam, (x_r, x_i) = self._eigenpair(key)
         v_r = self._A.arg_space.new()
-        self._A.arg_space.from_petsc(x_r, v_r)
+        x_r.from_petsc(v_r)
         if x_i is None:
             v_i = None
         else:
             v_i = self._A.arg_space.new()
-            self._A.arg_space.from_petsc(x_i, v_i)
+            x_i.from_petsc(v_i)
 
         return lam, (self._unpack(v_r),
                      None if v_i is None else self._unpack(v_i))
 
     @property
     def eps(self):
-        """The class:`slepc4py.SLEPc.EPS` used to solve the eigenproblem.
+        """The :class:`slepc4py.SLEPc.EPS` used to solve the eigenproblem.
         """
 
         return self._eps
@@ -1199,7 +1199,7 @@ class Eigensolver:
             B = None
         else:
             _, B = self.eps.getOperators()
-            z = self._A.arg_space.new_petsc()
+            z = self._A.arg_space.new_vec()
 
         error_norm = 0.0
         for i in range(self.eps.getConverged()):
@@ -1209,8 +1209,9 @@ class Eigensolver:
                 if B is None:
                     z = y
                 else:
-                    B.mult(y, z)
-                error_norm = max(error_norm, abs(z.dot(x) - int(i == j)))
+                    B.mult(y.vec, z.vec)
+                error_norm = max(error_norm,
+                                 abs(z.vec.dot(x.vec) - int(i == j)))
         return error_norm
 
 
@@ -1282,7 +1283,7 @@ class MatrixFunctionSolver:
 
     @property
     def mfn(self):
-        """The class:`slepc4py.SLEPc.MFN` used to compute the matrix function
+        """The :class:`slepc4py.SLEPc.MFN` used to compute the matrix function
         action.
         """
 
@@ -1299,9 +1300,10 @@ class MatrixFunctionSolver:
         v = packed(v)
 
         u_petsc = PETScVec(self._A.arg_space)
-        u_petsc.to_petsc(u)
         v_petsc = PETScVec(self._A.arg_space)
-        v_petsc.to_petsc(v)
+        with paused_space_type_checking():
+            u_petsc.to_petsc(u)
+            v_petsc.to_petsc(v)
 
         self.mfn.solve(u_petsc.vec, v_petsc.vec)
         if self.mfn.getConvergedReason() <= 0:

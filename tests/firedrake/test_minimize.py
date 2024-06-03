@@ -44,7 +44,7 @@ def tao_lmvm_minimization_M_inv(forward, m0):
     def M_inv_action(x):
         return x.riesz_representation("L2", solver_parameters=ls_parameters_cg)
 
-    tao_solver = TAOSolver(forward, m0,
+    tao_solver = TAOSolver(forward, m0.function_space(),
                            solver_parameters={"tao_type": "lmvm",
                                               "tao_gatol": 1.0e-11,
                                               "tao_grtol": 0.0,

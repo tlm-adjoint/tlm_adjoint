@@ -152,17 +152,20 @@ class PETScVecInterface:
             x_a[i0:i1] = var_get_values(y)
         x.setArray(x_a)
 
-    def new_petsc(self):
+    def _new_petsc(self):
         vec = PETSc.Vec().create(comm=self.comm)
         vec.setSizes((self.local_size, self.global_size))
         vec.setUp()
         return vec
 
+    def new_vec(self):
+        return PETScVec(self)
+
 
 class PETScVec:
     def __init__(self, vec_interface):
         self._vec_interface = vec_interface
-        self._vec = vec_interface.new_petsc()
+        self._vec = vec_interface._new_petsc()
 
         attach_destroy_finalizer(self, self._vec)
 

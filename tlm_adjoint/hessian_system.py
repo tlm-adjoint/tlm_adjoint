@@ -1,7 +1,8 @@
 from .interface import (
-    Packed, packed, var_copy_conjugate, var_increment_state_lock, var_locked,
-    var_space, vars_assign, vars_assign_conjugate, vars_axpy,
-    vars_axpy_conjugate, vars_inner, var_new_conjugate_dual)
+    Packed, packed, var_copy, var_copy_conjugate, var_increment_state_lock,
+    var_is_cached, var_is_static, var_locked, var_space, vars_assign,
+    vars_assign_conjugate, vars_axpy, vars_axpy_conjugate, vars_inner,
+    var_new_conjugate_dual)
 
 from .block_system import (
     Eigensolver, LinearSolver, Matrix, MatrixFreeMatrix, TypedSpace)
@@ -41,7 +42,12 @@ class HessianMatrix(Matrix):
         x = packed(x)
         y = packed(y)
 
-        _, _, ddJ = self._H.action(self._M, x)
+        assert len(x) == len(self._M)
+        dM = tuple(var_copy(x_i, static=var_is_static(m),
+                            cache=var_is_cached(m))
+                   for x_i, m in zip(x, self._M))
+
+        _, _, ddJ = self._H.action(self._M, dM)
         vars_axpy_conjugate(y, 1.0, ddJ)
 
 
@@ -131,8 +137,11 @@ class HessianEigensolver(Eigensolver):
         super().__init__(A, B, B_inv=B_inv, *args, **kwargs)
 
     def spectral_approximation_solve(self, b):
-        r"""Compute the approximate action of an inverse Hessian action --
-        see :meth:`HessianEigensolver.spectral_pc_fn`.
+        r"""Compute the approximate action of an inverse Hessian action -- see
+        :meth:`.HessianEigensolver.spectral_pc_fn`. Note that this computes the
+        approximation of the action of :math:`(A + B)^{-1}` where :math:`A` and
+        :math:`B` are the matrices defining the eigenproblem solved by this
+        :class:`.HessianEigensolver`.
 
         :arg b: A variable or :class:`Sequence` of variables defining the
             direction for which the action is evaluated.
@@ -165,15 +174,14 @@ class HessianEigensolver(Eigensolver):
 
             H = A + B,
 
-        where :math:`A` and :math:`B` are Hermitian and :math:`B` is positive
-        definite. :math:`A` is the matrix defining the eigenproblem solved by
-        this :class:`HessianEigensolver`.
+        where :math:`A` and :math:`B` are the matrices defining the
+        eigenproblem solved by this :class:`.HessianEigensolver`.
 
         The approximation is defined via
 
         .. math::
 
-            H^{-1} \approx B^{-1}
+            H^{-1} \approx B
                 - V \Lambda \left( I + \Lambda \right)^{-1} V^*
 
         where
