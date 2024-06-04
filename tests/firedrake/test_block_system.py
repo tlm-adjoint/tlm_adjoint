@@ -4,10 +4,11 @@ from tlm_adjoint.firedrake.backend_interface import matrix_multiply
 from tlm_adjoint.firedrake.block_system import (
     BlockMatrix, BlockNullspace, ConstantNullspace, DirichletBCNullspace,
     Eigensolver, LinearSolver as _BlockLinearSolver, MatrixFreeMatrix,
-    MatrixFunctionSolver, UnityNullspace, form_matrix)
+    MatrixFunctionSolver, UnityNullspace, WhiteNoiseSampler, form_matrix)
 
 from .test_base import *
 
+import itertools
 import mpi4py.MPI as MPI  # noqa: N817
 import numbers
 import numpy as np
@@ -604,3 +605,41 @@ def test_M_root(setup_test, test_leaks):
     error = var_copy(m_u_ref)
     var_axpy(error, -1.0, M_u)
     assert var_linf_norm(error) < 1.0e-15
+
+
+@pytest.mark.firedrake
+@pytest.mark.skipif(SLEPc is None, reason="SLEPc not available")
+@pytest.mark.skipif(DEFAULT_COMM.size > 1, reason="serial only")
+@pytest.mark.skipif(complex_mode, reason="real only")
+@pytest.mark.parametrize("precondition", [False, True])
+@seed_test
+def test_white_noise_sampler(setup_test, test_leaks,
+                             precondition):
+    mesh = UnitIntervalMesh(3)
+    space = FunctionSpace(mesh, "Lagrange", 3)
+    test = TestFunction(space)
+    trial = TrialFunction(space)
+
+    M = assemble(inner(trial, test) * dx)
+    V_ref = np.zeros((space_global_size(space), space_global_size(space)),
+                     dtype=space_dtype(space))
+    for i, j in itertools.product(range(space_global_size(space)),
+                                  range(space_global_size(space))):
+        V_ref[i, j] = M.petscmat[i, j]
+
+    rng = np.random.default_rng(
+        np.random.SeedSequence(entropy=np.random.get_state()[1][0]))
+    sampler = WhiteNoiseSampler(
+        space, rng, precondition=precondition,
+        solver_parameters={"mfn_tol": 1.0e-10})
+
+    V = np.zeros((space_global_size(space), space_global_size(space)),
+                 dtype=space_dtype(space))
+    N = 1000
+    for _ in range(N):
+        X = var_get_values(sampler.sample())
+        V += np.outer(X, X)
+    V /= N
+    error = abs(V - V_ref).max()
+    print(f"{error=}")
+    assert abs(error) < 0.015
