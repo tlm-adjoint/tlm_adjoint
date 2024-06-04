@@ -5,8 +5,8 @@ from .backend import (
     TestFunction, TrialFunction, backend_assemble, backend_DirichletBC, dx,
     inner)
 from ..interface import (
-    packed, space_eq, var_axpy, var_copy, var_dtype, var_get_values,
-    var_inner, var_local_size, var_new, var_set_values)
+    packed, space_dtype, space_eq, var_axpy, var_copy, var_dtype,
+    var_get_values, var_inner, var_local_size, var_new, var_set_values)
 
 from ..block_system import (
     BlockMatrix as _BlockMatrix, BlockNullspace, Eigensolver,
@@ -304,6 +304,8 @@ class WhiteNoiseSampler:
         solver_parameters.update({"mfn_type": "krylov",
                                   "fn_type": "sqrt"})
 
+        if not issubclass(space_dtype(space), np.floating):
+            raise ValueError("Real space required")
         if M is None:
             test = TestFunction(space)
             trial = TrialFunction(space)
