@@ -1305,9 +1305,8 @@ class MatrixFunctionSolver:
             u_petsc.to_petsc(u)
             v_petsc.to_petsc(v)
 
-        self.mfn.solve(u_petsc.vec, v_petsc.vec)
-        if self.mfn.getConvergedReason() <= 0:
-            raise RuntimeError("Convergence failure")
+            self.mfn.solve(u_petsc.vec, v_petsc.vec)
+            if self.mfn.getConvergedReason() <= 0:
+                raise RuntimeError("Convergence failure")
 
-        with paused_space_type_checking():
             v_petsc.from_petsc(v)

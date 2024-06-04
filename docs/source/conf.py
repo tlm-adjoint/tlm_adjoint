@@ -2,6 +2,7 @@ project = "tlm_adjoint"
 
 extensions = ["autoapi.extension",
               "nbsphinx",
+              "numpydoc",
               "sphinx.ext.intersphinx",
               "sphinx_rtd_theme"]
 
@@ -22,6 +23,8 @@ autoapi_add_toctree_entry = False
 autoapi_options = []
 
 nbsphinx_execute = "auto"
+
+numpydoc_validation_checks = {"all", "GL08"}
 
 html_theme = "sphinx_rtd_theme"
 html_theme_options = {"display_version": False}

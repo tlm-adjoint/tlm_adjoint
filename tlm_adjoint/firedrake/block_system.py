@@ -1,8 +1,12 @@
 """Firedrake specific extensions to :mod:`tlm_adjoint.block_system`.
 """
 
-from .backend import TestFunction, backend_assemble, backend_DirichletBC
-from ..interface import packed, space_eq, var_axpy, var_inner, var_new
+from .backend import (
+    TestFunction, TrialFunction, backend_assemble, backend_DirichletBC, dx,
+    inner)
+from ..interface import (
+    packed, space_dtype, space_eq, var_axpy, var_copy, var_dtype,
+    var_get_values, var_inner, var_local_size, var_new, var_set_values)
 
 from ..block_system import (
     BlockMatrix as _BlockMatrix, BlockNullspace, Eigensolver,
@@ -12,6 +16,7 @@ from ..block_system import (
 from .backend_interface import assemble, matrix_multiply
 from .variables import Constant, Function
 
+import numpy as np
 import ufl
 
 __all__ = \
@@ -34,7 +39,9 @@ __all__ = \
 
         "LinearSolver",
         "Eigensolver",
-        "MatrixFunctionSolver"
+        "MatrixFunctionSolver",
+
+        "WhiteNoiseSampler"
     ]
 
 
@@ -238,3 +245,117 @@ class LinearSolver(_LinearSolver):
         if isinstance(A, ufl.classes.Form):
             A = form_matrix(A)
         super().__init__(A, *args, **kwargs)
+
+
+class WhiteNoiseSampler:
+    r"""White noise sampling.
+
+    Utility class for drawing independent spatial white noise samples.
+    Generates a sample using
+
+    .. math::
+
+        X = \Xi^{-T} \sqrt{ \Xi^T M \Xi } Z,
+
+    where
+
+        - :math:`M` is the mass matrix.
+        - :math:`\Xi` is a preconditioner.
+        - :math:`Z` is a vector whose elements are independent standard
+          Gaussian samples.
+
+    The matrix square root is computed using SLEPc.
+
+    Parameters
+    ----------
+
+    space : :class:`firedrake.functionspaceimpl.WithGeometry`
+        The function space.
+    rng : :class:`numpy.random._generator.Generator`
+        Pseudorandom number generator.
+    precondition : :class:`bool`
+        If `True` then :math:`\Xi` is set equal to the inverse of the
+        (principal) square root of the diagonal of :math:`M`. Otherwise it is
+        set equal to the identity.
+    M : :class:`firedrake.matrix.Matrix`
+        Mass matrix. Constructed by finite element assembly if not supplied.
+    solver_parameters : :class:`Mapping`
+        Solver parameters.
+
+    Attributes
+    ----------
+
+    space : :class:`firedrake.functionspaceimpl.WithGeometry`
+        The function space.
+    rng : :class:`numpy.random._generator.Generator`
+        Pseudorandom number generator.
+    """
+
+    def __init__(self, space, rng, *, precondition=True, M=None,
+                 solver_parameters=None):
+        if solver_parameters is None:
+            solver_parameters = {}
+        else:
+            solver_parameters = dict(solver_parameters)
+        if solver_parameters.get("mfn_type", "krylov") != "krylov":
+            raise ValueError("Invalid mfn_type")
+        if solver_parameters.get("fn_type", "sqrt") != "sqrt":
+            raise ValueError("Invalid fn_type")
+        solver_parameters.update({"mfn_type": "krylov",
+                                  "fn_type": "sqrt"})
+
+        if not issubclass(space_dtype(space), np.floating):
+            raise ValueError("Real space required")
+        if M is None:
+            test = TestFunction(space)
+            trial = TrialFunction(space)
+            M = assemble(inner(trial, test) * dx)
+
+        if precondition:
+            M_diag = M.petscmat.getDiagonal()
+            pc = np.sqrt(M_diag.getArray(True))
+        else:
+            pc = None
+
+        def mult(x, y):
+            if pc is not None:
+                x = var_copy(x)
+                var_set_values(x, var_get_values(x) / pc)
+            matrix_multiply(M, x, tensor=y)
+            if pc is not None:
+                var_set_values(y, var_get_values(y) / pc)
+
+        self._space = space
+        self._M = M
+        self._rng = rng
+        self._pc = pc
+        self._mfn = MatrixFunctionSolver(
+            MatrixFreeMatrix(space, space, mult),
+            solver_parameters=solver_parameters)
+
+    @property
+    def space(self):
+        return self._space
+
+    @property
+    def rng(self):
+        return self._rng
+
+    def sample(self):
+        """Generate a new sample.
+
+        Returns
+        -------
+        X : :class:`firedrake.function.Function` or \
+                :class:`firedrake.cofunction.Cofunction`
+            The sample.
+        """
+
+        Z = Function(self.space)
+        var_set_values(
+            Z, self.rng.standard_normal(var_local_size(Z), dtype=var_dtype(Z)))
+        X = Function(self.space)
+        self._mfn.solve(Z, X)
+        if self._pc is not None:
+            var_set_values(X, var_get_values(X) * self._pc)
+        return X
