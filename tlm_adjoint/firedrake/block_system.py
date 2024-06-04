@@ -108,7 +108,7 @@ class UnityNullspace(Nullspace):
     Parameters
     ----------
 
-    space : space
+    space : :class:`firedrake.functionspaceimpl.WithGeometry`
         A scalar-valued function space containing the unity-valued function.
     alpha : scalar
         Defines the linear constraint matrix :math:`S = \alpha \left( U^* M U
@@ -295,7 +295,7 @@ class WhiteNoiseSampler:
 
     space : :class:`firedrake.functionspaceimpl.WithGeometry`
         The function space.
-    rng : :class:`numpy.random._generator.Generator`
+    rng : :class:`numpy.random.Generator`
         Pseudorandom number generator.
     precondition : :class:`bool`
         If `True` then :math:`\Xi` is set equal to the inverse of the
@@ -311,7 +311,7 @@ class WhiteNoiseSampler:
 
     space : :class:`firedrake.functionspaceimpl.WithGeometry`
         The function space.
-    rng : :class:`numpy.random._generator.Generator`
+    rng : :class:`numpy.random.Generator`
         Pseudorandom number generator.
     """
 
