@@ -59,13 +59,17 @@ def apply_bcs(u, bcs):
 
 
 class ConstantNullspace(Nullspace):
-    r"""A nullspace and left nullspace spanned by the vector of ones.
+    r"""Nullspace and left nullspace spanned by the vector of ones.
 
     Here :math:`V = U`, :math:`U` is a single column matrix whose elements are
     ones, :math:`C = M`, and :math:`M` is an identity matrix.
 
-    :arg alpha: Defines the linear constraint matrix :math:`S = \left( \alpha /
-        N \right)` where :math:`N` is the length of the vector of ones.
+    Parameters
+    ----------
+
+    alpha : scalar
+        Defines the linear constraint matrix :math:`S = \left( \alpha / N
+        \right)` where :math:`N` is the length of the vector of ones.
     """
 
     def __init__(self, *, alpha=1.0):
@@ -95,16 +99,20 @@ class ConstantNullspace(Nullspace):
 
 
 class UnityNullspace(Nullspace):
-    r"""A nullspace and left nullspace defined by the unity-valued function.
+    r"""Nullspace and left nullspace spanned by the unity-valued function.
 
     Here :math:`V = U`, :math:`U` is a single column matrix containing the
     degree-of-freedom vector for the unity-valued function, :math:`C = M`,
     and :math:`M` is the mass matrix.
 
-    :arg space: A scalar-valued function space containing the unity-valued
-        function.
-    :arg alpha: Defines the linear constraint matrix :math:`S = \alpha \left(
-        U^* M U \right)^{-1}`.
+    Parameters
+    ----------
+
+    space : :class:`firedrake.functionspaceimpl.WithGeometry`
+        A scalar-valued function space containing the unity-valued function.
+    alpha : scalar
+        Defines the linear constraint matrix :math:`S = \alpha \left( U^* M U
+        \right)^{-1}`.
     """
 
     def __init__(self, space, *, alpha=1.0):
@@ -154,16 +162,21 @@ class UnityNullspace(Nullspace):
 
 
 class DirichletBCNullspace(Nullspace):
-    r"""A nullspace and left nullspace associated with homogeneous Dirichlet
+    """Nullspace and left nullspace associated with homogeneous Dirichlet
     boundary conditions.
 
     Here :math:`V = U`, :math:`U` is a zero-one matrix with exactly one
     non-zero per column corresponding to one boundary condition
     degree-of-freedom, :math:`C = M`, and :math:`M` is an identity matrix.
 
-    :arg bcs: A :class:`firedrake.bcs.DirichletBC`, or a :class:`Sequence` of
-        :class:`firedrake.bcs.DirichletBC` objects.
-    :arg alpha: Defines the linear constraint matrix :math:`S = \alpha M`.
+    Parameters
+    ----------
+
+    bcs : :class:`firedrake.bcs.DirichletBC` or \
+            Sequence[:class:`firedrake.bcs.DirichletBC`]
+        Homogeneous Dirichlet boundary conditions
+    alpha : scalar
+        Defines the linear constraint matrix :math:`S = \\alpha M`.
     """
 
     def __init__(self, bcs, *, alpha=1.0):
@@ -206,7 +219,10 @@ class PETScMatrix(Matrix):
     :class:`firedrake.matrix.Matrix` :math:`A` defining a mapping
     :math:`V \rightarrow W`.
 
-    :arg a: The :class:`firedrake.matrix.Matrix`.
+    Parameters
+    ----------
+
+    A : :class:`firedrake.matrix.Matrix`
     """
 
     def __init__(self, A):
@@ -223,11 +239,19 @@ def form_matrix(a, *args, **kwargs):
     """Construct a :class:`.PETScMatrix` associated with a given sesquilinear
     form.
 
-    :arg a: A :class:`ufl.Form` defining the sesquilinear form.
-    :returns: The :class:`.PETScMatrix`.
+    Parameters
+    ----------
 
-    Remaining arguments are passed to the :func:`firedrake.assemble.assemble`
-    function.
+    a : :class:`ufl.Form`
+        Defines the sesquilinear form.
+    args, kwargs
+        Passed to the :func:`firedrake.assemble.assemble` function.
+
+    Returns
+    -------
+
+    :class:`.PETScMatrix`.
+        :class:`.PETScMatrix` defined by the assembled sesquilinear form.
     """
 
     return PETScMatrix(backend_assemble(a, *args, **kwargs))
@@ -271,7 +295,7 @@ class WhiteNoiseSampler:
 
     space : :class:`firedrake.functionspaceimpl.WithGeometry`
         The function space.
-    rng : :class:`numpy.random._generator.Generator`
+    rng : :class:`numpy.random.Generator`
         Pseudorandom number generator.
     precondition : :class:`bool`
         If `True` then :math:`\Xi` is set equal to the inverse of the
@@ -287,7 +311,7 @@ class WhiteNoiseSampler:
 
     space : :class:`firedrake.functionspaceimpl.WithGeometry`
         The function space.
-    rng : :class:`numpy.random._generator.Generator`
+    rng : :class:`numpy.random.Generator`
         Pseudorandom number generator.
     """
 
@@ -346,7 +370,7 @@ class WhiteNoiseSampler:
 
         Returns
         -------
-        X : :class:`firedrake.function.Function` or \
+        :class:`firedrake.function.Function` or \
                 :class:`firedrake.cofunction.Cofunction`
             The sample.
         """

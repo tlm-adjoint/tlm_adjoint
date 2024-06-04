@@ -1,4 +1,4 @@
-r"""Solvers for linear systems defined in mixed spaces.
+r"""Mixed space linear algebra utilities.
 
 Given a linear problem with a potentially singular matrix :math:`A`
 
@@ -161,8 +161,22 @@ def zip_sub(*iterables):
 class TypedSpace:
     """A space with an associated space type.
 
-    :arg space: The space.
-    :arg space_types: The space type.
+    Parameters
+    ----------
+    space : space
+        The backend space.
+    space_type : str
+        The space type.
+
+    Attributes
+    ----------
+
+    comm : communicator
+        The communicator associated with the space.
+    space : space
+        The backend space.
+    space_type : str
+        The space type.
     """
 
     def __init__(self, space, *, space_type=None):
@@ -190,27 +204,24 @@ class TypedSpace:
 
     @property
     def comm(self):
-        """The communicator associated with the space.
-        """
-
         return space_comm(self.space)
 
     @property
     def space(self):
-        """The backend space.
-        """
-
         return self._space
 
     @property
     def space_type(self):
-        """The space type.
-        """
-
         return self._space_type
 
     def new(self):
-        """Return a new variable in the space.
+        """Create a new variable in the space.
+
+        Returns
+        -------
+
+        variable
+            The new variable.
         """
 
         return space_new(self.space, space_type=self.space_type)
