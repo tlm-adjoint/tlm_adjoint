@@ -162,7 +162,7 @@ class UnityNullspace(Nullspace):
 
 
 class DirichletBCNullspace(Nullspace):
-    """Nullspace and left nullspace associated with with homogeneous Dirichlet
+    """Nullspace and left nullspace associated with homogeneous Dirichlet
     boundary conditions.
 
     Here :math:`V = U`, :math:`U` is a zero-one matrix with exactly one
