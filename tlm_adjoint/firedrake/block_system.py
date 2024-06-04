@@ -2,8 +2,8 @@
 """
 
 from .backend import (
-    TestFunction, TrialFunction, backend_assemble, backend_DirichletBC, dx,
-    inner)
+    LinearSolver as backend_LinearSolver, TestFunction, TrialFunction,
+    backend_assemble, backend_DirichletBC, dx, inner)
 from ..interface import (
     packed, space_dtype, space_eq, var_axpy, var_copy, var_dtype,
     var_get_values, var_inner, var_local_size, var_new, var_set_values)
@@ -14,8 +14,10 @@ from ..block_system import (
     MatrixFreeMatrix, MixedSpace, NoneNullspace, Nullspace, TypedSpace)
 
 from .backend_interface import assemble, matrix_multiply
-from .variables import Constant, Function
+from .parameters import copy_parameters
+from .variables import Cofunction, Constant, Function
 
+from functools import cached_property
 import numpy as np
 import ufl
 
@@ -279,7 +281,7 @@ class WhiteNoiseSampler:
 
     .. math::
 
-        X = \Xi^{-T} \sqrt{ \Xi^T M \Xi } Z,
+        X = M^{-1} \Xi^{-T} \sqrt{ \Xi^T M \Xi } Z,
 
     where
 
@@ -303,8 +305,11 @@ class WhiteNoiseSampler:
         set equal to the identity.
     M : :class:`firedrake.matrix.Matrix`
         Mass matrix. Constructed by finite element assembly if not supplied.
-    solver_parameters : :class:`Mapping`
-        Solver parameters.
+    mfn_solver_parameters : :class:`Mapping`
+        :class:`slepc4py.SLEPc.MFN` solver parameters, used for the matrix
+        square root action.
+    ksp_solver_parameters : :class:`Mapping`
+        Solver parameters, used for :math:`M^{-1}`.
 
     Attributes
     ----------
@@ -316,17 +321,19 @@ class WhiteNoiseSampler:
     """
 
     def __init__(self, space, rng, *, precondition=True, M=None,
-                 solver_parameters=None):
-        if solver_parameters is None:
-            solver_parameters = {}
+                 mfn_solver_parameters=None, ksp_solver_parameters=None):
+        if mfn_solver_parameters is None:
+            mfn_solver_parameters = {}
         else:
-            solver_parameters = dict(solver_parameters)
-        if solver_parameters.get("mfn_type", "krylov") != "krylov":
+            mfn_solver_parameters = dict(mfn_solver_parameters)
+        if mfn_solver_parameters.get("mfn_type", "krylov") != "krylov":
             raise ValueError("Invalid mfn_type")
-        if solver_parameters.get("fn_type", "sqrt") != "sqrt":
+        if mfn_solver_parameters.get("fn_type", "sqrt") != "sqrt":
             raise ValueError("Invalid fn_type")
-        solver_parameters.update({"mfn_type": "krylov",
-                                  "fn_type": "sqrt"})
+        mfn_solver_parameters.update({"mfn_type": "krylov",
+                                      "fn_type": "sqrt"})
+        if ksp_solver_parameters is None:
+            ksp_solver_parameters = {}
 
         if not issubclass(space_dtype(space), np.floating):
             raise ValueError("Real space required")
@@ -341,21 +348,31 @@ class WhiteNoiseSampler:
         else:
             pc = None
 
-        def mult(x, y):
-            if pc is not None:
-                x = var_copy(x)
-                var_set_values(x, var_get_values(x) / pc)
-            matrix_multiply(M, x, tensor=y)
-            if pc is not None:
-                var_set_values(y, var_get_values(y) / pc)
-
         self._space = space
         self._M = M
         self._rng = rng
         self._pc = pc
-        self._mfn = MatrixFunctionSolver(
-            MatrixFreeMatrix(space, space, mult),
-            solver_parameters=solver_parameters)
+        self._mfn_solver_parameters = copy_parameters(mfn_solver_parameters)
+        self._ksp_solver_parameters = copy_parameters(ksp_solver_parameters)
+
+    @cached_property
+    def _mfn(self):
+        def mult(x, y):
+            if self._pc is not None:
+                x = var_copy(x)
+                var_set_values(x, var_get_values(x) / self._pc)
+            matrix_multiply(self._M, x, tensor=y)
+            if self._pc is not None:
+                var_set_values(y, var_get_values(y) / self._pc)
+
+        return MatrixFunctionSolver(
+            MatrixFreeMatrix(self.space, self.space, mult),
+            solver_parameters=self._mfn_solver_parameters)
+
+    @cached_property
+    def _ksp(self):
+        return backend_LinearSolver(
+            self._M, solver_parameters=self._ksp_solver_parameters)
 
     @property
     def space(self):
@@ -365,21 +382,46 @@ class WhiteNoiseSampler:
     def rng(self):
         return self._rng
 
-    def sample(self):
-        """Generate a new sample.
+    def dual_sample(self):
+        r"""Generate a new sample in the dual space.
+
+        The result is given by
+
+        .. math::
+
+            X = \Xi^{-T} \sqrt{ \Xi^T M \Xi } Z,
 
         Returns
         -------
-        :class:`firedrake.function.Function` or \
-                :class:`firedrake.cofunction.Cofunction`
+        :class:`firedrake.cofunction.Cofunction`
             The sample.
         """
 
         Z = Function(self.space)
         var_set_values(
             Z, self.rng.standard_normal(var_local_size(Z), dtype=var_dtype(Z)))
-        X = Function(self.space)
+        X = Cofunction(self.space.dual())
         self._mfn.solve(Z, X)
         if self._pc is not None:
             var_set_values(X, var_get_values(X) * self._pc)
+        return X
+
+    def sample(self):
+        r"""Generate a new sample.
+
+        The result is given by
+
+        .. math::
+
+            X = M^{-1} \Xi^{-T} \sqrt{ \Xi^T M \Xi } Z,
+
+        Returns
+        -------
+        :class:`firedrake.function.Function`
+            The sample.
+        """
+
+        Y = self.dual_sample()
+        X = Function(self.space)
+        self._ksp.solve(X, Y)
         return X
