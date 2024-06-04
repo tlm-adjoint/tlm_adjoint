@@ -274,9 +274,9 @@ class WhiteNoiseSampler:
     rng : :class:`numpy.random._generator.Generator`
         Pseudorandom number generator.
     precondition : :class:`bool`
-        If `True` then :math:`\Xi` is set equal to the (principal) square root
-        of the diagonal of :math:`M`. Otherwise it is set equal to the
-        identity.
+        If `True` then :math:`\Xi` is set equal to the inverse of the
+        (principal) square root of the diagonal of :math:`M`. Otherwise it is
+        set equal to the identity.
     M : :class:`firedrake.matrix.Matrix`
         Mass matrix. Constructed by finite element assembly if not supplied.
     solver_parameters : :class:`Mapping`
