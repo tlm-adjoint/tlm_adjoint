@@ -621,17 +621,18 @@ def test_white_noise_sampler(setup_test, test_leaks,
     trial = TrialFunction(space)
 
     M = assemble(inner(trial, test) * dx)
-    V_ref = np.zeros((space_global_size(space), space_global_size(space)),
+    P_ref = np.zeros((space_global_size(space), space_global_size(space)),
                      dtype=space_dtype(space))
     for i, j in itertools.product(range(space_global_size(space)),
                                   range(space_global_size(space))):
-        V_ref[i, j] = M.petscmat[i, j]
+        P_ref[i, j] = M.petscmat[i, j]
 
     rng = np.random.default_rng(
         np.random.SeedSequence(entropy=np.random.get_state()[1][0]))
     sampler = WhiteNoiseSampler(
         space, rng, precondition=precondition,
-        solver_parameters={"mfn_tol": 1.0e-10})
+        mfn_solver_parameters={"mfn_tol": 1.0e-10},
+        ksp_solver_parameters=ls_parameters_cg)
 
     V = np.zeros((space_global_size(space), space_global_size(space)),
                  dtype=space_dtype(space))
@@ -640,6 +641,8 @@ def test_white_noise_sampler(setup_test, test_leaks,
         X = var_get_values(sampler.sample())
         V += np.outer(X, X)
     V /= N
-    error = abs(V - V_ref).max()
+    error = abs(V @ P_ref - np.eye(V.shape[0], dtype=V.dtype)).max()
     print(f"{error=}")
-    assert abs(error) < 0.015
+    assert abs(error) < 0.17
+
+    del sampler._mfn
