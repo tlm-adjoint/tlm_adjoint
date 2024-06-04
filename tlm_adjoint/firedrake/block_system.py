@@ -389,7 +389,7 @@ class WhiteNoiseSampler:
 
         .. math::
 
-            X = \Xi^{-T} \sqrt{ \Xi^T M \Xi } Z,
+            X = \Xi^{-T} \sqrt{ \Xi^T M \Xi } Z.
 
         Returns
         -------
@@ -413,7 +413,7 @@ class WhiteNoiseSampler:
 
         .. math::
 
-            X = M^{-1} \Xi^{-T} \sqrt{ \Xi^T M \Xi } Z,
+            X = M^{-1} \Xi^{-T} \sqrt{ \Xi^T M \Xi } Z.
 
         Returns
         -------
