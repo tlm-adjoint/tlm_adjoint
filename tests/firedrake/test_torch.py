@@ -51,7 +51,7 @@ def test_torch_wrapped(setup_test, test_leaks):
     def forward(m):
         return m.copy(deepcopy=True)
 
-    _, _, x_t = torch_wrapped(forward, m)
+    x_t = torch_wrapped(forward, m.function_space())(*to_torch_tensors(m))
     from_torch_tensors(x, x_t)
 
     err = var_copy(x)
@@ -79,7 +79,8 @@ def test_torch_vjp(setup_test, test_leaks):
         return J
 
     J_ref = assemble((m ** 4) * dx)
-    _, forward_t, J_t = torch_wrapped(forward, m)
+    forward_t = torch_wrapped(forward, m.function_space())
+    J_t = forward_t(*to_torch_tensors(m))
     from_torch_tensors(J, J_t)
     assert abs(complex(J) - complex(J_ref)) == 0.0
 

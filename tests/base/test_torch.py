@@ -49,7 +49,7 @@ def test_torch_wrapped(setup_test,  # noqa: F811
     def forward(m):
         return Float(m)
 
-    _, _, x_t = torch_wrapped(forward, m)
+    x_t = torch_wrapped(forward, m.space)(*to_torch_tensors(m))
     from_torch_tensors(x, x_t)
 
     assert x is not m
@@ -74,7 +74,8 @@ def test_torch_vjp(setup_test,  # noqa: F811
         return m ** 4
 
     J_ref = complex(m) ** 4
-    _, forward_t, J_t = torch_wrapped(forward, m)
+    forward_t = torch_wrapped(forward, m.space)
+    J_t = forward_t(*to_torch_tensors(m))
     from_torch_tensors(J, J_t)
     assert abs(complex(J) - complex(J_ref)) < 1.0e-15
 
