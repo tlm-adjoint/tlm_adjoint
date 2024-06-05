@@ -37,10 +37,19 @@ def to_torch_tensor(x, *args, **kwargs):
 def to_torch_tensors(X, *args, **kwargs):
     """Convert one or more variables to :class:`torch.Tensor` objects.
 
-    :arg X: A variable or :class:`Sequence` or variables.
-    :returns: A :class:`Sequence` of :class:`torch.Tensor` objects.
+    Parameters
+    ----------
 
-    Remaining arguments are passed to :func:`torch.tensor`.
+    X : variable or Sequence[variable]
+        Variables to be converted
+    args, kwargs
+        Passed to :func:`torch.tensor`.
+
+    Returns
+    -------
+
+    tuple[variable]
+        The converted variables.
     """
 
     return tuple(to_torch_tensor(x, *args, **kwargs) for x in packed(X))
@@ -54,8 +63,13 @@ def from_torch_tensor(x, x_t):
 def from_torch_tensors(X, X_t):
     """Copy data from PyTorch tensors into variables.
 
-    :arg X: A variable or :class:`Sequence` or variables.
-    :arg X_t: A :class:`Sequence` of :class:`torch.Tensor` objects.
+    Parameters
+    ----------
+
+    X : variable or Sequence[variable]
+        Output.
+    X_t : Sequence[:class:`torch.Tensor`]
+        Input.
     """
 
     X = packed(X)
@@ -113,20 +127,27 @@ def torch_wrapped(forward, M, *, manager=None):
     """Wrap a model, differentiated using tlm_adjoint, so that it can be used
     with PyTorch.
 
-    :arg forward: A callable which accepts one or more variable arguments, and
-        returns a variable or :class:`Sequence` of variables.
-    :arg M: A variable or :class:`Sequence` of variables defining the input to
-        `forward`.
-    :arg manager: An :class:`.EquationManager` used to create an internal
-        manager via :meth:`.EquationManager.new`. `manager()` is used if not
-        supplied.
-    :returns: A :class:`tuple` `(M_t, forward_t, X_t)`, where
+    Parameters
+    ----------
 
-            - `M_t` is a :class:`torch.Tensor` storing the value of `M`.
-            - `forward_t` is a version of `forward` with :class:`torch.Tensor`
-              inputs and outputs.
-            - `X_t` is a :class:`torch.Tensor` containing the value of
-              `forward` evaluated with `M` as input.
+    forward : callable
+        Accepts one or more variable arguments, and returns a variable or
+        :class:`Sequence` of variables.
+    M : variable or Sequence[variable]
+        Defines the input to `forward`.
+    manager : :class:`.EquationManager`
+        Used to create an internal manager via :meth:`.EquationManager.new`.
+        `manager()` is used if not supplied.
+
+    Returns
+    -------
+
+    (M_t, forward_t, X_t) : tuple[variable or Sequence[variable], callable, \
+            tuple[:class:`torch.Tensor`]]
+        `M_t` stores the value of `M`. `forward_t` is a version of `forward`
+        with :class:`torch.Tensor` inputs and outputs. `X_t` is a
+        :class:`torch.Tensor` containing the value of `forward` evaluated with
+        `M` as input.
     """
 
     M = packed(M)
