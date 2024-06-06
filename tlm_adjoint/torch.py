@@ -80,10 +80,11 @@ def from_torch_tensors(X, X_t):
 
 
 @restore_manager
-def _forward(forward, M, manager):
+def _forward(forward, M, manager, *, clear_caches=False):
     set_manager(manager)
     reset_manager()
-    clear_caches()
+    if clear_caches:
+        globals()["clear_caches"]()
 
     start_manager()
     with var_locked(*M):
@@ -100,32 +101,36 @@ def _forward(forward, M, manager):
 
 class TorchInterface(object if torch is None else torch.autograd.Function):
     @staticmethod
-    def forward(ctx, forward, manager, J_id, space, *M_t):
+    def forward(ctx, forward, manager, clear_caches, J_id, space, *M_t):
         M = tuple(map(space_new, space))
         from_torch_tensors(M, M_t)
 
-        X, J, adj_X = _forward(forward, M, manager)
+        X, J, adj_X = _forward(forward, M, manager,
+                               clear_caches=clear_caches)
 
         J_id[0] = var_id(J)
-        ctx._tlm_adjoint__output_ctx = (forward, manager, J_id, M, J, adj_X)
+        ctx._tlm_adjoint__output_ctx = (forward, manager, clear_caches,
+                                        J_id, M, J, adj_X)
         return to_torch_tensors(X)
 
     @staticmethod
     @restore_manager
     def backward(ctx, *adj_X_t):
-        forward, manager, J_id, M, J, adj_X = ctx._tlm_adjoint__output_ctx
+        (forward, manager, clear_caches,
+         J_id, M, J, adj_X) = ctx._tlm_adjoint__output_ctx
         if var_id(J) != J_id[0] or manager._cp_schedule.is_exhausted:
-            _, J, adj_X = _forward(forward, M, manager)
+            _, J, adj_X = _forward(forward, M, manager,
+                                   clear_caches=clear_caches)
             J_id[0] = var_id(J)
 
         from_torch_tensors(adj_X, adj_X_t)
         set_manager(manager)
         dJ = compute_gradient(J, M)
 
-        return (None, None, None, None) + to_torch_tensors(dJ)
+        return (None, None, None, None, None) + to_torch_tensors(dJ)
 
 
-def torch_wrapped(forward, space, *, manager=None):
+def torch_wrapped(forward, space, *, manager=None, clear_caches=True):
     """Wrap a model, differentiated using tlm_adjoint, so that it can be used
     with PyTorch.
 
@@ -139,6 +144,7 @@ def torch_wrapped(forward, space, *, manager=None):
         `manager()` is used if not supplied.
     space : space or Sequence[space]
         Defines the spaces for input arguments.
+    clear_caches : Whether to clear caches before a call of `forward`.
 
     Returns
     -------
@@ -155,6 +161,7 @@ def torch_wrapped(forward, space, *, manager=None):
     J_id = [None]
 
     def forward_t(*M_t):
-        return TorchInterface.apply(forward, manager, J_id, space, *M_t)
+        return TorchInterface.apply(
+            forward, manager, clear_caches, J_id, space, *M_t)
 
     return forward_t
