@@ -7,7 +7,7 @@ calculation. Follows the same principles as described in
       coupling PyTorch and Firedrake', 2023, arXiv:2303.06871v3
 """
 
-from .caches import clear_caches
+from .caches import clear_caches as _clear_caches
 from .interface import (
     Packed, packed, space_new, var_comm, var_dtype, var_get_values, var_id,
     var_locked, var_new_conjugate_dual, var_set_values)
@@ -84,7 +84,7 @@ def _forward(forward, M, manager, *, clear_caches=False):
     set_manager(manager)
     reset_manager()
     if clear_caches:
-        globals()["clear_caches"]()
+        _clear_caches()
 
     start_manager()
     with var_locked(*M):
