@@ -11,7 +11,7 @@ from .backend import backend, backend_RealType, backend_ScalarType
 from .backend_interface import *
 from .assembly import *
 from .assignment import *
-from .block_system import ConstantNullspace, DirichletBCNullspace, UnityNullspace
+from .block_system import ConstantNullspace, DirichletBCNullspace, UnityNullspace, WhiteNoiseSampler
 from .caches import *
 from .expr import *
 from .interpolation import *
