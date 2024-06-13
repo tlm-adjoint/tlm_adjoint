@@ -140,10 +140,11 @@ def torch_wrapped(forward, space, *, manager=None, clear_caches=True):
     forward : callable
         Accepts one or more variable arguments, and returns a variable or
         :class:`Sequence` of variables.
-        Used to create an internal manager via :meth:`.EquationManager.new`.
-        `manager()` is used if not supplied.
     space : space or Sequence[space]
         Defines the spaces for input arguments.
+    manager : :class:`.EquationManager`
+        Used to create an internal manager via :meth:`.EquationManager.new`.
+        `manager()` is used if not supplied.
     clear_caches : Whether to clear caches before a call of `forward`.
 
     Returns
