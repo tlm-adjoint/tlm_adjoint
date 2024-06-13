@@ -54,6 +54,11 @@ tlm_adjoint.
 - `JAX integration <examples/7_jax_integration.ipynb>`__: A finite difference
   example using JAX.
 
+Advanced tutorials
+------------------
+
+- `Hessian-based uncertainty quantification <examples/8_hessian_uq.ipynb>`__
+
 Source and license
 ------------------
 
