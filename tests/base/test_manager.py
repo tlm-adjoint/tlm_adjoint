@@ -266,7 +266,7 @@ def test_random_computational_graph(setup_test,  # noqa: F811
             for c in Cs:
                 if isinstance(c, Float):
                     # Tests that CachedHessian uses stored values
-                    c.assign(np.NAN)
+                    c.assign(np.nan)
 
             J_val = J.value
 

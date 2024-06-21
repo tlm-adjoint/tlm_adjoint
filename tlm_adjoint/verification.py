@@ -204,7 +204,7 @@ def taylor_test(forward, M, J_val, *, dJ=None, ddJ=None, seed=1.0e-2, dM=None,
             var_set_values(dm, dm_arr * (1.0 if M_0_norm == 0.0 else M_0_norm))
             del dm_arr
 
-    J_vals = np.full(eps.shape, np.NAN, dtype=complex)
+    J_vals = np.full(eps.shape, np.nan, dtype=complex)
     for i in range(eps.shape[0]):
         vars_assign(M1, M0_val)
         vars_axpy(M1, eps[i], dM)
@@ -328,7 +328,7 @@ def taylor_test_tlm(forward, M, tlm_order, *, seed=1.0e-2, dMs=None, size=5,
     J_val = var_scalar_value(forward_tlm(dMs[:-1], *M))
     dJ = var_scalar_value(forward_tlm(dMs, *M))
 
-    J_vals = np.full(eps.shape, np.NAN, dtype=complex)
+    J_vals = np.full(eps.shape, np.nan, dtype=complex)
     for i in range(eps.shape[0]):
         vars_assign(M1, M)
         vars_axpy(M1, eps[i], dMs[-1])
