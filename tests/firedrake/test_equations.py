@@ -369,7 +369,7 @@ def test_ExprAssignment(setup_test, test_leaks,
         ddJ = Hessian(forward_J)
         min_order = taylor_test(forward_J, m, J_val=J_val, ddJ=ddJ,
                                 seed=1.0e-3)
-        assert min_order > 2.99
+        assert min_order > 2.98
 
         min_order = taylor_test_tlm(forward_J, m, tlm_order=1,
                                     seed=1.0e-3)

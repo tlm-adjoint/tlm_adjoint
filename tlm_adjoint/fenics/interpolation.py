@@ -238,7 +238,7 @@ def local_mesh(mesh):
 
 def point_cells(coords, mesh):
     full_cells = np.full(coords.shape[0], -1, dtype=np.int_)
-    distances = np.full(coords.shape[0], np.NAN, dtype=backend_ScalarType)
+    distances = np.full(coords.shape[0], np.nan, dtype=backend_ScalarType)
 
     if mesh.mpi_comm().size == 1 or not has_ghost_cells(mesh):
         full_tree = mesh.bounding_box_tree()
@@ -326,7 +326,7 @@ def point_owners(x_coords, y_space, *,
     rank = comm.rank
 
     y_cells, distances_local = point_cells(x_coords, y_space.mesh())
-    distances = np.full(x_coords.shape[0], np.NAN, dtype=distances_local.dtype)
+    distances = np.full(x_coords.shape[0], np.nan, dtype=distances_local.dtype)
     comm.Allreduce(distances_local, distances, op=MPI.MIN)
 
     owner_local = np.full(x_coords.shape[0], rank, dtype=np.int_)
@@ -399,7 +399,7 @@ def interpolation_matrix(x_coords, y, y_cells, y_colors):
             else:
                 continue
             y_node = y_cell_nodes[i]
-            x_v = np.full((1,), np.NAN, dtype=backend_ScalarType)
+            x_v = np.full((1,), np.nan, dtype=backend_ScalarType)
             y_v.eval_cell(x_v, x_coords[x_node, :], Cell(y_mesh, y_cell))
             P[x_node, y_node] = x_v[0]
         y_v.vector()[y_color_nodes] = 0.0
@@ -562,12 +562,12 @@ class PointInterpolation(Equation):
 
         check_space_type(y, "primal")
         y_v = var_get_values(y)
-        x_v_local = np.full(len(X), np.NAN, dtype=backend_ScalarType)
+        x_v_local = np.full(len(X), np.nan, dtype=backend_ScalarType)
         for i in range(len(X)):
             x_v_local[i] = self._P.getrow(i).dot(y_v)
 
         comm = var_comm(y)
-        x_v = np.full(len(X), np.NAN, dtype=x_v_local.dtype)
+        x_v = np.full(len(X), np.nan, dtype=x_v_local.dtype)
         comm.Allreduce(x_v_local, x_v, op=MPI.SUM)
 
         for i, x in enumerate(X):
@@ -577,7 +577,7 @@ class PointInterpolation(Equation):
         if dep_index != len(self.X()):
             raise ValueError("Unexpected dep_index")
 
-        adj_x_v = np.full(len(adj_X), np.NAN, dtype=backend_ScalarType)
+        adj_x_v = np.full(len(adj_X), np.nan, dtype=backend_ScalarType)
         for i, adj_x in enumerate(adj_X):
             adj_x_v[i] = var_scalar_value(adj_x)
 

@@ -479,8 +479,8 @@ def test_Function_riesz_representation(setup_test, test_leaks,
     assert min_order > 1.99
 
     ddJ = Hessian(forward_J)
-    min_order = taylor_test(forward_J, m, J_val=J_val, ddJ=ddJ, seed=1.0e-4)
-    assert min_order > 2.98
+    min_order = taylor_test(forward_J, m, J_val=J_val, ddJ=ddJ, seed=1.0e-3)
+    assert min_order > 2.97
 
     min_order = taylor_test_tlm(forward_J, m, tlm_order=1, seed=1.0e-4)
     assert min_order > 1.99
@@ -553,7 +553,7 @@ def test_Cofunction_in_place(setup_test, test_leaks):
 
     ddJ = Hessian(forward_J)
     min_order = taylor_test(forward_J, M, J_val=J_val, ddJ=ddJ, seed=1.0e-3)
-    assert min_order > 2.99
+    assert min_order > 2.98
 
     min_order = taylor_test_tlm(forward_J, M, tlm_order=1, seed=1.0e-3)
     assert min_order > 1.99

@@ -70,7 +70,7 @@ def test_CachedHessian(setup_test):
         del zeta_arr
 
         # Leads to an inconsistency if the stored value is not used
-        zero.assign(np.NAN)
+        zero.assign(np.nan)
         _, _, ddJ_opt = H_opt.action(F, zeta)
         zero.assign(0.0)
         _, _, ddJ = H.action(F, zeta)
