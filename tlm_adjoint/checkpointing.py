@@ -239,7 +239,7 @@ class CheckpointStorage:
         return key, self._storage[key]
 
     def _add_initial_condition(self, *, x_id, value, refs=True, copy):
-        if self._store_ics and x_id not in self._seen_ics:
+        if self.store_ics and x_id not in self._seen_ics:
             key, _ = self._store(x_id=x_id, value=value, refs=refs, copy=copy)
             if key not in self._refs_keys:
                 self._cp_keys.add(key)
@@ -264,7 +264,7 @@ class CheckpointStorage:
 
         self.update_keys(n, i, eq)
 
-        if self._store_ics:
+        if self.store_ics:
             for eq_x in eq.X():
                 self._seen_ics.add(var_id(eq_x))
 
@@ -295,7 +295,7 @@ class CheckpointStorage:
         if nl_deps is None:
             nl_deps = eq_nl_deps
 
-        if self._store_ics:
+        if self.store_ics:
             for eq_dep, dep in zip(eq_nl_deps, nl_deps):
                 self._add_initial_condition(
                     x_id=var_id(eq_dep), value=dep,
@@ -314,7 +314,7 @@ class CheckpointStorage:
             def copy(x):
                 return _copy
 
-        if self._store_data:
+        if self.store_data:
             if (n, i) in self._data:
                 raise RuntimeError("Non-linear dependency data already stored")
 

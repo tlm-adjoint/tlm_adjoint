@@ -374,11 +374,11 @@ class CheckpointSchedule(ABC):
 
         if n < 1:
             raise ValueError("n must be positive")
-        if self._max_n is None:
-            if self._n >= n:
+        if self.max_n is None:
+            if self.n >= n:
                 self._n = n
                 self._max_n = n
             else:
                 raise RuntimeError("Invalid checkpointing state")
-        elif self._n != n or self._max_n != n:
+        elif self.n != n or self.max_n != n:
             raise RuntimeError("Invalid checkpointing state")
