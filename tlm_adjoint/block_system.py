@@ -75,7 +75,7 @@ from .interface import (
     var_locked, var_zero)
 from .manager import manager_disabled
 from .petsc import (
-    PETScOptions, PETScVec, PETScVecInterface, attach_destroy_finalizer)
+    PETScOptions, PETScVecInterface, attach_destroy_finalizer)
 
 from abc import ABC, abstractmethod
 from collections.abc import Mapping, MutableMapping, Sequence
@@ -950,9 +950,9 @@ class LinearSolver:
             self._A.nullspace.correct_soln(u)
         self._A.nullspace.correct_rhs(b_c)
 
-        u_petsc = PETScVec(self._A.arg_space)
+        u_petsc = self._A.arg_space.new_vec()
         u_petsc.to_petsc(u)
-        b_petsc = PETScVec(self._A.action_space)
+        b_petsc = self._A.action_space.new_vec()
         b_petsc.to_petsc(b_c)
         del b_c
 
@@ -1310,8 +1310,8 @@ class MatrixFunctionSolver:
         u = packed(u)
         v = packed(v)
 
-        u_petsc = PETScVec(self._A.arg_space)
-        v_petsc = PETScVec(self._A.arg_space)
+        u_petsc = self._A.arg_space.new_vec()
+        v_petsc = self._A.arg_space.new_vec()
         with paused_space_type_checking():
             u_petsc.to_petsc(u)
             v_petsc.to_petsc(v)

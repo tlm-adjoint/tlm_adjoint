@@ -194,7 +194,7 @@ class EquationManager:
             raise TypeError("cp_parameters must be supplied if cp_method is "
                             "supplied")
 
-        return EquationManager(comm=self._comm, cp_method=cp_method,
+        return EquationManager(comm=self.comm, cp_method=cp_method,
                                cp_parameters=cp_parameters)
 
     @gc_disabled
@@ -225,7 +225,7 @@ class EquationManager:
                             "supplied")
 
         self.drop_references()
-        garbage_cleanup(self._comm)
+        garbage_cleanup(self.comm)
 
         self._annotation_state = AnnotationState.STOPPED
         self._tlm_state = TangentLinearState.STOPPED
@@ -364,20 +364,20 @@ class EquationManager:
             cp_path = cp_parameters.get("path", "checkpoints~")
             cp_format = cp_parameters.get("format", "hdf5")
 
-            self._comm.barrier()
-            if self._comm.rank == 0:
+            self.comm.barrier()
+            if self.comm.rank == 0:
                 if not os.path.exists(cp_path):
                     os.makedirs(cp_path)
-            self._comm.barrier()
+            self.comm.barrier()
 
             if cp_format == "pickle":
                 cp_disk = PickleCheckpoints(
                     os.path.join(cp_path, f"checkpoint_{self._id:d}_"),
-                    comm=self._comm)
+                    comm=self.comm)
             elif cp_format == "hdf5":
                 cp_disk = HDF5Checkpoints(
                     os.path.join(cp_path, f"checkpoint_{self._id:d}_"),
-                    comm=self._comm)
+                    comm=self.comm)
             else:
                 raise ValueError(f"Unrecognized checkpointing format: "
                                  f"{cp_format:s}")
@@ -932,7 +932,7 @@ class EquationManager:
 
                     storage_state = storage.popleft()
                     assert storage_state == (n1, i)
-                garbage_cleanup(self._comm)
+                garbage_cleanup(self.comm)
             cp_n = cp_action.n1
             assert cp_n <= n + 1
             assert cp_n < n + 1 or len(storage) == 0
@@ -959,7 +959,7 @@ class EquationManager:
 
             storage = ReplayStorage(self._blocks, cp_n, n + 1,
                                     transpose_deps=transpose_deps)
-            garbage_cleanup(self._comm)
+            garbage_cleanup(self.comm)
             initialize_storage_cp = True
             storage.update(self._cp.initial_conditions(cp=False,
                                                        refs=True,
@@ -1011,7 +1011,7 @@ class EquationManager:
         """
 
         self.drop_references()
-        garbage_cleanup(self._comm)
+        garbage_cleanup(self.comm)
 
         if self._annotation_state in {AnnotationState.STOPPED,
                                       AnnotationState.FINAL}:
@@ -1039,7 +1039,7 @@ class EquationManager:
         """
 
         self.drop_references()
-        garbage_cleanup(self._comm)
+        garbage_cleanup(self.comm)
 
         if self._annotation_state == AnnotationState.FINAL:
             return
@@ -1299,7 +1299,7 @@ class EquationManager:
                             dJ[J_i] = tuple(map(var_copy, adj_X))
 
                 self.drop_references()
-            garbage_cleanup(self._comm)
+            garbage_cleanup(self.comm)
 
         for B in Bs:
             assert B.is_empty()
@@ -1337,7 +1337,7 @@ class EquationManager:
                 pass
         del action
 
-        garbage_cleanup(self._comm)
+        garbage_cleanup(self.comm)
         return Js_packed.unpack(tuple(M_packed.unpack(dJ_) for dJ_ in dJ))
 
 

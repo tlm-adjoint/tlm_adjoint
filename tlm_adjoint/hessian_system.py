@@ -182,7 +182,7 @@ class HessianEigensolver(Eigensolver):
         ----------
 
         b : variable or Sequence[variable]
-            Defines :math:`b`.
+            The conjugate of the right-hand-side :math:`b`.
 
         Returns
         -------

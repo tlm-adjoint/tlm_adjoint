@@ -169,7 +169,7 @@ class FloatSpace:
         """The real data type associated with the space.
         """
 
-        return self._dtype(0.0).real.dtype.type
+        return self.dtype(0.0).real.dtype.type
 
     @property
     def comm(self):
