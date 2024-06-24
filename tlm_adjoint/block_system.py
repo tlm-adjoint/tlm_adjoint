@@ -879,11 +879,12 @@ class LinearSolver:
                 nullspace = BlockNullspace((nullspace,))
         if solver_parameters is None:
             solver_parameters = {}
+        _pc_pc_fn = [None]
         if pc_fn is None:
             pc_pc_fn = None
         else:
             def pc_pc_fn(u, b):
-                pc_fn, = self._pc_pc_fn
+                pc_fn, = _pc_pc_fn
                 with var_locked(*iter_sub(b)):
                     pc_fn(u, b)
 
@@ -894,7 +895,7 @@ class LinearSolver:
         self._A = A
         self._ksp = ksp
         self._pc_fn = pc_fn
-        self._pc_pc_fn = [pc_fn]
+        self._pc_pc_fn = _pc_pc_fn
 
         attach_destroy_finalizer(self, ksp)
 
