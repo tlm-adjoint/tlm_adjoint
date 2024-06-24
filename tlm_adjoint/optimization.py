@@ -10,7 +10,7 @@ from .caches import clear_caches, local_caches
 from .hessian import GeneralHessian as Hessian
 from .manager import manager as _manager
 from .petsc import (
-    PETScOptions, PETScVec, PETScVecInterface, attach_destroy_finalizer,
+    PETScOptions, PETScVecInterface, attach_destroy_finalizer,
     petsc_option_setdefault)
 from .manager import (
     compute_gradient, manager_disabled, reset_manager, restore_manager,
@@ -528,13 +528,13 @@ def line_search(F, Fp, X, minus_P, *,
     taols.setFromOptions()
     taols.setUp()
 
-    x = PETScVec(vec_interface)
+    x = vec_interface.new_vec()
     x.to_petsc(X)
 
-    g = PETScVec(vec_interface)
+    g = vec_interface.new_vec()
     g.to_petsc(old_Fp_val)
 
-    s = PETScVec(vec_interface)
+    s = vec_interface.new_vec()
     s.to_petsc(minus_P)
     s.vec.scale(-1.0)
 
@@ -1105,7 +1105,7 @@ class TAOSolver:
         """
 
         M = packed(M)
-        x = PETScVec(self._vec_interface)
+        x = self._vec_interface.new_vec()
         x.to_petsc(M)
 
         self._M[0] = tuple(var_new(m, static=var_is_static(m),
