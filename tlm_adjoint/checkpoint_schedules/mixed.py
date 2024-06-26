@@ -1,51 +1,16 @@
 from checkpoint_schedules import StorageType
 from checkpoint_schedules import (
     MixedCheckpointSchedule as _MixedCheckpointSchedule)
+from checkpoint_schedules.mixed import (  # noqa: F401
+    mixed_step_memoization, mixed_steps_tabulation,
+    optimal_steps_mixed as optimal_steps)
 
 from .translation import translation
-
-import functools
 
 __all__ = \
     [
         "MixedCheckpointSchedule"
     ]
-
-
-def cache_step(fn):
-    _cache = {}
-
-    @functools.wraps(fn)
-    def wrapped_fn(n, s):
-        # Avoid some cache misses
-        s = min(s, n - 1)
-        if (n, s) not in _cache:
-            _cache[(n, s)] = fn(n, s)
-        return _cache[(n, s)]
-
-    return wrapped_fn
-
-
-@cache_step
-def optimal_steps(n, s):
-    if n <= 0:
-        raise ValueError("Invalid number of steps")
-    if s < min(1, n - 1) or s > n - 1:
-        raise ValueError("Invalid number of snapshots")
-
-    if n <= s + 1:
-        return n
-    elif s == 1:
-        return n * (n + 1) // 2 - 1
-    else:
-        m = 1 + optimal_steps(n - 1, s - 1)
-        for i in range(2, n):
-            m = min(
-                m,
-                i
-                + optimal_steps(i, s)
-                + optimal_steps(n - i, s - 1))
-        return m
 
 
 class MixedCheckpointSchedule(translation(_MixedCheckpointSchedule)):
