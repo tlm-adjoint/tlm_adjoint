@@ -32,6 +32,7 @@ jobs:
           . /home/firedrake/firedrake/bin/activate
           python3 -m pip install jax[cpu] ruff pytest-timeout pytest-xdist
           python3 -m pip install torch --index-url https://download.pytorch.org/whl/cpu
+          git clone --depth 1 https://github.com/jrmaddison/checkpoint_schedules -b jrmaddison/mixed_update
       - name: Lint
         run: |
           . /home/firedrake/firedrake/bin/activate
@@ -41,6 +42,7 @@ jobs:
       - name: Run tests
         run: |
           . /home/firedrake/firedrake/bin/activate
+          export PYTHONPATH=$PWD/checkpoint_schedules:$PYTHONPATH
           cd tlm_adjoint
           pytest -v tests/base tests/checkpoint_schedules tests/firedrake -n 2 --timeout=300 --timeout-method=thread
   test-complex:
@@ -62,6 +64,7 @@ jobs:
           . /home/firedrake/firedrake/bin/activate
           python3 -m pip install jax[cpu] ruff pytest-timeout pytest-xdist
           python3 -m pip install torch --index-url https://download.pytorch.org/whl/cpu
+          git clone --depth 1 https://github.com/jrmaddison/checkpoint_schedules -b jrmaddison/mixed_update
       - name: Lint
         run: |
           . /home/firedrake/firedrake/bin/activate
@@ -71,5 +74,6 @@ jobs:
       - name: Run tests
         run: |
           . /home/firedrake/firedrake/bin/activate
+          export PYTHONPATH=$PWD/checkpoint_schedules:$PYTHONPATH
           cd tlm_adjoint
           pytest -v tests/base tests/checkpoint_schedules tests/firedrake -n 2 --timeout=300 --timeout-method=thread
