@@ -1346,7 +1346,7 @@ def var_set_values(x, values):
 
 
 @manager_disabled()
-def var_new(x, *, name=None, static=False, cache=None, checkpoint=None,
+def var_new(x, *, name=None, static=False, cache=None,
             rel_space_type="primal"):
     """Return a new variable defined using the same space as `x`.
 
@@ -1357,18 +1357,10 @@ def var_new(x, *, name=None, static=False, cache=None, checkpoint=None,
         tangent-linear variable is zero.
     :arg cache: Defines whether results involving the new variable may be
         cached. Default `static`.
-    :arg checkpoint: Deprecated.
     :arg rel_space_type: Defines the space type of the new variable, relative
         to the space type of `x`.
     :returns: The new variable.
     """
-
-    if checkpoint is not None:
-        if checkpoint == static:
-            warnings.warn("checkpoint argument is deprecated",
-                          DeprecationWarning, stacklevel=2)
-        else:
-            raise ValueError("checkpoint argument is deprecated")
 
     if rel_space_type not in {"primal", "conjugate", "dual", "conjugate_dual"}:
         raise ValueError("Invalid relative space type")
