@@ -13,9 +13,16 @@ __all__ = \
 def gc_disabled(fn):
     """Decorator to disable the Python garbage collector.
 
-    :arg fn: A callable for which the Python garbage collector should be
-        disabled.
-    :returns: A callable for which the Python garbage collector is disabled.
+    Parameters
+    ----------
+
+    fn : callable
+        Callable for which the Python garbage collector should be disabled.
+
+    Returns:
+
+    callable
+        Callable for which the Python garbage collector is disabled.
     """
 
     @functools.wraps(fn)
@@ -33,7 +40,11 @@ def gc_disabled(fn):
 class Alias:
     """An alias to an object. Holds a reference to the original object.
 
-    :arg obj: Object to alias.
+    Parameters
+    ----------
+
+    obj : object
+        Object to alias.
     """
 
     def __init__(self, obj):
@@ -67,11 +78,15 @@ class WeakAlias:
     """An alias to an object. Does *not* hold a reference to the original
     object.
 
-    Intended to be used in combination with `weakref.finalize`, so that object
-    attributes may be updated when the original object is destroyed, but object
-    methods may still be called after it is destroyed.
+    Intended to be used in combination with :func:`weakref.finalize`, so that
+    object attributes may be updated when the original object is destroyed, but
+    object methods may still be called after it is destroyed.
 
-    :arg obj: Object to alias.
+    Parameters
+    ----------
+
+    obj : object
+        Object to alias.
     """
 
     def __init__(self, obj):
