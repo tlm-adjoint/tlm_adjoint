@@ -7,7 +7,7 @@ from .markers import ControlsMarker, FunctionalMarker
 from .tangent_linear import J_tangent_linears
 
 from collections import defaultdict
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 import copy
 import itertools
 import numpy as np
@@ -22,10 +22,16 @@ __all__ = \
 
 
 class AdjointRHS:
-    """The right-hand-side of an adjoint equation, for an adjoint variable
-    associated with an equation solving for a forward variable `x`.
+    """Adjoint equation right-hand-side component.
 
-    :arg x: The forward variable.
+    The right-hand-side of an adjoint equation, for an adjoint variable
+    associated with an operation computing a forward variable `x`.
+
+    Parameters
+    ----------
+
+    x : variable
+        The forward variable.
     """
 
     def __init__(self, x):
@@ -34,64 +40,65 @@ class AdjointRHS:
         self._b = None
 
     def b(self, *, copy=False):
-        """Return the right-hand-side, as a variable.
+        """Access the adjoint right-hand-side.
 
-        :arg copy: If `True` then a copy of the internal variable storing the
-            right-hand-side value is returned. If `False` the internal variable
-            itself is returned.
-        :returns: A variable storing the right-hand-side value.
+        Parameters
+        ----------
+
+        copy : bool
+            Whether to return a copy of the right-hand-side.
+
+        Returns
+        -------
+
+        variable
+            The right-hand-side.
         """
 
-        self.initialize()
+        self._initialize()
         if copy:
             return var_copy(self._b)
         else:
             return self._b
 
-    def initialize(self):
-        """Allocate an internal variable to store the right-hand-side.
-        Typically need not be called manually.
-        """
-
+    def _initialize(self):
         if self._b is None:
             self._b = space_new(self._space, space_type=self._space_type)
 
     def sub(self, b):
-        """Subtract a term from the right-hand-side.
+        """Subtract a term from the adjoint right-hand-side.
 
-        :arg b: The term to subtract.
-            :func:`.subtract_adjoint_derivative_action` is used to subtract the
-            term.
+        Parameters
+        ----------
+
+        b : object
+            The term to subtract.
+
+        See also
+        --------
+
+        :func:`.subtract_adjoint_derivative_action`
         """
 
         if b is not None:
-            self.initialize()
+            self._initialize()
             subtract_adjoint_derivative_action(self._b, b)
 
-    def is_empty(self):
-        """Return whether the right-hand-side is 'empty', meaning that the
-        :meth:`.AdjointRHS.initialize` method has not been called.
 
-        :returns: `True` if the :meth:`.AdjointRHS.initialize` method has not
-            been called, and `False` otherwise.
-        """
+class AdjointEquationRHS(Sequence):
+    """Adjoint equation right-hand-side.
 
-        return self._b is None
+    The right-hand-side of an adjoint equation, for adjoint variables
+    associated with an operation computing multiple forward variables.
 
+    :class:`Sequence` of :class:`.AdjointRHS` objects.
 
-class AdjointEquationRHS:
-    """The right-hand-side of an adjoint equation, for adjoint variables
-    associated with an equation solving for multiple forward variables `X`.
+    Parameters
+    ----------
 
-    Multiple :class:`.AdjointRHS` objects. The :class:`.AdjointRHS` objects may
-    be accessed by index, e.g.
-
-    .. code-block:: python
-
-        adj_eq_rhs = AdjointEquationRHS(eq)
-        adj_rhs = adj_eq_rhs[m]
-
-    :arg eq: An :class:`.Equation`. `eq.X()` defines the forward variables.
+    eq : :class:`.Equation`
+        The adjoint right-hand-sides are associated with the operation defined
+        by this :class:`.Equation`.
     """
 
     def __init__(self, eq):
@@ -100,58 +107,59 @@ class AdjointEquationRHS:
     def __getitem__(self, key):
         return self._B[key]
 
-    def b(self, *, copy=False):
-        """For the case where there is a single forward variable, return a
-        variable associated with the right-hand-side.
+    def __len__(self):
+        return len(self._B)
 
-        :arg copy: If `True` then a copy of the internal variable storing the
-            right-hand-side value is returned. If `False` the internal variable
-            itself is returned.
-        :returns: A variable storing the right-hand-side value.
+    def b(self, *, copy=False):
+        """For the case where there is a single forward variable, return
+        the associated adjoint right-hand-side.
+
+        Parameters
+        ----------
+
+        copy : bool
+            Whether to return a copy of the right-hand-side.
+
+        Returns
+        -------
+
+        variable
+            The right-hand-side.
         """
 
         b, = self._B
         return b.b(copy=copy)
 
     def B(self, *, copy=False):
-        """Return variables associated with the right-hand-sides.
+        """Return adjoint right-hand-side components.
 
-        :arg copy: If `True` then copies of the internal variables storing the
-            right-hand-side values are returned. If `False` the internal
-            variables themselves are returned.
-        :returns: A :class:`tuple` of variables storing the right-hand-side
-            values.
+        Parameters
+        ----------
+
+        copy : bool
+            Whether to return copies of the right-hand-side components.
+
+        Returns
+        -------
+
+        tuple[variable, ...]
+            The right-hand-side components.
         """
 
         return tuple(B.b(copy=copy) for B in self._B)
 
-    def is_empty(self):
-        """Return whether all of the :class:`.AdjointRHS` objects are 'empty',
-        meaning that the :meth:`.AdjointRHS.initialize` method has not been
-        called for any :class:`.AdjointRHS`.
 
-        :returns: `True` if the :meth:`.AdjointRHS.initialize` method has not
-            been called for any :class:`.AdjointRHS`, and `False` otherwise.
-        """
+class AdjointBlockRHS(Sequence):
+    """Multiple adjoint equation right-hand-sides.
 
-        for b in self._B:
-            if not b.is_empty():
-                return False
-        return True
+    :class:`Sequence` of :class:`.AdjointEquationRHS` objects.
 
+    Parameters
+    ----------
 
-class AdjointBlockRHS:
-    """The right-hand-side of multiple adjoint equations.
-
-    Multiple :class:`.AdjointEquationRHS` objects. The
-    :class:`.AdjointEquationRHS` objects may be accessed by index, e.g.
-
-    .. code-block:: python
-
-        adj_block_rhs = AdjointBlockRHS(block)
-        adj_eq_rhs = adj_block_rhs[k]
-
-    :arg block: A :class:`Sequence` of :class:`.Equation` objects.
+    block : Sequence[:class:`.Equation`, ...]
+        The adjoint right-hand-sides are associated with the operations defined
+        by these :class:`.Equation` objects.
     """
 
     def __init__(self, block):
@@ -160,16 +168,24 @@ class AdjointBlockRHS:
         self._k = len(self._block) - 1
 
     def __getitem__(self, key):
-        if key not in self._B:
+        if key not in self._B and key <= self._k:
             self._B[key] = AdjointEquationRHS(self._block[key])
         return self._B[key]
 
-    def pop(self):
-        """Remove and return the last :class:`.AdjointEquationRHS` in the
-        :class:`.AdjointBlockRHS`.
+    def __len__(self):
+        return len(self._block)
 
-        :returns: A :class:`tuple` `(n, B)`. `B` is the removed
-            :class:`.AdjointEquationRHS`, associated with block `n`.
+    def pop(self):
+        """Remove and return the last :class:`.AdjointEquationRHS`. Decreases
+        the length of this :class:`.AdjointBlockRHS` by one.
+
+        Returns
+        -------
+
+        int
+            The index of the removed :class:`.AdjointEquationRHS`.
+        :class:`.AdjointEquationRHS`
+            The removed :class:`.AdjointEquationRHS`.
         """
 
         if self._k < 0:
@@ -181,35 +197,31 @@ class AdjointBlockRHS:
         return k, B
 
     def is_empty(self):
-        """Return whether there are no :class:`.AdjointEquationRHS` objects in
-        the :class:`.AdjointBlockRHS`.
+        """Return whether this :class:`.AdjointBlockRHS` has length zero.
 
-        :returns: `True` if there are no :class:`.AdjointEquationRHS` objects
-            in the :class:`.AdjointBlockRHS`, and `False` otherwise.
+        Returns
+        -------
+
+        bool
+            Whether this :class:`.AdjointBlockRHS` has length zero.
         """
 
         return self._k < 0
 
 
-class AdjointModelRHS:
-    """The right-hand-side of multiple blocks of adjoint equations.
+class AdjointModelRHS(Mapping):
+    """Multiple blocks of adjoint right-hand-sides.
 
-    Multiple :class:`.AdjointBlockRHS` objects. The :class:`.AdjointBlockRHS`
-    objects may be accessed by index, e.g.
+    :class:`Mapping` from :class:`int` to :class:`.AdjointBlockRHS` objects.
 
-    .. code-block:: python
+    Parameters
+    ----------
 
-        adj_model_rhs = AdjointModelRHS(block)
-        adj_block_rhs = adj_block_rhs[p]
-
-    If the last block of adjoint equations contains no equations then it is
-    automatically removed from the :class:`.AdjointModelRHS`.
-
-    :arg blocks: A :class:`Sequence` of :class:`Sequence` objects each
-        containing :class:`.Equation` objects, or a :class:`Mapping` with items
-        `(index, block)` where `index` is an :class:`int` and `block` a
-        :class:`Sequence` of :class:`.Equation` objects. In the latter case
-        blocks are ordered by `index`.
+    blocks : Sequence[Sequence[:class:`.Equation`, ...], ...] or \
+           Sequence[Mapping[int, :class:`.Equation`, ...], ...]
+       The adjoint right-hand-sides are associated with the operations defined
+       by these blocks of :class:`.Equation` objects. Any trailing empty
+       :class:`.AdjointBlockRHS` objects are removed automatically.
     """
 
     def __init__(self, blocks):
@@ -225,13 +237,25 @@ class AdjointModelRHS:
     def __getitem__(self, key):
         return self._B[key]
 
-    def pop(self):
-        """Remove and return the last :class:`.AdjointEquationRHS` in the last
-        :class:`.AdjointBlockRHS` in the :class:`.AdjointModelRHS`.
+    def __iter__(self):
+        yield from self._B
 
-        :returns: A :class:`tuple` `((n, i), B)`. `B` is the removed
-            :class:`.AdjointEquationRHS`, associated with equation `i` in block
-            `n`.
+    def __len__(self):
+        return len(self._B)
+
+    def pop(self):
+        """Remove and return the last :class:`.AdjointEquationRHS` in the
+        last :class:`.AdjointBlockRHS` in this :class:`.AdjointModelRHS`. Then
+        remove any trailing empty :class:`.AdjointBlockRHS` objects.
+
+        Returns
+        -------
+
+        (n, i) : tuple[int, int]
+            The removed right-hand-side is associated with :class:`.Equation`
+            `i` in block `n`.
+        :class:`.AdjointEquationRHS`
+            The removed :class:`.AdjointEquationRHS`.
         """
 
         n = self._blocks_n[-1]
@@ -244,11 +268,13 @@ class AdjointModelRHS:
             del self._B[self._blocks_n.pop()]
 
     def is_empty(self):
-        """Return whether there are no :class:`.AdjointBlockRHS` objects in the
-        :class:`.AdjointModelRHS`.
+        """Return whether this :class:`.AdjointBlockRHS` has length zero.
 
-        :returns: `True` if there are no :class:`.AdjointBlockRHS` objects in
-            the :class:`.AdjointModelRHS`, and `False` otherwise.
+        Returns
+        -------
+
+        bool
+            Whether this :class:`.AdjointModelRHS` has length zero.
         """
 
         return len(self._B) == 0
