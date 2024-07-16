@@ -1256,7 +1256,7 @@ def slepc_mfn(A, *, solver_parameters=None, comm=None):
 
 
 class MatrixFunctionSolver:
-    r"""Matrix function action evaluation
+    """Matrix function action evaluation
 
     .. math::
 
