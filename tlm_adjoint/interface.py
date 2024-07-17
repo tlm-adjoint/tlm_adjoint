@@ -1353,6 +1353,12 @@ def var_to_petsc(x, vec):
         The output :class:`petsc4py.PETSc.Vec`. The ghost is not updated.
     """
 
+    if not np.can_cast(var_dtype(x), PETSc.ScalarType):
+        raise ValueError("Invalid dtype")
+    if var_local_size(x) != vec.getLocalSize():
+        raise ValueError("Invalid size")
+    if var_global_size(x) != vec.getSize():
+        raise ValueError("Invalid size")
     x._tlm_adjoint__var_interface_to_petsc(vec)
 
 
@@ -1369,6 +1375,12 @@ def var_from_petsc(x, vec):
         The input :class:`petsc4py.PETSc.Vec`.
     """
 
+    if not np.can_cast(var_dtype(x), PETSc.ScalarType):
+        raise ValueError("Invalid dtype")
+    if var_local_size(x) != vec.getLocalSize():
+        raise ValueError("Invalid size")
+    if var_global_size(x) != vec.getSize():
+        raise ValueError("Invalid size")
     x._tlm_adjoint__var_interface_from_petsc(vec)
 
 
