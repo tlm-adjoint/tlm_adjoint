@@ -165,12 +165,12 @@ class GaussNewton(ABC):
     ----------
 
     R_inv_action : callable
-        Accepts one or more variables as arguments, defining the direction, and
+        Accepts one or more variables as arguments, defining a direction, and
         returns a variable or a :class:`Sequence` of variables defining the
         conjugate of the action of :math:`R^{-1}` on this direction. Arguments
         should not be modified.
     B_inv_action : callable
-        Accepts one or more variables as arguments, defining the direction, and
+        Accepts one or more variables as arguments, defining a direction, and
         returns a variable or a :class:`Sequence` of variables defining the
         conjugate of the action of :math:`B^{-1}` on this direction. Arguments
         should not be modified.
@@ -191,7 +191,7 @@ class GaussNewton(ABC):
 
         .. math::
 
-            \left[ J^T R_\text{obs}^{-1} J + B^{-1} \zeta \right]^{*,T}.
+            \left[ J^T R_\text{obs}^{-1} J \zeta + B^{-1} \zeta \right]^{*,T}.
 
         Parameters
         ----------
