@@ -96,12 +96,11 @@ class PETScVecInterface:
         N = sum(map(space_global_size, spaces))
 
         isets = []
-        i0 = comm.scan(n, op=MPI.SUM) - n
+        self._i0 = i0 = comm.scan(n, op=MPI.SUM) - n
         for space in spaces:
             i1 = i0 + space_local_size(space)
-            iset = PETSc.IS().createGeneral(
-                np.arange(i0, i1, dtype=PETSc.IntType),
-                comm=comm)
+            iset = PETSc.IS().createStride(
+                size=i1 - i0, first=i0, step=1, comm=comm)
             isets.append(iset)
             i0 = i1
 
@@ -132,6 +131,12 @@ class PETScVecInterface:
     def from_petsc(self, y, X):
         if len(X) != len(self._isets):
             raise ValueError("Invalid length")
+        if y.getLocalSize() != self.local_size:
+            raise ValueError("Invalid size")
+        if y.getSize() != self.global_size:
+            raise ValueError("Invalid size")
+        if y.getOwnershipRange()[0] != self._i0:
+            raise ValueError("Invalid decomposition")
         for i, x in enumerate(X):
             y_sub = y.getSubVector(self._isets[i])
             var_from_petsc(x, y_sub)
@@ -140,6 +145,12 @@ class PETScVecInterface:
     def to_petsc(self, x, Y):
         if len(Y) != len(self._isets):
             raise ValueError("Invalid length")
+        if x.getLocalSize() != self.local_size:
+            raise ValueError("Invalid size")
+        if x.getSize() != self.global_size:
+            raise ValueError("Invalid size")
+        if x.getOwnershipRange()[0] != self._i0:
+            raise ValueError("Invalid decomposition")
         for i, y in enumerate(Y):
             x_sub = x.getSubVector(self._isets[i])
             var_to_petsc(y, x_sub)
