@@ -1,6 +1,6 @@
 from .interface import (
     Packed, VariableStateLockDictionary, packed, var_check_state_lock, var_id,
-    var_increment_state_lock, var_new, var_scalar_value)
+    var_increment_state_lock, var_scalar_value)
 
 from .caches import clear_caches
 from .hessian import GaussNewton, Hessian
@@ -136,11 +136,18 @@ class CachedHessian(Hessian, HessianOptimization):
     """Represents a Hessian associated with a given forward. Uses a cached
     forward calculation.
 
-    :arg J: A variable defining the Hessian.
-    :arg manager: The :class:`.EquationManager` used to record the forward.
-        This must have used `'memory'` checkpointing with automatic dropping of
-        variable references disabled. `manager()` is used if not supplied.
-    :arg cache_adjoint: Whether to cache the first order adjoint calculation.
+    Parameters
+    ----------
+
+    J : variable
+        Defines the functional.
+    manager : :class:`.EquationManager`
+        The :class:`.EquationManager` used to record the forward. Must have
+        recorded the forward calculation with `'memory'` checkpointing,
+        with automatic dropping of variable references disabled. `manager()` is
+        used if not supplied.
+    cache_adjoint : bool
+        Whether to cache the first order adjoint.
     """
 
     def __init__(self, J, *, manager=None, cache_adjoint=True):
@@ -152,45 +159,16 @@ class CachedHessian(Hessian, HessianOptimization):
         self._J = J
 
     @restore_manager
-    def compute_gradient(self, M, M0=None):
-        """As for :meth:`.Hessian.compute_gradient`, but using a cached forward
-        calculation.
-
-        *Important note*: `M` defines the control, but does not define its
-        value. The value of the control used is as for the cached forward
-        calculation.
-        """
-
-        M_packed = Packed(M)
-        M = tuple(M_packed)
-        if M0 is not None:
-            raise TypeError("Cannot supply M0")
-
-        var_check_state_lock(self._J)
-
-        dM = tuple(map(var_new, M))
-        manager, M, dM = self._setup_manager(M, dM, M0=M0, solve_tlm=False)
-        set_manager(manager)
-
-        dJ = var_tlm(self._J, (M, dM))
-
-        J_val = var_scalar_value(self._J)
-        dJ = compute_gradient(
-            dJ, dM,
-            cache_adjoint_degree=1 if self._cache_adjoint else 0,
-            store_adjoint=self._cache_adjoint)
-
-        reset_manager()
-        return J_val, M_packed.unpack(dJ)
-
-    @restore_manager
     def action(self, M, dM, M0=None):
-        """As for :meth:`.Hessian.action`, but using a cached forward
+        """As described in :meth:`.Hessian.action`, using a cached forward
         calculation.
 
-        *Important note*: `M` defines the control, but does not define its
-        value. The value of the control used is as for the cached forward
-        calculation.
+        Warnings
+        --------
+
+        `M` defines the control, but does not define its value. The value of
+        the control used is as for the recorded forward calculation. `M0` is
+        unused.
         """
 
         M_packed = Packed(M)
@@ -223,12 +201,20 @@ class CachedGaussNewton(GaussNewton, HessianOptimization):
     """Represents a Gauss-Newton approximation to a Hessian associated with a
     given forward. Uses a cached forward calculation.
 
-    :arg X: A variable or a :class:`Sequence` of variables defining the state.
-    :arg R_inv_action: See :class:`.GaussNewton`.
-    :arg B_inv_action: See :class:`.GaussNewton`.
-    :arg manager: The :class:`.EquationManager` used to record the forward.
-        This must have used `'memory'` checkpointing with automatic dropping of
-        variable references disabled. `manager()` is used if not supplied.
+    Parameters
+    ----------
+
+    X : variable or Sequence[variable, ...]
+        Defines the state.
+    R_inv_action : callable
+        See :class:`.GaussNewton`.
+    B_inv_action : callable
+        See :class:`.GaussNewton`.
+    manager : :class:`.EquationManager`
+        The :class:`.EquationManager` used to record the forward. Must have
+        recorded the forward calculation with `'memory'` checkpointing,
+        with automatic dropping of variable references disabled. `manager()` is
+        used if not supplied.
     """
 
     def __init__(self, X, R_inv_action, B_inv_action=None, *,
@@ -250,12 +236,15 @@ class CachedGaussNewton(GaussNewton, HessianOptimization):
         return manager, M, dM, self._X
 
     def action(self, M, dM, M0=None):
-        """As for :meth:`.GaussNewton.action`, but using a cached forward
+        """As described in :meth:`.GaussNewton.action`, using a cached forward
         calculation.
 
-        *Important note*: `M` defines the control, but does not define its
-        value. The value of the control used is as used for the cached forward
-        calculation.
+        Warnings
+        --------
+
+        `M` defines the control, but does not define its value. The value of
+        the control used is as for the recorded forward calculation. `M0` is
+        unused.
         """
 
         if M0 is not None:

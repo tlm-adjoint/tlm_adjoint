@@ -175,7 +175,7 @@ class DirichletBCNullspace(Nullspace):
     ----------
 
     bcs : :class:`firedrake.bcs.DirichletBC` or \
-            Sequence[:class:`firedrake.bcs.DirichletBC`]
+            Sequence[:class:`firedrake.bcs.DirichletBC`, ...]
         Homogeneous Dirichlet boundary conditions.
     alpha : scalar
         Defines the linear constraint matrix :math:`S = \\alpha M`.

@@ -70,7 +70,7 @@ class HessianLinearSolver(LinearSolver):
 
     H : :class:`.Hessian`
         Defines :math:`H`.
-    M : variable or Sequence[variable]
+    M : variable or Sequence[variable, ...]
         Defines the control and its value.
     args, kwargs
         Passed to the :class:`tlm_adjoint.block_system.LinearSolver`
@@ -95,9 +95,9 @@ class HessianLinearSolver(LinearSolver):
         Parameters
         ----------
 
-        u : variable or Sequence[variable]
+        u : variable or Sequence[variable, ...]
             The solution :math:`u`. Also defines the initial guess.
-        b : variable or Sequence[variable]
+        b : variable or Sequence[variable, ...]
             The conjugate of the right-hand-side :math:`b`.
         args, kwargs
             Passed to the :meth:`tlm_adjoint.block_system.LinearSolver.solve`
@@ -124,7 +124,7 @@ class HessianEigensolver(Eigensolver):
 
     H : :class:`.Hessian`
         Defines :math:`H`.
-    M : variable or Sequence[variable]
+    M : variable or Sequence[variable, ...]
         Defines the control and its value.
     B_action : callable
         Accepts one or more variables as arguments, defining the direction, and
@@ -181,13 +181,13 @@ class HessianEigensolver(Eigensolver):
         Parameters
         ----------
 
-        b : variable or Sequence[variable]
+        b : variable or Sequence[variable, ...]
             The conjugate of the right-hand-side :math:`b`.
 
         Returns
         -------
 
-        variable or Sequence[variable]
+        variable or tuple[variable, ...]
             The approximation for the action on :math:`b`.
 
         See also

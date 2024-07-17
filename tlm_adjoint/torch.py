@@ -40,15 +40,15 @@ def to_torch_tensors(X, *args, **kwargs):
     Parameters
     ----------
 
-    X : variable or Sequence[variable]
-        Variables to be converted
+    X : variable or Sequence[variable, ...]
+        Variables to be converted.
     args, kwargs
         Passed to :func:`torch.tensor`.
 
     Returns
     -------
 
-    tuple[variable]
+    tuple[variable, ...]
         The converted variables.
     """
 
@@ -66,9 +66,9 @@ def from_torch_tensors(X, X_t):
     Parameters
     ----------
 
-    X : variable or Sequence[variable]
+    X : variable or Sequence[variable, ...]
         Output.
-    X_t : Sequence[:class:`torch.Tensor`]
+    X_t : Sequence[:class:`torch.Tensor`, ...]
         Input.
     """
 
@@ -140,7 +140,7 @@ def torch_wrapped(forward, space, *, manager=None, clear_caches=True):
     forward : callable
         Accepts one or more variable arguments, and returns a variable or
         :class:`Sequence` of variables.
-    space : space or Sequence[space]
+    space : space or Sequence[space, ...]
         Defines the spaces for input arguments.
     manager : :class:`.EquationManager`
         Used to create an internal manager via :meth:`.EquationManager.new`.
