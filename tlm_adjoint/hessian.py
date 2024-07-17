@@ -24,51 +24,42 @@ __all__ = \
 
 
 class Hessian(ABC):
-    r"""Represents a Hessian associated with a given forward. Abstract base
-    class.
+    """Represents a Hessian associated with a given forward.
     """
 
     def __init__(self):
         pass
 
     @abstractmethod
-    def compute_gradient(self, M, M0=None):
-        r"""Compute the (conjugate of the) derivative of a functional with
-        respect to a control using an adjoint.
-
-        :arg M: A variable or a :class:`Sequence` of variables defining the
-            control.
-        :arg M0: A variable or a :class:`Sequence` of variables defining the
-            control value. `M` is used if not supplied.
-        :returns: The (conjugate of the) derivative. A variable or
-            :class:`Sequence` of variables, depending on the type of `M`.
-        """
-
-        raise NotImplementedError
-
-    @abstractmethod
     def action(self, M, dM, M0=None):
         r"""Compute (the conjugate of) a Hessian action on some :math:`\zeta`
-        using an adjoint of a tangent-linear. i.e. considering derivatives to
-        be row vectors, compute
+        using an adjoint of a tangent-linear. i.e. compute
 
         .. math::
 
             \left( \frac{d}{dm} \left[
                 \frac{d \mathcal{J}}{d m} \zeta \right] \right)^{*,T}.
 
-        :arg M: A variable or a :class:`Sequence` of variables defining the
-            control.
-        :arg dM: A variable or a :class:`Sequence` of variables defining
-            :math:`\zeta`. The (conjugate of the) Hessian action on
-            :math:`\zeta` is computed.
-        :arg M0: A variable or a :class:`Sequence` of variables defining the
-            control value. `M` is used if not supplied.
-        :returns: A tuple `(J, dJ, ddJ)`. `J` is the value of the functional.
-            `dJ` is the value of :math:`\left( d \mathcal{J} / d m \right)
-            \zeta`. `ddJ` stores the (conjugate of the) result of the Hessian
-            action on :math:`\zeta`, and is a variable or a :class:`Sequence`
-            of variables depending on the type of `M`.
+        Parameters
+        ----------
+
+        M : variable or Sequence[variable, ...]
+            Defines the control.
+        dM : variable or Sequence[variable, ...]
+            Defines the direction :math:`\zeta`.
+        M0 : variable or Sequence[variable, ...]
+            Defines the value of the control. `M` is used if not supplied.
+
+        Returns
+        -------
+
+        J : Complex
+            Value of the functional.
+        dJ : variable or tuple[variable, ...]
+            Value of the directional derivative
+            :math:`\left( d \mathcal{J} / d m \right) \zeta`.
+        ddJ : variable or tuple[variable, ...]
+            The (conjugate of) the Hessian action on :math:`\zeta`.
         """
 
         raise NotImplementedError
@@ -86,14 +77,17 @@ class Hessian(ABC):
 
 class GeneralHessian(Hessian):
     """Represents a Hessian associated with a given forward. Calls to
-    :meth:`.GeneralHessian.compute_gradient` or :meth:`.GeneralHessian.action`
-    re-run the forward.
+    :meth:`.GeneralHessian.action` re-run the forward.
 
-    :arg forward: A callable which accepts one or more variable arguments, and
-        which returns a variable defining the forward functional.
-    :arg manager: An :class:`.EquationManager` used to create an internal
-        manager via :meth:`.EquationManager.new`. `manager()` is used if not
-        supplied.
+    Parameters
+    ----------
+
+    forward : callable
+        Accepts one or more variable arguments, and returns a variable
+        defining the functional.
+    manager : :class:`.EquationManager`
+        Used to create an internal manager via :meth:`.EquationManager.new`.
+        `manager()` is used if not supplied.
     """
 
     def __init__(self, forward, *, manager=None):
@@ -110,36 +104,6 @@ class GeneralHessian(Hessian):
         super().__init__()
         self._forward = forward
         self._manager = manager
-
-    @local_caches
-    @restore_manager
-    def compute_gradient(self, M, M0=None):
-        M_packed = Packed(M)
-        M = tuple(M_packed)
-        if M0 is not None:
-            M0 = packed(M0)
-
-        set_manager(self._manager)
-        reset_manager()
-
-        if M0 is None:
-            M0 = M
-        assert len(M0) == len(M)
-        M = tuple(var_copy(m0, name=var_name(m),
-                           static=var_is_static(m),
-                           cache=var_is_cached(m))
-                  for m0, m in zip(M0, M))
-        del M0
-
-        start_manager()
-        J = self._forward(*M)
-        stop_manager()
-
-        J_val = var_scalar_value(J)
-        dJ = compute_gradient(J, M)
-
-        reset_manager()
-        return J_val, M_packed.unpack(dJ)
 
     @local_caches
     @restore_manager
@@ -184,10 +148,9 @@ class GeneralHessian(Hessian):
 
 
 class GaussNewton(ABC):
-    r"""Represents a Gauss-Newton approximation for a Hessian. Abstract base
-    class.
+    r"""Represents a Gauss-Newton approximation for a Hessian.
 
-    In terms of matrices this defines a Hessian approximation
+    This defines a Hessian approximation
 
     .. math::
 
@@ -198,14 +161,19 @@ class GaussNewton(ABC):
     covariance and :math:`B^{-1}` corresponds to the background inverse
     covariance.
 
-    :arg R_inv_action: A callable which accepts one or more variables, and
-        returns the conjugate of the action of the operator corresponding to
-        :math:`R_\text{obs}^{-1}` on those variables, returning the result as a
-        variable or a :class:`Sequence` of variables.
-    :arg B_inv_action: A callable which accepts one or more variables, and
-        returns the conjugate of the action of the operator corresponding to
-        :math:`B^{-1}` on those variables, returning the result as a variable
-        or a :class:`Sequence` of variables.
+    Parameters
+    ----------
+
+    R_inv_action : callable
+        Accepts one or more variables as arguments, defining the direction, and
+        returns a variable or a :class:`Sequence` of variables defining the
+        conjugate of the action of :math:`R^{-1}` on this direction. Arguments
+        should not be modified.
+    B_inv_action : callable
+        Accepts one or more variables as arguments, defining the direction, and
+        returns a variable or a :class:`Sequence` of variables defining the
+        conjugate of the action of :math:`B^{-1}` on this direction. Arguments
+        should not be modified.
     """
 
     def __init__(self, R_inv_action, B_inv_action=None):
@@ -223,18 +191,17 @@ class GaussNewton(ABC):
 
         .. math::
 
-            \left( H \zeta \right)^{*,T}.
+            \left[ J^T R_\text{obs}^{-1} J + B^{-1} \zeta \right]^{*,T}.
 
-        :arg M: A variable or a :class:`Sequence` of variables defining the
-            control.
-        :arg dM: A variable or a :class:`Sequence` of variables defining
-            :math:`\zeta`. The (conjugate of the) approximated Hessian action
-            on :math:`\zeta` is computed.
-        :arg M0: A variable or a :class:`Sequence` of variables defining the
-            control value. `M` is used if not supplied.
-        :returns: The (conjugate of the) result of the approximated Hessian
-            action on :math:`\zeta`. A variable or a :class:`Sequence` of
-            variables depending on the type of `M`.
+        Parameters
+        ----------
+
+        M : variable or Sequence[variable, ...]
+            Defines the control.
+        dM : variable or Sequence[variable, ...]
+            Defines the direction :math:`\zeta`.
+        M0 : variable or Sequence[variable, ...]
+            Defines the value of the control. `M` is used if not supplied.
         """
 
         M_packed = Packed(M)
@@ -297,14 +264,19 @@ class GeneralGaussNewton(GaussNewton):
     """Represents a Gauss-Newton approximation to a Hessian associated with a
     given forward. Calls to :meth:`.GaussNewton.action` re-run the forward.
 
-    :arg forward: A callable which accepts one or more variable arguments, and
-        which returns a variable or :class:`Sequence` of variables defining the
-        state.
-    :arg R_inv_action: See :class:`.GaussNewton`.
-    :arg B_inv_action: See :class:`.GaussNewton`.
-    :arg manager: An :class:`.EquationManager` used to create an internal
-        manager via :meth:`.EquationManager.new`. `manager()` is used if not
-        supplied.
+    Parameters
+    ----------
+
+    forward : callable
+        Accepts one or more variable arguments, and returns a variable
+        or :class:`Sequence` of variables defining the state.
+    R_inv_action : callable
+        See :class:`.GaussNewton`.
+    B_inv_action : callable
+        See :class:`.GaussNewton`.
+    manager : :class:`.EquationManager`
+        Used to create an internal manager via :meth:`.EquationManager.new`.
+        `manager()` is used if not supplied.
     """
 
     def __init__(self, forward, R_inv_action, B_inv_action=None, *,
