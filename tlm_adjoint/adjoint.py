@@ -268,7 +268,7 @@ class AdjointModelRHS(Mapping):
             del self._B[self._blocks_n.pop()]
 
     def is_empty(self):
-        """Return whether this :class:`.AdjointBlockRHS` has length zero.
+        """Return whether this :class:`.AdjointModelRHS` has length zero.
 
         Returns
         -------
