@@ -2,7 +2,8 @@
 """
 
 from .backend import (
-    backend_Constant, backend_Function, backend_ScalarType, backend_Vector)
+    as_backend_type, backend_Constant, backend_Function, backend_ScalarType,
+    backend_Vector)
 from ..interface import (
     SpaceInterface, VariableInterface, check_space_types,
     register_subtract_adjoint_derivative_action,
@@ -428,6 +429,15 @@ class FunctionInterface(VariableInterface):
     @check_vector
     def _set_values(self, values):
         self.vector().set_local(values)
+        self.vector().apply("insert")
+
+    def _to_petsc(self, vec):
+        self_v = as_backend_type(self.vector()).vec()
+        self_v.copy(result=vec)
+
+    def _from_petsc(self, vec):
+        self_v = as_backend_type(self.vector()).vec()
+        vec.copy(result=self_v)
         self.vector().apply("insert")
 
     @check_vector

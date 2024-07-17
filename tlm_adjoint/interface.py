@@ -108,6 +108,7 @@ __all__ = \
         "var_comm",
         "var_copy",
         "var_dtype",
+        "var_from_petsc",
         "var_get_values",
         "var_global_size",
         "var_id",
@@ -128,6 +129,7 @@ __all__ = \
         "var_space",
         "var_space_type",
         "var_state",
+        "var_to_petsc",
         "var_update_caches",
         "var_update_state",
         "var_zero",
@@ -793,8 +795,9 @@ class VariableInterface:
              "_state", "_update_state", "_is_static", "_is_cached", "_caches",
              "_zero", "_assign", "_axpy", "_inner", "_linf_norm",
              "_local_size", "_global_size", "_local_indices", "_get_values",
-             "_set_values", "_new", "_copy", "_replacement", "_is_replacement",
-             "_is_scalar", "_scalar_value", "_is_alias")
+             "_set_values", "_to_petsc", "_from_petsc", "_new", "_copy",
+             "_replacement", "_is_replacement", "_is_scalar", "_scalar_value",
+             "_is_alias")
 
     def __init__(self):
         raise RuntimeError("Cannot instantiate VariableInterface object")
@@ -861,6 +864,14 @@ class VariableInterface:
 
     def _set_values(self, values):
         raise NotImplementedError("Method not overridden")
+
+    def _to_petsc(self, vec):
+        values = var_get_values(self)
+        vec.setArray(values)
+
+    def _from_petsc(self, vec):
+        values = vec.getArray(True)
+        var_set_values(self, values)
 
     def _new(self, *, name=None, static=False, cache=None,
              rel_space_type="primal"):
@@ -1325,6 +1336,40 @@ def var_get_values(x):
     if values.shape != (var_local_size(x),):
         raise ValueError("Invalid shape")
     return values
+
+
+@manager_disabled()
+def var_to_petsc(x, vec):
+    """Copy values from a variable into a :class:`petsc4py.PETSc.Vec`.
+
+    Does not update the :class:`petsc4py.PETSc.Vec` ghost.
+
+    Parameters
+    ----------
+
+    x : variable
+        The input variable.
+    vec : :class:`petsc4py.PETSc.Vec`
+        The output :class:`petsc4py.PETSc.Vec`. The ghost is not updated.
+    """
+
+    x._tlm_adjoint__var_interface_to_petsc(vec)
+
+
+@manager_disabled()
+def var_from_petsc(x, vec):
+    """Copy values from a :class:`petsc4py.PETSc.Vec` into a variable.
+
+    Parameters
+    ----------
+
+    x : variable
+        The output variable.
+    vec : :class:`petsc4py.PETSc.Vec`
+        The input :class:`petsc4py.PETSc.Vec`.
+    """
+
+    x._tlm_adjoint__var_interface_from_petsc(vec)
 
 
 @manager_disabled()
