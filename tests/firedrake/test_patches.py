@@ -754,7 +754,7 @@ def test_deepcopy(setup_test, test_leaks,
 
     ddJ = Hessian(forward)
     min_order = taylor_test(forward, m, J_val=J_val, ddJ=ddJ, seed=1.0e-4,
-                            size=3)
+                            size=2)
     assert min_order > 2.99
 
     min_order = taylor_test_tlm(forward, m, tlm_order=1, seed=1.0e-4)

@@ -33,6 +33,7 @@ the primal space.
 This module defines a default communicator `DEFAULT_COMM`.
 """
 
+from .alias import gc_disabled
 from .manager import manager_disabled
 
 from collections.abc import MutableMapping, Sequence
@@ -297,7 +298,6 @@ def comm_dup_cached(comm, *, key=None):
             _parent_comms.pop(dup_comm.py2f(), None)
             _dupped_comms.pop(comm_py2f, None)
             _dup_comms.pop(key, None)
-            garbage_cleanup(dup_comm)
             if MPI is not None and not MPI.Is_finalized():
                 dup_comm.Free()
 
@@ -323,6 +323,7 @@ if MPI is not None and PETSc is not None and hasattr(PETSc, "garbage_cleanup"):
     register_garbage_cleanup(garbage_cleanup_base)
 
 
+@gc_disabled
 def garbage_cleanup(comm=None):
     """Call `petsc4py.PETSc.garbage_cleanup(comm)` for a communicator, and any
     communicators duplicated from it using :func:`.comm_dup_cached`.
@@ -348,9 +349,17 @@ def garbage_cleanup(comm=None):
             comms[comm.py2f()] = comm
             comm_stack.extend(_dupped_comms.get(comm.py2f(), {}).values())
 
-    for comm in comms.values():
-        for fn in _garbage_cleanup:
-            fn(comm)
+    if PETSc is not None:
+        petsc_comms = tuple(PETSc.Comm(comm).duplicate()
+                            for comm in comms.values())
+    try:
+        for comm in comms.values():
+            for fn in _garbage_cleanup:
+                fn(comm)
+    finally:
+        if PETSc is not None:
+            for comm in petsc_comms:
+                comm.destroy()
 
 
 def weakref_method(fn, obj):

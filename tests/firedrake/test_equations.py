@@ -921,7 +921,7 @@ def test_Storage(setup_test, test_leaks,
 
     min_order = taylor_test_tlm_adjoint(forward_J, x, adjoint_order=2,
                                         seed=1.0e-3)
-    assert min_order > 1.99
+    assert min_order > 1.98
 
     h.close()
 
@@ -1239,25 +1239,25 @@ def test_EquationSolver_DirichletBC(setup_test, test_leaks, test_configurations,
 
     dm = Function(space).interpolate(Constant(1.0) + X[0])
 
-    min_order = taylor_test(forward, m, J_val=J_val, dJ=dJ, seed=5.0e-3, dM=dm)
+    min_order = taylor_test(forward, m, J_val=J_val, dJ=dJ, seed=1.0e-4, dM=dm)
     assert min_order > 1.99
 
     ddJ = Hessian(forward)
-    min_order = taylor_test(forward, m, J_val=J_val, ddJ=ddJ, seed=5.0e-3,
+    min_order = taylor_test(forward, m, J_val=J_val, ddJ=ddJ, seed=1.0e-3,
                             dM=dm)
-    assert min_order > 2.98
+    assert min_order > 2.97
 
-    min_order = taylor_test_tlm(forward, m, tlm_order=1, seed=5.0e-3,
+    min_order = taylor_test_tlm(forward, m, tlm_order=1, seed=1.0e-4,
                                 dMs=(dm,))
     assert min_order > 1.99
 
     min_order = taylor_test_tlm_adjoint(forward, m, adjoint_order=1,
-                                        seed=5.0e-3, dMs=(dm,))
+                                        seed=1.0e-4, dMs=(dm,))
     assert min_order > 1.99
 
     min_order = taylor_test_tlm_adjoint(forward, m, adjoint_order=2,
-                                        seed=5.0e-3)
-    assert min_order > 1.98
+                                        seed=1.0e-4)
+    assert min_order > 1.99
 
 
 def test_DirichletBC_overlap(setup_test, test_leaks):

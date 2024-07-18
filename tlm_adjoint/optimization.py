@@ -153,6 +153,7 @@ def duplicated_comm(comm):
     try:
         yield dup_comm
     finally:
+        garbage_cleanup(dup_comm)
         dup_comm.Free()
 
 
