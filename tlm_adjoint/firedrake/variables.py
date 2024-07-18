@@ -444,6 +444,14 @@ class FunctionInterfaceBase(VariableInterface):
         with self.dat.vec_wo as x_v:
             x_v.setArray(values)
 
+    def _to_petsc(self, vec):
+        with self.dat.vec_ro as self_v:
+            self_v.copy(result=vec)
+
+    def _from_petsc(self, vec):
+        with self.dat.vec_wo as self_v:
+            vec.copy(result=self_v)
+
     def _is_replacement(self):
         return False
 

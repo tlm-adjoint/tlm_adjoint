@@ -1,8 +1,12 @@
 from .interface import (
-    space_comm, space_global_size, space_local_size, var_dtype, var_get_values,
-    var_local_size, var_set_values)
+    space_comm, space_global_size, space_local_size, var_from_petsc,
+    var_to_petsc)
 
 from contextlib import contextmanager
+try:
+    import mpi4py.MPI as MPI
+except ModuleNotFoundError:
+    MPI = None
 import numpy as np
 try:
     import petsc4py.PETSc as PETSc
@@ -88,19 +92,25 @@ class PETScVecInterface:
             dtype = PETSc.ScalarType
         dtype = np.dtype(dtype).type
 
-        indices = []
-        n = 0
-        N = 0
+        n = sum(map(space_local_size, spaces))
+        N = sum(map(space_global_size, spaces))
+
+        isets = []
+        self._i0 = i0 = comm.scan(n, op=MPI.SUM) - n
         for space in spaces:
-            indices.append((n, n + space_local_size(space)))
-            n += space_local_size(space)
-            N += space_global_size(space)
+            i1 = i0 + space_local_size(space)
+            iset = PETSc.IS().createStride(
+                size=i1 - i0, first=i0, step=1, comm=comm)
+            isets.append(iset)
+            i0 = i1
 
         self._comm = comm
         self._dtype = dtype
-        self._indices = tuple(indices)
+        self._isets = tuple(isets)
         self._n = n
         self._N = N
+
+        attach_destroy_finalizer(self, *isets)
 
     @property
     def comm(self):
@@ -111,10 +121,6 @@ class PETScVecInterface:
         return self._dtype
 
     @property
-    def indices(self):
-        return self._indices
-
-    @property
     def local_size(self):
         return self._n
 
@@ -123,34 +129,32 @@ class PETScVecInterface:
         return self._N
 
     def from_petsc(self, y, X):
-        y_a = y.getArray(True)
-
-        if y_a.shape != (self.local_size,):
-            raise ValueError("Invalid shape")
-        if len(X) != len(self.indices):
+        if len(X) != len(self._isets):
             raise ValueError("Invalid length")
-        for (i0, i1), x in zip(self.indices, X):
-            if not np.can_cast(y_a.dtype, var_dtype(x)):
-                raise ValueError("Invalid dtype")
-            if var_local_size(x) != i1 - i0:
-                raise ValueError("Invalid length")
-
-        for (i0, i1), x in zip(self.indices, X):
-            var_set_values(x, y_a[i0:i1])
+        if y.getLocalSize() != self.local_size:
+            raise ValueError("Invalid size")
+        if y.getSize() != self.global_size:
+            raise ValueError("Invalid size")
+        if y.getOwnershipRange()[0] != self._i0:
+            raise ValueError("Invalid decomposition")
+        for i, x in enumerate(X):
+            y_sub = y.getSubVector(self._isets[i])
+            var_from_petsc(x, y_sub)
+            y.restoreSubVector(self._isets[i], y_sub)
 
     def to_petsc(self, x, Y):
-        if len(Y) != len(self.indices):
+        if len(Y) != len(self._isets):
             raise ValueError("Invalid length")
-        for (i0, i1), y in zip(self.indices, Y):
-            if not np.can_cast(var_dtype(y), self.dtype):
-                raise ValueError("Invalid dtype")
-            if var_local_size(y) != i1 - i0:
-                raise ValueError("Invalid length")
-
-        x_a = np.zeros(self.local_size, dtype=self.dtype)
-        for (i0, i1), y in zip(self.indices, Y):
-            x_a[i0:i1] = var_get_values(y)
-        x.setArray(x_a)
+        if x.getLocalSize() != self.local_size:
+            raise ValueError("Invalid size")
+        if x.getSize() != self.global_size:
+            raise ValueError("Invalid size")
+        if x.getOwnershipRange()[0] != self._i0:
+            raise ValueError("Invalid decomposition")
+        for i, y in enumerate(Y):
+            x_sub = x.getSubVector(self._isets[i])
+            var_to_petsc(y, x_sub)
+            x.restoreSubVector(self._isets[i], x_sub)
 
     def _new_petsc(self):
         vec = PETSc.Vec().create(comm=self.comm)
