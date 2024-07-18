@@ -361,6 +361,7 @@ def garbage_cleanup(comm=None):
             for comm in petsc_comms:
                 comm.destroy()
 
+
 def weakref_method(fn, obj):
     if not hasattr(obj, "_tlm_adjoint__weakref_method_self_ref"):
         obj._tlm_adjoint__weakref_method_self_ref = weakref.ref(obj)
