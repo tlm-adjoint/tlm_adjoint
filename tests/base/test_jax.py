@@ -1,10 +1,10 @@
 from tlm_adjoint import (
     DEFAULT_COMM, DotProduct, Float, Hessian, Vector, VectorEquation,
-    comm_parent, compute_gradient, new_jax_float, set_default_float_dtype,
-    set_default_jax_dtype, start_manager, stop_manager, taylor_test,
-    taylor_test_tlm, taylor_test_tlm_adjoint, to_float, var_comm,
-    var_get_values, var_global_size, var_is_scalar, var_linf_norm,
-    var_local_size, var_scalar_value)
+    comm_parent, compute_gradient, garbage_cleanup, new_jax_float,
+    set_default_float_dtype, set_default_jax_dtype, start_manager,
+    stop_manager, taylor_test, taylor_test_tlm, taylor_test_tlm_adjoint,
+    to_float, var_comm, var_get_values, var_global_size, var_is_scalar,
+    var_linf_norm, var_local_size, var_scalar_value)
 
 from .test_base import jax_tlm_config, seed_test, setup_test  # noqa: F401
 
@@ -305,4 +305,5 @@ def test_jax_to_float(setup_test,  # noqa: F811
         assert var_is_scalar(x)
         assert var_scalar_value(x) == x_val
     finally:
+        garbage_cleanup(comm)
         comm.Free()
