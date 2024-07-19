@@ -347,7 +347,9 @@ class TAOSolver:
             solver_parameters = {}
         if H_0_action is not None:
             H_0_action = wrapped_action(H_0_action)
-        if M_inv_action is not None:
+        if M_inv_action is None:
+            M_inv_action = H_0_action
+        else:
             M_inv_action = wrapped_action(M_inv_action)
 
         for space_i in space:
