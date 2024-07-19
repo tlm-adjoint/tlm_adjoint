@@ -73,10 +73,13 @@ def test_hessian_solve(setup_test,
         sin(2.0 * pi * X[0]) * sin(3.0 * pi * X[1]) * exp(4.0 * X[0] * X[1]))
 
     m0 = Function(space, name="m0")
-    m, _ = minimize_l_bfgs(
+    m = minimize_tao(
         forward_J, m0,
-        s_atol=0.0, g_atol=1.0e-7,
-        H_0_action=B, M_action=B_inv, M_inv_action=B)
+        solver_parameters={"tao_type": "lmvm",
+                           "tao_gatol": 1.0e-7,
+                           "tao_grtol": 0.0,
+                           "tao_gttol": 0.0},
+        H_0_action=B)
 
     b_ref = Cofunction(space.dual(), name="b_ref")
     assemble(inner((sin(5.0 * pi * X[0]) * sin(7.0 * pi * X[1])) ** 2, test) * dx,  # noqa: E501
