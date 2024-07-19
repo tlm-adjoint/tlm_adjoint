@@ -103,19 +103,6 @@ and in the supporting information for
   Journal of Geophysical Research: Oceans, 125(11), e2020JC016370, 2020,
   doi: 10.1029/2020JC016370
 
-L-BFGS
-``````
-
-The file `tlm_adjoint/optimization.py
-<autoapi/tlm_adjoint/optimization/index.html>`_ includes an implementation of
-the L-BFGS algorithm, described in
-
-- Jorge Nocedal and Stephen J. Wright, 'Numerical optimization', Springer, New
-  York, NY, 2006, Second edition, doi: 10.1007/978-0-387-40065-5
-- Richard H. Byrd, Peihuang Lu, and Jorge Nocedal, and Ciyou Zhu, 'A limited
-  memory algorithm for bound constrained optimization', SIAM Journal on
-  Scientific Computing, 16(5), 1190--1208, 1995, doi: 10.1137/0916069
-
 PyTorch
 ```````
 
