@@ -522,10 +522,10 @@ class TAOSolver:
         x = self._vec_interface.new_vec()
         x.to_petsc(M)
 
-        self._M[0] = tuple(var_new(m, static=var_is_static(m),
-                                   cache=var_is_cached(m))
-                           for m in M)
         try:
+            self._M[0] = tuple(var_new(m, static=var_is_static(m),
+                                       cache=var_is_cached(m))
+                               for m in M)
             self.tao.solve(x.vec)
         finally:
             self._M[0] = None
