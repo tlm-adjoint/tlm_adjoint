@@ -152,26 +152,35 @@ def duplicated_comm(comm):
 @local_caches
 def minimize_scipy(forward, M0, *,
                    manager=None, **kwargs):
-    """Provides an interface with :func:`scipy.optimize.minimize` for
-    gradient-based optimization.
+    """Minimize a functional using :func:`scipy.optimize.minimize`.
 
-    Note that the control is gathered onto the root process so that the serial
-    :func:`scipy.optimize.minimize` function may be used.
+    Warnings
+    --------
 
-    All keyword arguments except for `manager` are passed to
-    :func:`scipy.optimize.minimize`.
+    Data is gathered onto the root process (process zero) so that the serial
+    :func:`scipy.optimize.minimize` can be used.
 
-    :arg forward: A callable which accepts one or more variable arguments, and
-        which returns a variable defining the forward functional.
-    :arg M0: A variable or :class:`Sequence` of variables defining the control,
-        and the initial guess for the optimization.
-    :arg manager: An :class:`.EquationManager` used to create an internal
-        manager via :meth:`.EquationManager.new`. `manager()` is used if not
-        supplied.
-    :returns: A :class:`tuple` `(M, return_value)`. `M` is variable or a
-        :class:`Sequence` of variables depending on the type of `M0`, and
-        stores the result. `return_value` is the return value of
-        :func:`scipy.optimize.minimize`.
+    Parameters
+    ----------
+
+    forward : callable
+        Accepts one or more variable arguments, and returns a scalar variable
+        defining the functional.
+    M0 : variable or Sequence[variable, ...]
+        The initial guess.
+    manager : :class:`.EquationManager`
+        Used to create an internal manager via :meth:`.EquationManager.new`.
+        `manager()` is used if not supplied.
+    kwargs
+        Passed to :func:`scipy.optimize.minimize`.
+
+    Returns
+    -------
+
+    M : variable or Sequence[variable, ...]
+        The result of the minimization
+    minimize_return_value
+        The return value from :func:`scipy.optimize.minimize`.
     """
 
     M0_packed = Packed(M0)
@@ -306,35 +315,33 @@ def wrapped_action(M):
 
 
 class TAOSolver:
-    r"""Functional minimization using TAO.
+    """Functional minimization using TAO.
 
-    :arg forward: A callable which accepts one or more variable arguments, and
-        which returns a variable defining the forward functional.
-    :arg space: A space or variable, or a :class:`Sequence` of these, defining
-        the control space.
-    :arg solver_parameters: A :class:`Mapping` defining TAO solver parameters.
-    :arg H_0_action: A callable defining the action of the non-updated Hessian
-        inverse approximation on some direction. Accepts one or more variables
-        as arguments, defining the direction, and returns a variable or a
-        :class:`Sequence` of variables defining the action on this direction.
-        Should correspond to a positive definite operator. Arguments should not
-        be modified. An identity is used if not supplied.
-    :arg M_inv_action: A callable defining a (conjugate) dual space inner
-        product,
+    Parameters
+    ----------
 
-        .. math::
-
-            \left< x, y \right>_{M^{-1}} = y^* M^{-1} x,
-
-        where :math:`x` and :math:`y` are degree of freedom vectors for
-        (conjugate) dual space elements and :math:`M` is a Hermitian and
-        positive definite matrix. Accepts one or more variables as arguments,
-        defining the direction, and returns a variable or a :class:`Sequence`
-        of variables defining the action of :math:`M^{-1}` on this direction.
-        Arguments should not be modified. H_0_action is used if not supplied.
-    :arg manager: An :class:`.EquationManager` used to create an internal
-        manager via :meth:`.EquationManager.new`. `manager()` is used if not
-        supplied.
+    forward : callable
+        Accepts one or more variable arguments, and returns a scalar variable
+        defining the functional.
+    space : space or Sequence[space, ...]
+        The control space.
+    solver_parameters : Mapping
+        TAO solver parameters.
+    H_0_action : callable
+        Defines the initial Hessian inverse approximation. Accepts one or more
+        variables as arguments, defining a direction, and returns a variable or
+        a :class:`Sequence` of variables defining the (conjugate of) the action
+        of an initial Hessian inverse approximation on this direction.
+        Arguments should not be modified.
+    M_inv_action : callable
+        Defines a dual space norm. Accepts one or more variables as arguments,
+        defining a direction, and returns a variable or a :class:`Sequence` of
+        variables defining the (conjugate of) the action of a Hermitian and
+        positive definite matrix on this direction. Arguments should not be
+        modified. `H_0_action` is used if not supplied.
+    manager : :class:`.EquationManager`
+        Used to create an internal manager via :meth:`.EquationManager.new`.
+        `manager()` is used if not supplied.
     """
 
     def __init__(self, forward, space, *, solver_parameters=None,
@@ -503,7 +510,12 @@ class TAOSolver:
     def solve(self, M):
         """Solve the optimization problem.
 
-        :arg M: Defines the solution, and the initial guess.
+        Parameters
+        ----------
+
+        M : variable or Sequence[variable, ...]
+            Defines the initial guess, and stores the result of the
+            minimization.
         """
 
         M = packed(M)
@@ -524,14 +536,24 @@ class TAOSolver:
 
 
 def minimize_tao(forward, M0, *args, **kwargs):
-    """Functional minimization using TAO.
+    """Minimize a functional using TAO.
 
-    :arg forward: A callable which accepts one or more variable arguments, and
-        which returns a variable defining the forward functional.
-    :arg M0: A variable or :class:`Sequence` of variables defining the control,
-        and the initial guess for the optimization.
+    Parameters
+    ----------
 
-    Remaining arguments are passed to the :class:`.TAOSolver` constructor.
+    forward : callable
+        Accepts one or more variable arguments, and returns a scalar variable
+        defining the functional.
+    M0 : variable or Sequence[variable, ...]
+        The initial guess.
+    args, kwargs
+        Passed to the :class:`.TAOSolver` constructor.
+
+    Returns
+    -------
+
+    variable or Sequence[variable, ...]
+        The result of the minimization.
     """
 
     M0_packed = Packed(M0)

@@ -83,7 +83,7 @@ class GeneralHessian(Hessian):
     ----------
 
     forward : callable
-        Accepts one or more variable arguments, and returns a variable
+        Accepts one or more variable arguments, and returns a scalar variable
         defining the functional.
     manager : :class:`.EquationManager`
         Used to create an internal manager via :meth:`.EquationManager.new`.
