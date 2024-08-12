@@ -264,9 +264,9 @@ class CheckpointSchedule(ABC):
     dependency data either for storage in checkpointing units or for immediate
     use by the adjoint. For details see
 
-        - James R. Maddison, 'On the implementation of checkpointing with
-          high-level algorithmic differentiation',
-          https://arxiv.org/abs/2305.09568v1, 2023
+        - James R. Maddison, 'Step-based checkpointing with high-level
+          algorithmic differentiation', Journal of Computational Science 82,
+          102405, 2024, doi: 10.1016/j.jocs.2024.102405
 
     In 'offline' schedules, where the number of steps in the forward
     calculation is initially known, this should be provided using the `max_n`
