@@ -20,8 +20,9 @@ based on the approach described in
 
 Checkpointing with tlm_adjoint is described in
 
-- James R. Maddison, 'On the implementation of checkpointing with high-level
-  algorithmic differentiation', https://arxiv.org/abs/2305.09568v1, 2023
+- James R. Maddison, 'Step-based checkpointing with high-level algorithmic
+  differentiation', Journal of Computational Science 82, 102405, 2024,
+  doi: 10.1016/j.jocs.2024.102405
 
 References
 ----------
