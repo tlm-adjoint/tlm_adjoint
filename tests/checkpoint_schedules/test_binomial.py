@@ -7,6 +7,10 @@ import functools
 import pytest
 
 try:
+    import checkpoint_schedules
+except ModuleNotFoundError:
+    checkpoint_schedules = None
+try:
     import mpi4py.MPI as MPI
 except ModuleNotFoundError:
     MPI = None
@@ -16,7 +20,22 @@ pytestmark = pytest.mark.skipif(
     reason="tests must be run in serial")
 
 
+def checkpoint_schedules_multistage(
+        max_n, snapshots_in_ram, snapshots_on_disk, *,
+        trajectory="maximum"):
+    if checkpoint_schedules is None:
+        pytest.skip("checkpoint_schedules not available")
+
+    from tlm_adjoint.checkpoint_schedules.checkpoint_schedules \
+        import MultistageCheckpointSchedule
+    return MultistageCheckpointSchedule(
+        max_n, snapshots_in_ram, snapshots_on_disk,
+        trajectory=trajectory)
+
+
 @pytest.mark.checkpoint_schedules
+@pytest.mark.parametrize("schedule", [MultistageCheckpointSchedule,
+                                      checkpoint_schedules_multistage])
 @pytest.mark.parametrize("trajectory", ["revolve",
                                         "maximum"])
 @pytest.mark.parametrize("n, S", [(1, (0,)),
@@ -25,7 +44,8 @@ pytestmark = pytest.mark.skipif(
                                   (10, tuple(range(1, 10))),
                                   (100, tuple(range(1, 100))),
                                   (250, tuple(range(25, 250, 25)))])
-def test_MultistageCheckpointSchedule(trajectory,
+def test_MultistageCheckpointSchedule(schedule,
+                                      trajectory,
                                       n, S):
     @functools.singledispatch
     def action(cp_action):
@@ -70,6 +90,9 @@ def test_MultistageCheckpointSchedule(trajectory,
             assert cp_action.n0 == n - model_r - 1
             # No data for this step is stored
             assert len(data.intersection(range(cp_action.n0, cp_action.n1))) == 0  # noqa: E501
+
+        # The forward is able to advance over these steps
+        assert replay is None or replay.issuperset(range(cp_action.n0, cp_action.n1))  # noqa: E501
 
         model_n = cp_action.n1
         model_steps += cp_action.n1 - cp_action.n0
@@ -117,6 +140,8 @@ def test_MultistageCheckpointSchedule(trajectory,
 
         ics.clear()
         ics.update(cp[0])
+        replay.clear()
+        replay.update(cp[0])
         model_n = cp_action.n
 
         # Can advance the forward to the current location of the adjoint
@@ -143,8 +168,12 @@ def test_MultistageCheckpointSchedule(trajectory,
 
     @action.register(EndForward)
     def action_end_forward(cp_action):
+        nonlocal replay
+
         # The correct number of forward steps has been taken
         assert model_n == n
+
+        replay = set()
 
     @action.register(EndReverse)
     def action_end_reverse(cp_action):
@@ -164,11 +193,11 @@ def test_MultistageCheckpointSchedule(trajectory,
         ics = set()
         store_data = False
         data = set()
+        replay = None
 
         snapshots = {}
 
-        cp_schedule = MultistageCheckpointSchedule(n, 0, s,
-                                                   trajectory=trajectory)
+        cp_schedule = schedule(n, 0, s, trajectory=trajectory)
         assert n == 1 or cp_schedule.uses_disk_storage
         assert cp_schedule.n == 0
         assert cp_schedule.r == 0

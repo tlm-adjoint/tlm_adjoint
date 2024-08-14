@@ -12,6 +12,10 @@ import functools
 import pytest
 
 try:
+    import checkpoint_schedules
+except ModuleNotFoundError:
+    checkpoint_schedules = None
+try:
     import hrevolve
 except ModuleNotFoundError:
     hrevolve = None
@@ -46,15 +50,68 @@ def two_level(n, s, *, period):
 
 
 def h_revolve(n, s):
+    if hrevolve is None:
+        pytest.skip("H-Revolve not available")
     if s <= 1:
-        return (None,
-                {"RAM": 0, "disk": 0}, 0)
-    else:
-        return (HRevolveCheckpointSchedule(n, s // 2, s - (s // 2)),
-                {"RAM": s // 2, "disk": s - (s // 2)}, 1)
+        pytest.skip("Incompatible with schedule type")
+
+    return (HRevolveCheckpointSchedule(n, s // 2, s - (s // 2)),
+            {"RAM": s // 2, "disk": s - (s // 2)}, 1)
 
 
 def mixed(n, s):
+    return (MixedCheckpointSchedule(n, s),
+            {"RAM": 0, "disk": s}, 1)
+
+
+def checkpoint_schedules_memory(n, s):
+    if checkpoint_schedules is None:
+        pytest.skip("checkpoint_schedules not available")
+
+    from tlm_adjoint.checkpoint_schedules.checkpoint_schedules import \
+        SingleMemoryStorageSchedule
+    return (SingleMemoryStorageSchedule(),
+            {"RAM": 0, "disk": 0}, 1 + n)
+
+
+def checkpoint_schedules_multistage(n, s):
+    if checkpoint_schedules is None:
+        pytest.skip("checkpoint_schedules not available")
+
+    from tlm_adjoint.checkpoint_schedules.checkpoint_schedules import \
+        MultistageCheckpointSchedule
+    return (MultistageCheckpointSchedule(n, 0, s),
+            {"RAM": 0, "disk": s}, 1)
+
+
+def checkpoint_schedules_two_level(n, s, *, period):
+    if checkpoint_schedules is None:
+        pytest.skip("checkpoint_schedules not available")
+
+    from tlm_adjoint.checkpoint_schedules.checkpoint_schedules import \
+        StorageType, TwoLevelCheckpointSchedule
+    return (TwoLevelCheckpointSchedule(period, s, binomial_storage=StorageType.RAM),  # noqa: E501
+            {"RAM": s, "disk": 1 + (n - 1) // period}, 1)
+
+
+def checkpoint_schedules_h_revolve(n, s):
+    if checkpoint_schedules is None:
+        pytest.skip("checkpoint_schedules not available")
+    if s <= 1:
+        pytest.skip("Incompatible with schedule type")
+
+    from tlm_adjoint.checkpoint_schedules.checkpoint_schedules import \
+        HRevolve
+    return (HRevolve(n, s // 2, s - (s // 2)),
+            {"RAM": s // 2, "disk": s - (s // 2)}, 1)
+
+
+def checkpoint_schedules_mixed(n, s):
+    if checkpoint_schedules is None:
+        pytest.skip("checkpoint_schedules not available")
+
+    from tlm_adjoint.checkpoint_schedules.checkpoint_schedules import \
+        MixedCheckpointSchedule
     return (MixedCheckpointSchedule(n, s),
             {"RAM": 0, "disk": s}, 1)
 
@@ -72,11 +129,16 @@ def mixed(n, s):
      (two_level, {"period": 2}),
      (two_level, {"period": 7}),
      (two_level, {"period": 10}),
-     pytest.param(
-         h_revolve, {},
-         marks=pytest.mark.skipif(hrevolve is None,
-                                  reason="H-Revolve not available")),
-     (mixed, {})])
+     (h_revolve, {}),
+     (mixed, {}),
+     (checkpoint_schedules_memory, {}),
+     (checkpoint_schedules_multistage, {}),
+     (checkpoint_schedules_two_level, {"period": 1}),
+     (checkpoint_schedules_two_level, {"period": 2}),
+     (checkpoint_schedules_two_level, {"period": 7}),
+     (checkpoint_schedules_two_level, {"period": 10}),
+     (checkpoint_schedules_h_revolve, {}),
+     (checkpoint_schedules_mixed, {})])
 @pytest.mark.parametrize("n, S", [(1, (0,)),
                                   (2, (1,)),
                                   (3, (1, 2)),
@@ -126,6 +188,9 @@ def test_validity(schedule, schedule_kwargs,
             # No non-linear dependency data for these steps is stored
             assert len(data.intersection(range(cp_action.n0, n1))) == 0
 
+        # The forward is able to advance over these steps
+        assert replay is None or replay.issuperset(range(cp_action.n0, n1))
+
         model_n = n1
         if store_ics:
             ics.update(range(cp_action.n0, n1))
@@ -170,10 +235,14 @@ def test_validity(schedule, schedule_kwargs,
         if len(cp[0]) > 0:
             ics.clear()
             ics.update(cp[0])
+            replay.clear()
+            replay.update(cp[0])
             model_n = cp_action.n
 
             # Can advance the forward to the current location of the adjoint
             assert ics.issuperset(range(model_n, n - model_r))
+        else:
+            replay.clear()
 
         if len(cp[1]) > 0:
             data.clear()
@@ -202,8 +271,12 @@ def test_validity(schedule, schedule_kwargs,
 
     @action.register(EndForward)
     def action_end_forward(cp_action):
+        nonlocal replay
+
         # The correct number of forward steps has been taken
         assert model_n is not None and model_n == n
+
+        replay = set()
 
     @action.register(EndReverse)
     def action_end_reverse(cp_action):
@@ -225,12 +298,11 @@ def test_validity(schedule, schedule_kwargs,
         ics = set()
         store_data = False
         data = set()
+        replay = None
 
         snapshots = {"RAM": {}, "disk": {}}
 
         cp_schedule, storage_limits, data_limit = schedule(n, s, **schedule_kwargs)  # noqa: E501
-        if cp_schedule is None:
-            pytest.skip("Incompatible with schedule type")
         assert cp_schedule.n == 0
         assert cp_schedule.r == 0
         assert cp_schedule.max_n is None or cp_schedule.max_n == n

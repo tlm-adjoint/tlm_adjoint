@@ -8,6 +8,10 @@ import functools
 import pytest
 
 try:
+    import checkpoint_schedules
+except ModuleNotFoundError:
+    checkpoint_schedules = None
+try:
     import mpi4py.MPI as MPI
 except ModuleNotFoundError:
     MPI = None
@@ -17,14 +21,28 @@ pytestmark = pytest.mark.skipif(
     reason="tests must be run in serial")
 
 
+def checkpoint_schedules_mixed(max_n, snapshots, *, storage="disk"):
+    if checkpoint_schedules is None:
+        pytest.skip("checkpoint_schedules not available")
+
+    from tlm_adjoint.checkpoint_schedules.checkpoint_schedules \
+        import MixedCheckpointSchedule, StorageType
+    storage = {"RAM": StorageType.RAM,
+               "disk": StorageType.DISK}[storage]
+    return MixedCheckpointSchedule(max_n, snapshots, storage=storage)
+
+
 @pytest.mark.checkpoint_schedules
+@pytest.mark.parametrize("schedule", [MixedCheckpointSchedule,
+                                      checkpoint_schedules_mixed])
 @pytest.mark.parametrize("n, S", [(1, (0,)),
                                   (2, (1,)),
                                   (3, (1, 2)),
                                   (10, tuple(range(1, 10))),
                                   (100, tuple(range(1, 100))),
                                   (250, tuple(range(25, 250, 25)))])
-def test_MixedCheckpointSchedule(n, S):
+def test_MixedCheckpointSchedule(schedule,
+                                 n, S):
     @functools.singledispatch
     def action(cp_action):
         raise TypeError("Unexpected action")
@@ -68,6 +86,9 @@ def test_MixedCheckpointSchedule(n, S):
             assert cp_action.n1 <= n - model_r
             # No data for this step is stored
             assert len(data.intersection(range(cp_action.n0, cp_action.n1))) == 0  # noqa: E501
+
+        # The forward is able to advance over these steps
+        assert replay is None or replay.issuperset(range(cp_action.n0, cp_action.n1))  # noqa: E501
 
         model_n = cp_action.n1
         model_steps += cp_action.n1 - cp_action.n0
@@ -120,10 +141,14 @@ def test_MixedCheckpointSchedule(n, S):
 
             ics.clear()
             ics.update(cp[0])
+            replay.clear()
+            replay.update(cp[0])
             model_n = cp_action.n
 
             # Can advance the forward to the current location of the adjoint
             assert ics.issuperset(range(model_n, n - model_r))
+        else:
+            replay.clear()
 
         if len(cp[1]) > 0:
             # Loading a non-linear dependency data checkpoint:
@@ -167,8 +192,12 @@ def test_MixedCheckpointSchedule(n, S):
 
     @action.register(EndForward)
     def action_end_forward(cp_action):
+        nonlocal replay
+
         # The correct number of forward steps has been taken
         assert model_n is not None and model_n == n
+
+        replay = set()
 
     @action.register(EndReverse)
     def action_end_reverse(cp_action):
@@ -188,10 +217,11 @@ def test_MixedCheckpointSchedule(n, S):
         ics = set()
         store_data = False
         data = set()
+        replay = None
 
         snapshots = {}
 
-        cp_schedule = MixedCheckpointSchedule(n, s, storage="disk")
+        cp_schedule = schedule(n, s, storage="disk")
         assert n == 1 or cp_schedule.uses_disk_storage
         assert cp_schedule.n == 0
         assert cp_schedule.r == 0
