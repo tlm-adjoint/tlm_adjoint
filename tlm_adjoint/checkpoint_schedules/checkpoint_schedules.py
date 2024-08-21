@@ -28,7 +28,7 @@ if checkpoint_schedules is not None:
     from checkpoint_schedules import StorageType
 
 from .schedule import (
-    CheckpointSchedule, Configure, Clear, Forward, Reverse, Read, Write,
+    CheckpointSchedule, Clear, Configure, Forward, Reverse, Read, Write,
     EndForward, EndReverse)
 
 from functools import singledispatch, wraps
@@ -77,6 +77,8 @@ def translation(cls):
             def read(n, storage, *, delete):
                 nonlocal ics, data, replay
 
+                if replay != (0, 0):
+                    raise RuntimeError("Invalid checkpointing state")
                 replay, _ = ics, data = checkpoints[storage][n]
                 if delete:
                     del checkpoints[storage][n]
