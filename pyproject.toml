@@ -9,7 +9,7 @@ markers = [
 
 [tool.ruff]
 
-# extend-include = ["*.ipynb"]
+extend-exclude = ["*.ipynb"]
 line-length = 79
 
 [tool.ruff.lint]
