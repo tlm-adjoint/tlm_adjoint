@@ -35,7 +35,8 @@ templates_path = []
 
 html_css_files = ["custom.css"]
 
-intersphinx_mapping = {"firedrake": ("https://www.firedrakeproject.org", None),
+intersphinx_mapping = {"checkpoint_schedules": ("https://www.firedrakeproject.org/checkpoint_schedules", None),  # noqa: E501
+                       "firedrake": ("https://www.firedrakeproject.org", None),
                        "h5py": ("https://docs.h5py.org/en/stable", None),
                        "numpy": ("https://numpy.org/doc/stable", None),
                        "petsc4py": ("https://petsc.org/main/petsc4py", None),

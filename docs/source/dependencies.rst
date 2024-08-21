@@ -44,3 +44,4 @@ While not required, if available some features of tlm_adjoint use:
 
   - `more-itertools <https://more-itertools.readthedocs.io>`_
   - `Numba <https://numba.pydata.org>`_
+  - `checkpoint_schedules <https://www.firedrakeproject.org/checkpoint_schedules>`_
