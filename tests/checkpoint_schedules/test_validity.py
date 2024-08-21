@@ -211,6 +211,7 @@ def test_validity(schedule, schedule_kwargs,
         assert data.issuperset(range(cp_action.n0, cp_action.n1))
 
         model_r += cp_action.n1 - cp_action.n0
+        replay.clear()
 
     @action.register(Read)
     def action_read(cp_action):
@@ -235,14 +236,14 @@ def test_validity(schedule, schedule_kwargs,
         if len(cp[0]) > 0:
             ics.clear()
             ics.update(cp[0])
-            replay.clear()
+            assert len(replay) == 0
             replay.update(cp[0])
             model_n = cp_action.n
 
             # Can advance the forward to the current location of the adjoint
             assert ics.issuperset(range(model_n, n - model_r))
         else:
-            replay.clear()
+            assert len(replay) == 0
 
         if len(cp[1]) > 0:
             data.clear()

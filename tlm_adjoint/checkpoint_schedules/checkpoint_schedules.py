@@ -1,4 +1,4 @@
-"""Translation between checkpointing schedules provided by the
+r"""Translation between checkpointing schedules provided by the
 checkpoint_schedules library and a tlm_adjoint :class:`.CheckpointSchedule`.
 
 Wrapped :class:`checkpoint_schedule.CheckpointSchedule` classes can be
@@ -32,6 +32,7 @@ from .schedule import (
     EndForward, EndReverse)
 
 from functools import singledispatch, wraps
+import itertools
 
 
 def translation(cls):
@@ -45,17 +46,18 @@ def translation(cls):
             # Used to ensure that we do not finalize the wrapped scheduler
             # while yielding actions associated with a single wrapped action.
             # Prevents multiple finalization of the wrapped schedule.
-            def locked(fn):
+            def finalizer(fn):
                 @wraps(fn)
                 def wrapped_fn(cp_action):
-                    max_n = self.max_n
+                    if self.max_n != self._cp_schedule.max_n:
+                        self._cp_schedule.finalize(self.max_n)
                     yield from fn(cp_action)
-                    if self.max_n != max_n:
+                    if self.max_n != self._cp_schedule.max_n:
                         self._cp_schedule.finalize(self.max_n)
                 return wrapped_fn
 
             @singledispatch
-            @locked
+            @finalizer
             def action(cp_action):
                 raise TypeError(f"Unexpected action type: {type(cp_action)}")
                 yield None
@@ -101,7 +103,7 @@ def translation(cls):
                                      f"{to_storage}")
 
             @action.register(_Forward)
-            @locked
+            @finalizer
             def action_forward(cp_action):
                 nonlocal ics, data
 
@@ -131,38 +133,44 @@ def translation(cls):
                                      f"{cp_action.storage}")
 
             @action.register(_Reverse)
-            @locked
+            @finalizer
             def action_reverse(cp_action):
+                nonlocal replay
+
                 if self.max_n is None:
                     raise RuntimeError("Invalid checkpointing state")
                 if cp_action.n0 < data[0] or cp_action.n1 > data[1]:
                     raise RuntimeError("Invalid checkpointing state")
-                self._r = self.max_n - cp_action.n0
+                replay = (0, 0)
+                self._r = self._cp_schedule.r
                 yield Reverse(cp_action.n1, cp_action.n0)
                 yield from clear()
 
             @action.register(_Copy)
-            @locked
+            @finalizer
             def action_copy(cp_action):
                 yield from input_output(
                     cp_action.n, cp_action.from_storage, cp_action.to_storage,
                     delete=False)
 
             @action.register(_Move)
-            @locked
+            @finalizer
             def action_move(cp_action):
                 yield from input_output(
                     cp_action.n, cp_action.from_storage, cp_action.to_storage,
                     delete=True)
 
             @action.register(_EndForward)
-            @locked
+            @finalizer
             def action_end_forward(cp_action):
+                nonlocal replay
+
+                replay = (0, 0)
                 self._is_exhausted = self._cp_schedule.is_exhausted
                 yield EndForward()
 
             @action.register(_EndReverse)
-            @locked
+            @finalizer
             def action_end_reverse(cp_action):
                 if self._cp_schedule.is_exhausted:
                     yield from clear()
@@ -171,8 +179,8 @@ def translation(cls):
                 yield EndReverse(self._cp_schedule.is_exhausted)
 
             yield from clear()
-            while not self._cp_schedule.is_exhausted:
-                yield from action(next(self._cp_schedule))
+            yield from itertools.chain.from_iterable(
+                map(action, self._cp_schedule))
 
         @property
         def is_exhausted(self):

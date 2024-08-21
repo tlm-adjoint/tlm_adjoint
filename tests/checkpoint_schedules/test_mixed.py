@@ -109,6 +109,7 @@ def test_MixedCheckpointSchedule(schedule,
         assert cp_action.n0 in data
 
         model_r += 1
+        replay.clear()
 
     @action.register(Read)
     def action_read(cp_action):
@@ -141,14 +142,14 @@ def test_MixedCheckpointSchedule(schedule,
 
             ics.clear()
             ics.update(cp[0])
-            replay.clear()
+            assert len(replay) == 0
             replay.update(cp[0])
             model_n = cp_action.n
 
             # Can advance the forward to the current location of the adjoint
             assert ics.issuperset(range(model_n, n - model_r))
         else:
-            replay.clear()
+            assert len(replay) == 0
 
         if len(cp[1]) > 0:
             # Loading a non-linear dependency data checkpoint:
@@ -253,7 +254,7 @@ def test_MixedCheckpointSchedule(schedule,
         assert model_steps == optimal_steps(n, s)
         assert model_steps == mixed_step_memoization(n, s)[2]
         # No data is stored
-        assert len(ics) == 0 and len(data) == 0
+        assert len(ics) == 0 and len(data) == 0 and len(replay) == 0
         # No checkpoints are stored
         assert len(snapshots) == 0
 

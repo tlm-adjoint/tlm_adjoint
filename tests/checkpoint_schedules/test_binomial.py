@@ -113,6 +113,7 @@ def test_MultistageCheckpointSchedule(schedule,
         assert cp_action.n0 in data
 
         model_r += 1
+        replay.clear()
 
     @action.register(Read)
     def action_read(cp_action):
@@ -140,7 +141,7 @@ def test_MultistageCheckpointSchedule(schedule,
 
         ics.clear()
         ics.update(cp[0])
-        replay.clear()
+        assert len(replay) == 0
         replay.update(cp[0])
         model_n = cp_action.n
 
@@ -228,7 +229,7 @@ def test_MultistageCheckpointSchedule(schedule,
         # The correct total number of forward steps has been taken
         assert model_steps == optimal_steps(n, s)
         # No data is stored
-        assert len(ics) == 0 and len(data) == 0
+        assert len(ics) == 0 and len(data) == 0 and len(replay) == 0
         # No checkpoints are stored
         assert len(snapshots) == 0
 
