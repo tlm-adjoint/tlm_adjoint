@@ -431,10 +431,12 @@ class FunctionInterface(VariableInterface):
         self.vector().set_local(values)
         self.vector().apply("insert")
 
+    @check_vector
     def _to_petsc(self, vec):
         self_v = as_backend_type(self.vector()).vec()
         self_v.copy(result=vec)
 
+    @check_vector
     def _from_petsc(self, vec):
         self_v = as_backend_type(self.vector()).vec()
         vec.copy(result=self_v)
