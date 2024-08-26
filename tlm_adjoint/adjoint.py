@@ -218,7 +218,7 @@ class AdjointModelRHS(Mapping):
     ----------
 
     blocks : Sequence[Sequence[:class:`.Equation`, ...], ...] or \
-           Sequence[Mapping[int, :class:`.Equation`, ...], ...]
+           Mapping[int, Sequence[:class:`.Equation`, ...], ...]
        The adjoint right-hand-sides are associated with the operations defined
        by these blocks of :class:`.Equation` objects. Any trailing empty
        :class:`.AdjointBlockRHS` objects are removed automatically.
