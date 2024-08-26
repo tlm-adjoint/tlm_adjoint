@@ -4,6 +4,10 @@ from tlm_adjoint.patch import patch_function, patch_method
 import functools
 import hashlib
 import inspect
+try:
+    import jax
+except ModuleNotFoundError:
+    jax = None
 import json
 import numpy as np
 from operator import itemgetter
@@ -18,6 +22,10 @@ __all__ = \
         "seed_test",
         "tmp_path"
     ]
+
+
+if jax is not None:
+    jax.config.update("jax_enable_x64", True)
 
 
 def seed_test(fn):
