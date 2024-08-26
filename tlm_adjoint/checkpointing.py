@@ -812,12 +812,16 @@ class HDF5Checkpoints(Checkpoints):
         cp_filenames = {}
 
         def finalize_callback(comm, rank, cp_filenames):
-            if MPI is not None and not MPI.Is_finalized():
+            if MPI is not None \
+                    and not MPI.Is_finalized() \
+                    and comm.py2f() != MPI.COMM_NULL.py2f():
                 comm.barrier()
             if rank == 0:
                 for filename in cp_filenames.values():
                     os.remove(filename)
-            if MPI is not None and not MPI.Is_finalized():
+            if MPI is not None \
+                    and not MPI.Is_finalized() \
+                    and comm.py2f() != MPI.COMM_NULL.py2f():
                 comm.barrier()
 
         weakref.finalize(self, finalize_callback,

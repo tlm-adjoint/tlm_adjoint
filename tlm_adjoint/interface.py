@@ -300,7 +300,9 @@ def comm_dup_cached(comm, *, key=None):
             _parent_comms.pop(dup_comm.py2f(), None)
             _dupped_comms.pop(comm_py2f, None)
             _dup_comms.pop(key, None)
-            if MPI is not None and not MPI.Is_finalized():
+            if MPI is not None \
+                    and not MPI.Is_finalized() \
+                    and dup_comm.py2f() != MPI.COMM_NULL.py2f():
                 dup_comm.Free()
 
         comm_finalize(comm, finalize_callback,
