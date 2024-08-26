@@ -51,7 +51,7 @@ class HessianOptimization:
 
         for x_id, value in self._ics.items():
             manager._cp._add_initial_condition(
-                x_id=x_id, value=value, refs=False, copy=False)
+                x_id=x_id, value=value, refs=False, copy=True)
 
         return manager
 

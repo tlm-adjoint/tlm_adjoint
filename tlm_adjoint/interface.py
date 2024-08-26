@@ -300,7 +300,9 @@ def comm_dup_cached(comm, *, key=None):
             _parent_comms.pop(dup_comm.py2f(), None)
             _dupped_comms.pop(comm_py2f, None)
             _dup_comms.pop(key, None)
-            if MPI is not None and not MPI.Is_finalized():
+            if MPI is not None \
+                    and not MPI.Is_finalized() \
+                    and dup_comm.py2f() != MPI.COMM_NULL.py2f():
                 dup_comm.Free()
 
         comm_finalize(comm, finalize_callback,
@@ -1348,6 +1350,24 @@ def var_get_values(x):
 
 
 @manager_disabled()
+def var_set_values(x, values):
+    """Set the process local degrees of freedom vector associated with a
+    variable.
+
+    :arg x: The variable.
+    :arg values: A :class:`numpy.ndarray` containing the degrees of freedom
+        values.
+    """
+
+    if not np.can_cast(values, var_dtype(x)):
+        raise ValueError("Invalid dtype")
+    if values.shape != (var_local_size(x),):
+        raise ValueError("Invalid shape")
+    x._tlm_adjoint__var_interface_set_values(values)
+    var_update_state(x)
+
+
+@manager_disabled()
 def var_to_petsc(x, vec):
     """Copy values from a variable into a :class:`petsc4py.PETSc.Vec`.
 
@@ -1391,23 +1411,6 @@ def var_from_petsc(x, vec):
     if var_global_size(x) != vec.getSize():
         raise ValueError("Invalid size")
     x._tlm_adjoint__var_interface_from_petsc(vec)
-
-
-@manager_disabled()
-def var_set_values(x, values):
-    """Set the process local degrees of freedom vector associated with a
-    variable.
-
-    :arg x: The variable.
-    :arg values: A :class:`numpy.ndarray` containing the degrees of freedom
-        values.
-    """
-
-    if not np.can_cast(values, var_dtype(x)):
-        raise ValueError("Invalid dtype")
-    if values.shape != (var_local_size(x),):
-        raise ValueError("Invalid shape")
-    x._tlm_adjoint__var_interface_set_values(values)
     var_update_state(x)
 
 

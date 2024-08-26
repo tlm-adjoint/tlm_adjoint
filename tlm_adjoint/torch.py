@@ -145,7 +145,8 @@ def torch_wrapped(forward, space, *, manager=None, clear_caches=True):
     manager : :class:`.EquationManager`
         Used to create an internal manager via :meth:`.EquationManager.new`.
         `manager()` is used if not supplied.
-    clear_caches : Whether to clear caches before a call of `forward`.
+    clear_caches : bool
+        Whether to clear caches before a call of `forward`.
 
     Returns
     -------

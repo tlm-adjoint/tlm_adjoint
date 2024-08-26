@@ -1,9 +1,9 @@
 r"""Translation between checkpointing schedules provided by the
 checkpoint_schedules library and a tlm_adjoint :class:`.CheckpointSchedule`.
 
-Wrapped :class:`checkpoint_schedule.CheckpointSchedule` classes can be
-imported from this module and then passed to :func:`.configure_checkpointing`,
-e.g.
+Wrapped :class:`checkpoint_schedules.schedule.CheckpointSchedule` classes can
+be imported from this module and then passed to
+:func:`.configure_checkpointing`, e.g.
 
 .. code-block:: python
 

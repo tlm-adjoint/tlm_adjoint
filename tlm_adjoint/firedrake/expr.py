@@ -45,11 +45,11 @@ def iter_expr(expr, *, evaluate_weights=False):
 def form_cached(key):
     def wrapper(fn):
         @functools.wraps(fn)
-        def wrapped(expr, *args, **kwargs):
+        def wrapped(expr):
             if isinstance(expr, ufl.classes.Form) and key in expr._cache:
                 value = expr._cache[key]
             else:
-                value = fn(expr, *args, **kwargs)
+                value = fn(expr)
                 if isinstance(expr, ufl.classes.Form):
                     assert key not in expr._cache
                     expr._cache[key] = value
