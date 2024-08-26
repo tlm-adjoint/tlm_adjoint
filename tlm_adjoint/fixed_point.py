@@ -48,9 +48,9 @@ class CustomNormSq:
 
     def __init__(self, eqs, *, norm_sqs=None, adj_norm_sqs=None):
         if norm_sqs is None:
-            norm_sqs = [l2_norm_sq for _ in eqs]
+            norm_sqs = [[l2_norm_sq for _ in eq.X()] for eq in eqs]
         if adj_norm_sqs is None:
-            adj_norm_sqs = [l2_norm_sq for _ in eqs]
+            adj_norm_sqs = [[l2_norm_sq for _ in eq.X()] for eq in eqs]
 
         norm_sqs = list(norm_sqs)
         if len(eqs) != len(norm_sqs):
