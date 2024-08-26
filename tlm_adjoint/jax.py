@@ -23,7 +23,6 @@ import numpy as np
 
 try:
     import jax
-    jax.config.update("jax_enable_x64", True)
 except ModuleNotFoundError:
     jax = None
 
@@ -42,28 +41,36 @@ __all__ = \
         "to_jax"
     ]
 
-try:
-    import petsc4py.PETSc as PETSc
-    _default_dtype = PETSc.ScalarType
-except ModuleNotFoundError:
-    _default_dtype = np.double
-_default_dtype = np.dtype(_default_dtype).type
-if not issubclass(_default_dtype, (np.floating, np.complexfloating)):
-    raise ImportError("Invalid default dtype")
+_default_dtype = None
+
+
+def default_dtype():
+    if _default_dtype is None:
+        return jax.numpy.array(0.0).dtype.type
+    else:
+        return _default_dtype
 
 
 def set_default_jax_dtype(dtype):
     """Set the default data type used by :class:`.Vector` objects.
 
-    :arg dtype: The default data type.
+    Parameters
+    ----------
+
+    dtype : type
+        The default data type. If `None` then the default JAX floating point
+        scalar data type is used.
     """
 
     global _default_dtype
 
-    dtype = np.dtype(dtype).type
-    if not issubclass(dtype, (np.floating, np.complexfloating)):
-        raise TypeError("Invalid dtype")
-    _default_dtype = dtype
+    if dtype is None:
+        _default_dtype = None
+    else:
+        dtype = np.dtype(dtype).type
+        if not issubclass(dtype, (np.floating, np.complexfloating)):
+            raise TypeError("Invalid dtype")
+        _default_dtype = dtype
 
 
 class VectorSpaceInterface(SpaceInterface):
@@ -98,7 +105,7 @@ class VectorSpace:
 
     def __init__(self, n, *, dtype=None, comm=None):
         if dtype is None:
-            dtype = _default_dtype
+            dtype = default_dtype()
         if comm is None:
             comm = DEFAULT_COMM
         comm = comm_dup_cached(comm)
