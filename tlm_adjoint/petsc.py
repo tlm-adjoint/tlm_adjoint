@@ -110,7 +110,7 @@ class PETScVecInterface:
         self._n = n
         self._N = N
 
-        attach_destroy_finalizer(self, *isets)
+        attach_destroy_finalizer(self, *self._isets)
 
     @property
     def comm(self):
@@ -137,10 +137,10 @@ class PETScVecInterface:
             raise ValueError("Invalid size")
         if y.getOwnershipRange()[0] != self._i0:
             raise ValueError("Invalid decomposition")
-        for i, x in enumerate(X):
-            y_sub = y.getSubVector(self._isets[i])
+        for x, iset in zip(X, self._isets):
+            y_sub = y.getSubVector(iset)
             var_from_petsc(x, y_sub)
-            y.restoreSubVector(self._isets[i], y_sub)
+            y.restoreSubVector(iset, y_sub)
 
     def to_petsc(self, x, Y):
         if len(Y) != len(self._isets):
@@ -151,10 +151,10 @@ class PETScVecInterface:
             raise ValueError("Invalid size")
         if x.getOwnershipRange()[0] != self._i0:
             raise ValueError("Invalid decomposition")
-        for i, y in enumerate(Y):
-            x_sub = x.getSubVector(self._isets[i])
+        for y, iset in zip(Y, self._isets):
+            x_sub = x.getSubVector(iset)
             var_to_petsc(y, x_sub)
-            x.restoreSubVector(self._isets[i], x_sub)
+            x.restoreSubVector(iset, x_sub)
 
     def _new_petsc(self):
         vec = PETSc.Vec().create(comm=self.comm)
