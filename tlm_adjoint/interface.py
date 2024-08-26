@@ -1391,6 +1391,7 @@ def var_from_petsc(x, vec):
     if var_global_size(x) != vec.getSize():
         raise ValueError("Invalid size")
     x._tlm_adjoint__var_interface_from_petsc(vec)
+    var_update_state(x)
 
 
 @manager_disabled()
