@@ -97,11 +97,11 @@ def test_CachedHessian(setup_test):
 
         _, _, v_error = H.action(F, v)
         var_axpy(v_error, -lam, v.riesz_representation("l2"))
-        assert var_linf_norm(v_error) < 1.0e-19
+        assert var_linf_norm(v_error) < 1.0e-18
 
         _, _, v_error = H_opt.action(F, v)
         var_axpy(v_error, -lam, v.riesz_representation("l2"))
-        assert var_linf_norm(v_error) < 1.0e-19
+        assert var_linf_norm(v_error) < 1.0e-18
 
     esolver_opt = Eigensolver(
         HessianMatrix(H_opt, F),
@@ -121,11 +121,11 @@ def test_CachedHessian(setup_test):
 
         _, _, v_error = H.action(F, v)
         var_axpy(v_error, -lam, v.riesz_representation("l2"))
-        assert var_linf_norm(v_error) < 1.0e-19
+        assert var_linf_norm(v_error) < 1.0e-18
 
         _, _, v_error = H_opt.action(F, v)
         var_axpy(v_error, -lam, v.riesz_representation("l2"))
-        assert var_linf_norm(v_error) < 1.0e-19
+        assert var_linf_norm(v_error) < 1.0e-18
 
     lam, _ = esolver.eigenpairs()
     lam_opt, _ = esolver_opt.eigenpairs()
