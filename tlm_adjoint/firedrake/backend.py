@@ -5,7 +5,8 @@ from firedrake.assemble import \
 from firedrake.projection import ProjectorBase  # noqa: F401
 from firedrake.utils import complex_mode  # noqa: F401
 import firedrake
-from firedrake.petsc import garbage_cleanup as backend_garbage_cleanup
+from firedrake.petsc import \
+    garbage_cleanup as backend_garbage_cleanup  # noqa: F401
 
 backend = "Firedrake"
 

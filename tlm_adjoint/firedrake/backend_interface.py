@@ -9,7 +9,6 @@ from ..patch import patch_method
 
 from .expr import action, eliminate_zeros
 
-import mpi4py.MPI as MPI
 import petsc4py.PETSc as PETSc
 import pyop2
 import ufl
