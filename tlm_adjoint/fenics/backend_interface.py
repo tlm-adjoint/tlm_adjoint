@@ -235,10 +235,10 @@ def add_duplicated_comm(comm, dup_comm):
     _dup_comms.setdefault(comm_py2f, {})[dup_comm_py2f] = dup_comm
 
     def comm_finalize_callback(comm_py2f):
-        _dup_comms.pop(comm_py2f)
+        _dup_comms.pop(comm_py2f, None)
 
     def dup_comm_finalize_callback(comm_py2f, dup_comm_py2f):
-        _dup_comms.get(comm_py2f, {}).pop(dup_comm_py2f)
+        _dup_comms.get(comm_py2f, {}).pop(dup_comm_py2f, None)
 
     comm_finalize(comm, comm_finalize_callback,
                   comm_py2f)
