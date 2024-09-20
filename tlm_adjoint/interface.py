@@ -319,12 +319,7 @@ def register_garbage_cleanup(fn):
 
 
 if MPI is not None and PETSc is not None and hasattr(PETSc, "garbage_cleanup"):
-    def garbage_cleanup_base(comm):
-        if not MPI.Is_finalized() and not PETSc.Sys.isFinalized() \
-                and comm.py2f() != MPI.COMM_NULL.py2f():
-            PETSc.garbage_cleanup(comm)
-
-    register_garbage_cleanup(garbage_cleanup_base)
+    register_garbage_cleanup(PETSc.garbage_cleanup)
 
 
 @gc_disabled
@@ -357,9 +352,11 @@ def garbage_cleanup(comm=None):
         petsc_comms = tuple(PETSc.Comm(comm).duplicate()
                             for comm in comms.values())
     try:
-        for comm in comms.values():
-            for fn in _garbage_cleanup:
-                fn(comm)
+        if not MPI.Is_finalized() and not PETSc.Sys.isFinalized():
+            for comm in comms.values():
+                if comm.py2f() != MPI.COMM_NULL.py2f():
+                    for fn in _garbage_cleanup:
+                        fn(comm)
     finally:
         if PETSc is not None:
             for comm in petsc_comms:

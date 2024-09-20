@@ -1,6 +1,6 @@
 from .backend import (
     LinearSolver, Tensor, backend_Cofunction, backend_Function, backend_Matrix,
-    backend_assemble, backend_solve, extract_args)
+    backend_assemble, backend_garbage_cleanup, backend_solve, extract_args)
 from ..interface import (
     check_space_type, check_space_types_conjugate_dual, packed,
     register_garbage_cleanup, space_eq, space_new)
@@ -311,16 +311,9 @@ class LocalSolver:
         matrix_multiply(self._mat, b, tensor=x)
 
 
-def garbage_cleanup_internal_comm(comm):
-    if not MPI.Is_finalized() and not PETSc.Sys.isFinalized() \
-            and not pyop2.mpi.PYOP2_FINALIZED \
-            and comm.py2f() != MPI.COMM_NULL.py2f():
-        if pyop2.mpi.is_pyop2_comm(comm):
-            raise RuntimeError("Should not call garbage_cleanup directly on a "
-                               "PyOP2 communicator")
-        internal_comm = comm.Get_attr(pyop2.mpi.innercomm_keyval)
-        if internal_comm is not None and internal_comm.py2f() != MPI.COMM_NULL.py2f():  # noqa: E501
-            PETSc.garbage_cleanup(internal_comm)
+def _backend_garbage_cleanup(comm):
+    if not pyop2.mpi.PYOP2_FINALIZED:
+        backend_garbage_cleanup(comm)
 
 
-register_garbage_cleanup(garbage_cleanup_internal_comm)
+register_garbage_cleanup(_backend_garbage_cleanup)
