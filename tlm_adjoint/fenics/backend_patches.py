@@ -16,7 +16,7 @@ from ..patch import (
     add_manager_controls, manager_method, patch_function, patch_method)
 
 from .assembly import Assembly
-from .backend_interface import linear_solver
+from .backend_interface import add_duplicated_comm, linear_solver
 from .expr import action, extract_coefficients, extract_variables, new_count
 from .interpolation import ExprInterpolation
 from .parameters import (
@@ -29,6 +29,7 @@ from .variables import (
 
 import fenics
 import functools
+import mpi4py.MPI as MPI
 import numbers
 try:
     import ufl_legacy as ufl
@@ -110,6 +111,26 @@ def _setattr(self, key, value):
 
 
 # Aim for compatibility with FEniCS 2019.1.0 API
+
+for mesh_cls in (fenics.cpp.generation.BoxMesh,
+                 fenics.cpp.generation.IntervalMesh,
+                 fenics.cpp.generation.RectangleMesh,
+                 fenics.cpp.generation.SphericalShellMesh,
+                 fenics.cpp.generation.UnitCubeMesh,
+                 fenics.cpp.generation.UnitDiscMesh,
+                 fenics.cpp.generation.UnitIntervalMesh,
+                 fenics.cpp.generation.UnitSquareMesh,
+                 fenics.cpp.generation.UnitTriangleMesh,
+                 fenics.cpp.mesh.Mesh):
+    @patch_method(mesh_cls, "__init__")
+    def Mesh__init__(self, orig, orig_args, *args, **kwargs):
+        orig_args()
+        if len(args) > 0 and isinstance(args[0], MPI.Comm):
+            comm = args[0]
+        else:
+            comm = MPI.COMM_WORLD
+        add_duplicated_comm(comm, self.mpi_comm())
+    del mesh_cls, Mesh__init__
 
 
 @patch_method(Form, "__init__")

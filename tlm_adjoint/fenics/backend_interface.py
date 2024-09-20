@@ -3,8 +3,9 @@ from .backend import (
     backend_Function, backend_LocalSolver, backend_ScalarType,
     backend_assemble, backend_assemble_system, has_lu_solver_method)
 from ..interface import (
-    DEFAULT_COMM, check_space_type, check_space_types_conjugate_dual, packed,
-    space_eq, space_new)
+    DEFAULT_COMM, check_space_type, check_space_types_conjugate_dual,
+    comm_finalize, garbage_cleanup, packed, register_garbage_cleanup, space_eq,
+    space_new)
 
 from .expr import eliminate_zeros
 from .parameters import update_parameters
@@ -222,3 +223,32 @@ class LocalSolver:
             check_space_type(b._tlm_adjoint__function, "conjugate_dual")
 
         self._solver.solve_local(x, b, self._b_space.dofmap())
+
+
+_dup_comms = {}
+
+
+def add_duplicated_comm(comm, dup_comm):
+    comm_py2f = comm.py2f()
+    dup_comm_py2f = dup_comm.py2f()
+
+    _dup_comms.setdefault(comm_py2f, {})[dup_comm_py2f] = dup_comm
+
+    def comm_finalize_callback(comm_py2f):
+        _dup_comms.pop(comm_py2f)
+
+    def dup_comm_finalize_callback(comm_py2f, dup_comm_py2f):
+        _dup_comms.get(comm_py2f, {}).pop(dup_comm_py2f)
+
+    comm_finalize(comm, comm_finalize_callback,
+                  comm_py2f)
+    comm_finalize(dup_comm, dup_comm_finalize_callback,
+                  comm_py2f, dup_comm_py2f)
+
+
+def backend_garbage_cleanup(comm):
+    for dup_comm in _dup_comms.get(comm.py2f(), {}).values():
+        garbage_cleanup(dup_comm)
+
+
+register_garbage_cleanup(backend_garbage_cleanup)
