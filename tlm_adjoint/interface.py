@@ -343,7 +343,7 @@ def garbage_cleanup(comm=None):
     if comm.py2f() == MPI.COMM_NULL.py2f():
         return
 
-    comm_stack = [comm]
+    comm_stack = [comm_parent(comm)]
     comms = {}
     while len(comm_stack) > 0:
         comm = comm_stack.pop()
