@@ -122,15 +122,16 @@ for mesh_cls in (fenics.cpp.generation.BoxMesh,
                  fenics.cpp.generation.UnitSquareMesh,
                  fenics.cpp.generation.UnitTriangleMesh,
                  fenics.cpp.mesh.Mesh):
-    @patch_method(mesh_cls, "__init__")
-    def Mesh__init__(self, orig, orig_args, *args, **kwargs):
-        orig_args()
-        if len(args) > 0 and isinstance(args[0], MPI.Comm):
-            comm = args[0]
-        else:
-            comm = MPI.COMM_WORLD
-        add_duplicated_comm(comm, self.mpi_comm())
-    del mesh_cls, Mesh__init__
+    for method_name in ("__init__", "create"):
+        if hasattr(mesh_cls, method_name):
+            @patch_method(mesh_cls, method_name)
+            def _(self, orig, orig_args, *args, **kwargs):
+                orig_args()
+                if len(args) > 0 and isinstance(args[0], MPI.Comm):
+                    comm = args[0]
+                else:
+                    comm = MPI.COMM_WORLD
+                add_duplicated_comm(comm, self.mpi_comm())
 
 
 @patch_method(Form, "__init__")
