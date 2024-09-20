@@ -1,6 +1,6 @@
 from .backend import (
-    LinearSolver, Tensor, backend_Cofunction, backend_Function, backend_Matrix,
-    backend_assemble, backend_garbage_cleanup, backend_solve, extract_args)
+    _extract_comm, LinearSolver, Tensor, backend_Cofunction, backend_Function,
+    backend_Matrix, backend_assemble, backend_solve, extract_args)
 from ..interface import (
     check_space_type, check_space_types_conjugate_dual, packed,
     register_garbage_cleanup, space_eq, space_new)
@@ -310,9 +310,9 @@ class LocalSolver:
         matrix_multiply(self._mat, b, tensor=x)
 
 
-def _backend_garbage_cleanup(comm):
+def backend_garbage_cleanup(comm):
     if not pyop2.mpi.PYOP2_FINALIZED:
-        backend_garbage_cleanup(comm)
+        PETSc.garbage_cleanup(_extract_comm(comm))
 
 
-register_garbage_cleanup(_backend_garbage_cleanup)
+register_garbage_cleanup(backend_garbage_cleanup)

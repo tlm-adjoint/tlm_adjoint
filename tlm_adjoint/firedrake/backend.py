@@ -2,11 +2,10 @@ from firedrake import *
 from firedrake.assemble import \
     BaseFormAssembler, ExplicitMatrixAssembler as TwoFormAssembler, \
     OneFormAssembler  # noqa: F401
+from firedrake.petsc import _extract_comm  # noqa: F401
 from firedrake.projection import ProjectorBase  # noqa: F401
 from firedrake.utils import complex_mode  # noqa: F401
 import firedrake
-from firedrake.petsc import \
-    garbage_cleanup as backend_garbage_cleanup  # noqa: F401
 
 backend = "Firedrake"
 
