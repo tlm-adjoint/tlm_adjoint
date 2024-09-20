@@ -74,8 +74,7 @@ from .interface import (
     space_default_space_type, space_eq, space_new, var_assign, var_axpy,
     var_locked, var_zero)
 from .manager import manager_disabled
-from .petsc import (
-    PETScOptions, PETScVecInterface, attach_destroy_finalizer)
+from .petsc import PETScOptions, PETScVecInterface
 
 from abc import ABC, abstractmethod
 from collections.abc import Mapping, MutableMapping, Sequence
@@ -836,8 +835,6 @@ def petsc_ksp(A, *, comm=None, solver_parameters=None, pc_fn=None):
     ksp.setFromOptions()
     ksp.setUp()
 
-    attach_destroy_finalizer(ksp, pc, A_mat)
-
     return ksp
 
 
@@ -896,8 +893,6 @@ class LinearSolver:
         self._ksp = ksp
         self._pc_fn = pc_fn
         self._pc_pc_fn = _pc_pc_fn
-
-        attach_destroy_finalizer(self, ksp)
 
     @property
     def ksp(self):
@@ -1023,8 +1018,6 @@ def slepc_eps(A, B, *, B_inv=None, solver_parameters=None, comm=None):
 
     eps.setUp()
 
-    attach_destroy_finalizer(eps, A_mat, B_ksp, B_pc, B_mat)
-
     return eps
 
 
@@ -1084,8 +1077,6 @@ class Eigensolver:
         self._B_inv = B_inv
         self._eps = slepc_eps(A, B, B_inv=B_inv,
                               solver_parameters=solver_parameters, comm=comm)
-
-        attach_destroy_finalizer(self, self.eps)
 
     def __iter__(self):
         for i in range(len(self)):
@@ -1250,8 +1241,6 @@ def slepc_mfn(A, *, solver_parameters=None, comm=None):
     mfn.setFromOptions()
     mfn.setUp()
 
-    attach_destroy_finalizer(mfn, A_mat)
-
     return mfn
 
 
@@ -1290,8 +1279,6 @@ class MatrixFunctionSolver:
         self._A = A
         self._mfn = slepc_mfn(A, solver_parameters=solver_parameters,
                               comm=comm)
-
-        attach_destroy_finalizer(self, self.mfn)
 
     @property
     def mfn(self):

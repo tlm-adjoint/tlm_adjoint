@@ -110,8 +110,6 @@ class PETScVecInterface:
         self._n = n
         self._N = N
 
-        attach_destroy_finalizer(self, *self._isets)
-
     @property
     def comm(self):
         return self._comm
@@ -171,8 +169,6 @@ class PETScVec:
         self._vec_interface = vec_interface
         self._vec = vec_interface._new_petsc()
 
-        attach_destroy_finalizer(self, self._vec)
-
     @property
     def vec(self):
         return self._vec
@@ -182,14 +178,3 @@ class PETScVec:
 
     def from_petsc(self, X):
         self._vec_interface.from_petsc(self.vec, X)
-
-
-def attach_destroy_finalizer(obj, *args):
-    def finalize_callback(*args):
-        for arg in args:
-            if arg is not None:
-                arg.destroy()
-
-    finalize = weakref.finalize(obj, finalize_callback,
-                                *args)
-    finalize.atexit = False
