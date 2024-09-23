@@ -225,20 +225,20 @@ class LocalSolver:
         self._solver.solve_local(x, b, self._b_space.dofmap())
 
 
-_dup_comms = {}
+_duplicated_comms = {}
 
 
 def add_duplicated_comm(comm, dup_comm):
     comm_py2f = comm.py2f()
     dup_comm_py2f = dup_comm.py2f()
 
-    _dup_comms.setdefault(comm_py2f, {})[dup_comm_py2f] = dup_comm
+    _duplicated_comms.setdefault(comm_py2f, {})[dup_comm_py2f] = dup_comm
 
     def comm_finalize_callback(comm_py2f):
-        _dup_comms.pop(comm_py2f, None)
+        _duplicated_comms.pop(comm_py2f, None)
 
     def dup_comm_finalize_callback(comm_py2f, dup_comm_py2f):
-        _dup_comms.get(comm_py2f, {}).pop(dup_comm_py2f, None)
+        _duplicated_comms.get(comm_py2f, {}).pop(dup_comm_py2f, None)
 
     comm_finalize(comm, comm_finalize_callback,
                   comm_py2f)
@@ -247,7 +247,7 @@ def add_duplicated_comm(comm, dup_comm):
 
 
 def backend_garbage_cleanup(comm):
-    for dup_comm in _dup_comms.get(comm.py2f(), {}).values():
+    for dup_comm in _duplicated_comms.get(comm.py2f(), {}).values():
         garbage_cleanup(dup_comm)
 
 

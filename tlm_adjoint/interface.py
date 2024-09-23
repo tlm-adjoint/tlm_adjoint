@@ -258,7 +258,7 @@ else:
 
 _parent_comms = {}
 _dup_comms = {}
-_dupped_comms = {}
+_duplicated_comms = {}
 
 
 def comm_parent(dup_comm):
@@ -293,12 +293,12 @@ def comm_dup_cached(comm, *, key=None):
     if dup_comm is None:
         dup_comm = comm.Dup()
         _parent_comms[dup_comm.py2f()] = comm
-        _dupped_comms.setdefault(comm.py2f(), {})[key] = dup_comm
+        _duplicated_comms.setdefault(comm.py2f(), {})[key] = dup_comm
         _dup_comms[key] = dup_comm
 
         def finalize_callback(comm_py2f, key, dup_comm):
             _parent_comms.pop(dup_comm.py2f(), None)
-            _dupped_comms.pop(comm_py2f, None)
+            _duplicated_comms.pop(comm_py2f, None)
             _dup_comms.pop(key, None)
             if MPI is not None \
                     and not MPI.Is_finalized() \
@@ -346,7 +346,7 @@ def garbage_cleanup(comm=None):
                 and comm.py2f() != MPI.COMM_NULL.py2f() \
                 and comm.py2f() not in comms:
             comms[comm.py2f()] = comm
-            comm_stack.extend(_dupped_comms.get(comm.py2f(), {}).values())
+            comm_stack.extend(_duplicated_comms.get(comm.py2f(), {}).values())
 
     if PETSc is not None:
         petsc_comms = tuple(PETSc.Comm(comm).duplicate()
