@@ -26,6 +26,22 @@ def patch_method(cls, name):
     return wrapper
 
 
+def patch_static_method(cls, name):
+    orig = getattr(cls, name)
+
+    def wrapper(patch):
+        @functools.wraps(orig)
+        def wrapped_patch(*args, **kwargs):
+            return patch(orig,
+                         lambda: orig(*args, **kwargs),
+                         *args, **kwargs)
+
+        setattr(cls, name, wrapped_patch)
+        return wrapped_patch
+
+    return wrapper
+
+
 def patch_property(cls, name, *,
                    fset=None, cached=False):
     orig = getattr(cls, name)

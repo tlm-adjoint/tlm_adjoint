@@ -6,17 +6,18 @@ from .backend import (
     backend_ScalarType, backend_Vector, backend_assemble, backend_project,
     backend_solve, cpp_Assembler, cpp_PETScVector, cpp_SystemAssembler)
 from ..interface import (
-    DEFAULT_COMM, add_interface, comm_dup_cached, comm_parent, is_var, packed,
-    new_space_id, new_var_id, space_eq, space_id, space_new, var_assign,
-    var_comm, var_new, var_space, var_update_state)
+    DEFAULT_COMM, add_interface, comm_dup_cached, comm_parent, garbage_cleanup,
+    is_var, packed, new_space_id, new_var_id, space_eq, space_id, space_new,
+    var_assign, var_comm, var_new, var_space, var_update_state)
 
 from ..equations import Assignment
 from ..manager import annotation_enabled, tlm_enabled
 from ..patch import (
-    add_manager_controls, manager_method, patch_function, patch_method)
+    add_manager_controls, manager_method, patch_function, patch_method,
+    patch_static_method)
 
 from .assembly import Assembly
-from .backend_interface import linear_solver
+from .backend_interface import add_duplicated_comm, linear_solver
 from .expr import action, extract_coefficients, extract_variables, new_count
 from .interpolation import ExprInterpolation
 from .parameters import (
@@ -29,6 +30,8 @@ from .variables import (
 
 import fenics
 import functools
+import gc
+import mpi4py.MPI as MPI
 import numbers
 try:
     import ufl_legacy as ufl
@@ -110,6 +113,51 @@ def _setattr(self, key, value):
 
 
 # Aim for compatibility with FEniCS 2019.1.0 API
+
+for mesh_cls in (fenics.cpp.generation.BoxMesh,
+                 fenics.cpp.generation.IntervalMesh,
+                 fenics.cpp.generation.RectangleMesh,
+                 fenics.cpp.generation.SphericalShellMesh,
+                 fenics.cpp.generation.UnitCubeMesh,
+                 fenics.cpp.generation.UnitDiscMesh,
+                 fenics.cpp.generation.UnitIntervalMesh,
+                 fenics.cpp.generation.UnitSquareMesh,
+                 fenics.cpp.generation.UnitTriangleMesh,
+                 fenics.cpp.mesh.Mesh):
+    @patch_method(mesh_cls, "__init__")
+    def Mesh__init__(self, orig, orig_args, *args, **kwargs):
+        orig_args()
+        if len(args) > 0 and isinstance(args[0], MPI.Comm):
+            comm = args[0]
+        else:
+            comm = MPI.COMM_WORLD
+        add_duplicated_comm(comm, self.mpi_comm())
+
+        def finalize_callback(comm):
+            gc.collect()
+            garbage_cleanup(comm)
+
+        weakref.finalize(self, finalize_callback,
+                         self.mpi_comm())
+
+    if hasattr(mesh_cls, "create"):
+        @patch_static_method(mesh_cls, "create")
+        def Mesh_create(orig, orig_args, *args, **kwargs):
+            mesh = orig_args()
+            if len(args) > 0 and isinstance(args[0], MPI.Comm):
+                comm = args[0]
+            else:
+                comm = MPI.COMM_WORLD
+            add_duplicated_comm(comm, mesh.mpi_comm())
+
+            def finalize_callback(comm):
+                gc.collect()
+                garbage_cleanup(comm)
+
+            weakref.finalize(mesh, finalize_callback,
+                             mesh.mpi_comm())
+
+            return mesh
 
 
 @patch_method(Form, "__init__")

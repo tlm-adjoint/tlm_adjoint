@@ -7,9 +7,7 @@ from .interface import (
 from .caches import clear_caches, local_caches
 from .hessian import GeneralHessian as Hessian
 from .manager import manager as _manager
-from .petsc import (
-    PETScOptions, PETScVecInterface, attach_destroy_finalizer,
-    petsc_option_setdefault)
+from .petsc import PETScOptions, PETScVecInterface, petsc_option_setdefault
 from .manager import (
     compute_gradient, manager_disabled, reset_manager, restore_manager,
     set_manager, start_manager, stop_manager)
@@ -488,14 +486,9 @@ class TAOSolver:
             B_0_matrix = None
             B_0_matrix_pc = None
 
-        attach_destroy_finalizer(tao, hessian_matrix, M_inv_matrix,
-                                 B_0_matrix_pc, B_0_matrix)
-
         self._tao = tao
         self._vec_interface = vec_interface
         self._M = M
-
-        attach_destroy_finalizer(self, tao)
 
     @property
     def tao(self):
