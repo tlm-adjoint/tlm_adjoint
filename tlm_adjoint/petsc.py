@@ -34,10 +34,9 @@ class PETScOptions:
                 if key in options:
                     del options[key]
 
-        finalize = weakref.finalize(
+        weakref.finalize(
             self, finalize_callback,
             self._options_prefix, self._options, self._keys)
-        finalize.atexit = False
 
     @property
     def options_prefix(self):
