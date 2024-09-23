@@ -13,7 +13,8 @@ from ..interface import (
 from ..equations import Assignment
 from ..manager import annotation_enabled, tlm_enabled
 from ..patch import (
-    add_manager_controls, manager_method, patch_function, patch_method)
+    add_manager_controls, manager_method, patch_function, patch_method,
+    patch_static_method)
 
 from .assembly import Assembly
 from .backend_interface import add_duplicated_comm, linear_solver
@@ -122,16 +123,25 @@ for mesh_cls in (fenics.cpp.generation.BoxMesh,
                  fenics.cpp.generation.UnitSquareMesh,
                  fenics.cpp.generation.UnitTriangleMesh,
                  fenics.cpp.mesh.Mesh):
-    for method_name in ("__init__", "create"):
-        if hasattr(mesh_cls, method_name):
-            @patch_method(mesh_cls, method_name)
-            def _(self, orig, orig_args, *args, **kwargs):
-                orig_args()
-                if len(args) > 0 and isinstance(args[0], MPI.Comm):
-                    comm = args[0]
-                else:
-                    comm = MPI.COMM_WORLD
-                add_duplicated_comm(comm, self.mpi_comm())
+    @patch_method(mesh_cls, "__init__")
+    def Mesh__init__(self, orig, orig_args, *args, **kwargs):
+        orig_args()
+        if len(args) > 0 and isinstance(args[0], MPI.Comm):
+            comm = args[0]
+        else:
+            comm = MPI.COMM_WORLD
+        add_duplicated_comm(comm, self.mpi_comm())
+
+    if hasattr(mesh_cls, "create"):
+        @patch_static_method(mesh_cls, "create")
+        def Mesh_create(orig, orig_args, *args, **kwargs):
+            mesh = orig_args()
+            if len(args) > 0 and isinstance(args[0], MPI.Comm):
+                comm = args[0]
+            else:
+                comm = MPI.COMM_WORLD
+            add_duplicated_comm(comm, mesh.mpi_comm())
+            return mesh
 
 
 @patch_method(Form, "__init__")
