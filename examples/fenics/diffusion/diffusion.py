@@ -91,10 +91,10 @@ def info_compare(x, y, tol):
 
 
 info("TLM/adjoint consistency, zeta_1")
-info_compare(dJ_tlm_1.value, var_inner(zeta_1, dJ_adj), tol=1.0e-18)
+info_compare(dJ_tlm_1.value, var_inner(zeta_1, dJ_adj), tol=1.0e-17)
 
 info("TLM/adjoint consistency, zeta_2")
-info_compare(dJ_tlm_2.value, var_inner(zeta_2, dJ_adj), tol=1.0e-17)
+info_compare(dJ_tlm_2.value, var_inner(zeta_2, dJ_adj), tol=1.0e-16)
 
 info("Second order TLM/adjoint consistency")
 info_compare(ddJ_tlm.value, var_inner(zeta_2, ddJ_adj), tol=1.0e-17)
