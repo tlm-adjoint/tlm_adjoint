@@ -348,19 +348,18 @@ def garbage_cleanup(comm=None):
             comms[comm.py2f()] = comm
             comm_stack.extend(_duplicated_comms.get(comm.py2f(), {}).values())
 
-    if PETSc is not None:
-        petsc_comms = tuple(PETSc.Comm(comm).duplicate()
-                            for comm in comms.values())
-    try:
-        if not MPI.Is_finalized() and (PETSc is None or not PETSc.Sys.isFinalized()):  # noqa: E501
-            for comm in comms.values():
-                if comm.py2f() != MPI.COMM_NULL.py2f():
-                    for fn in _garbage_cleanup:
-                        fn(comm)
-    finally:
+    if not MPI.Is_finalized() and (PETSc is None or not PETSc.Sys.isFinalized()):  # noqa: E501
         if PETSc is not None:
-            for comm in petsc_comms:
-                comm.destroy()
+            petsc_comms = tuple(PETSc.Comm(comm).duplicate()
+                                for comm in comms.values())
+        try:
+            for comm in comms.values():
+                for fn in _garbage_cleanup:
+                    fn(comm)
+        finally:
+            if PETSc is not None:
+                for comm in petsc_comms:
+                    comm.destroy()
 
 
 def weakref_method(fn, obj):
