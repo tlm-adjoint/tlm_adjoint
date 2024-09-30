@@ -6,9 +6,9 @@ from .backend import (
     backend_ScalarType, backend_Vector, backend_assemble, backend_project,
     backend_solve, cpp_Assembler, cpp_PETScVector, cpp_SystemAssembler)
 from ..interface import (
-    DEFAULT_COMM, add_interface, comm_dup_cached, comm_parent, garbage_cleanup,
-    is_var, packed, new_space_id, new_var_id, space_eq, space_id, space_new,
-    var_assign, var_comm, var_new, var_space, var_update_state)
+    DEFAULT_COMM, add_interface, comm_dup_cached, comm_parent, is_var, packed,
+    new_space_id, new_var_id, space_eq, space_id, space_new, var_assign,
+    var_comm, var_new, var_space, var_update_state)
 
 from ..equations import Assignment
 from ..manager import annotation_enabled, tlm_enabled
@@ -30,7 +30,6 @@ from .variables import (
 
 import fenics
 import functools
-import gc
 import mpi4py.MPI as MPI
 import numbers
 try:
@@ -133,13 +132,6 @@ for mesh_cls in (fenics.cpp.generation.BoxMesh,
             comm = MPI.COMM_WORLD
         add_duplicated_comm(comm, self.mpi_comm())
 
-        def finalize_callback(comm):
-            gc.collect()
-            garbage_cleanup(comm)
-
-        weakref.finalize(self, finalize_callback,
-                         self.mpi_comm())
-
     if hasattr(mesh_cls, "create"):
         @patch_static_method(mesh_cls, "create")
         def Mesh_create(orig, orig_args, *args, **kwargs):
@@ -149,13 +141,6 @@ for mesh_cls in (fenics.cpp.generation.BoxMesh,
             else:
                 comm = MPI.COMM_WORLD
             add_duplicated_comm(comm, mesh.mpi_comm())
-
-            def finalize_callback(comm):
-                gc.collect()
-                garbage_cleanup(comm)
-
-            weakref.finalize(mesh, finalize_callback,
-                             mesh.mpi_comm())
 
             return mesh
 
