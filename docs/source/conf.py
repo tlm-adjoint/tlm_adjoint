@@ -1,3 +1,8 @@
+import os
+
+if "PYTHONWARNINGS" not in os.environ:
+    os.environ["PYTHONWARNINGS"] = "ignore"
+
 project = "tlm_adjoint"
 
 extensions = ["autoapi.extension",
