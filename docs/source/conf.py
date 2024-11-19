@@ -1,3 +1,5 @@
+import os
+
 project = "tlm_adjoint"
 
 extensions = ["autoapi.extension",
@@ -46,3 +48,6 @@ intersphinx_mapping = {"checkpoint_schedules": ("https://www.firedrakeproject.or
                        "sympy": ("https://docs.sympy.org/latest", None),
                        "torch": ("https://pytorch.org/docs/stable", None),
                        "ufl": ("https://fenics.readthedocs.io/projects/ufl/en/latest", None)}  # noqa: E501
+
+if "PYTHONWARNINGS" not in os.environ:
+    os.environ["PYTHONWARNINGS"] = "ignore"
