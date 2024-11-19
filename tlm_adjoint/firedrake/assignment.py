@@ -124,9 +124,9 @@ class ExprAssignment(ExprEquation):
                 var_assign(F, var_inner(adj_x, dF))
             elif isinstance(dep, (backend_Cofunction, ReplacementCofunction,
                                   backend_Function, ReplacementFunction)):
-                e = var_space(dep).ufl_element()
+                space = var_space(dep)
                 F = var_new_conjugate_dual(dep)
-                if (e.family(), e.degree(), e.value_shape) == ("Real", 0, ()):
+                if (space.ufl_element().family(), space.ufl_element().degree(), space.value_shape) == ("Real", 0, ()):  # noqa: E501
                     dF = var_new_conjugate_dual(adj_x).assign(
                         dF, **self._subset_kwargs)
                     F.dat.data[:] = var_inner(adj_x, dF)

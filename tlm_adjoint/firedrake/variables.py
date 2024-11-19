@@ -61,7 +61,7 @@ class ConstantSpaceInterface(SpaceInterface):
                     and self == other))
 
     def _global_size(self):
-        shape = self.ufl_element().value_shape
+        shape = self.value_shape
         if len(shape) == 0:
             return 1
         else:
@@ -70,7 +70,7 @@ class ConstantSpaceInterface(SpaceInterface):
     def _local_indices(self):
         comm = space_comm(self)
         if comm.rank == 0:
-            shape = self.ufl_element().value_shape
+            shape = self.value_shape
             if len(shape) == 0:
                 return slice(0, 1)
             else:
@@ -296,8 +296,8 @@ class Constant(backend_Constant):
         # Shape initialization / checking
         if space is not None:
             if shape is None:
-                shape = space.ufl_element().value_shape
-            elif shape != space.ufl_element().value_shape:
+                shape = space.value_shape
+            elif shape != space.value_shape:
                 raise ValueError("Invalid shape")
 
         value = constant_value(value, shape)
