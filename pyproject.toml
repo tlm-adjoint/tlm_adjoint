@@ -1,3 +1,20 @@
+[project]
+
+name = "tlm_adjoint"
+version = "0.9.1dev"
+description = "A library for high-level algorithmic differentiation "
+readme = "readme.rst"
+maintainers = [
+    {name="James R. Maddison", email="j.r.maddison@ed.ac.uk"}
+]
+classifiers = [
+    "License :: OSI Approved :: GNU Lesser General Public License v3 (LGPLv3)"
+]
+dependencies = [
+    "numpy",
+    "sympy"
+]
+
 [tool.pytest.ini_options]
 
 markers = [
