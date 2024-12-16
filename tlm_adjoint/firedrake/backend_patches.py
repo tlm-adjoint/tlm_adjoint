@@ -269,6 +269,8 @@ def space_local_indices_cached(space, cls):
 @patch_method(backend_FunctionSpace, "__init__")
 def FunctionSpace__init__(self, orig, orig_args, *args, **kwargs):
     orig_args()
+    if not ufl.duals.is_primal(self) and not ufl.duals.is_dual(self):
+        raise NotImplementedError("Mixed primal/dual spaces not implemented")
     add_interface(self, FunctionSpaceInterface,
                   {"space": self, "comm": comm_dup_cached(self.comm),
                    "id": new_space_id_cached(self)})
@@ -289,6 +291,8 @@ def FunctionSpace_dual(self, orig, orig_args):
 @patch_method(backend_CofunctionSpace, "__init__")
 def CofunctionSpace__init__(self, orig, orig_args, *args, **kwargs):
     orig_args()
+    if not ufl.duals.is_primal(self) and not ufl.duals.is_dual(self):
+        raise NotImplementedError("Mixed primal/dual spaces not implemented")
     add_interface(self, FunctionSpaceInterface,
                   {"space_dual": self, "comm": comm_dup_cached(self.comm),
                    "id": new_space_id_cached(self)})
