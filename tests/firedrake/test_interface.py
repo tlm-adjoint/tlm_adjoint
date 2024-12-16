@@ -164,16 +164,20 @@ def test_var_alias(setup_test, test_leaks,
     for F_i in F.subfunctions:
         assert var_is_alias(F_i)
         test_state(F, F_i)
-    for i in range(dim):
-        F_i = F.sub(i)
-        assert dim == 1 or var_is_alias(F_i)
-        test_state(F, F_i)
+    if len(F.function_space()) > 1:
+        # dim == 1 skipped due to Firedrake issue #3933
+        for i in range(dim):
+            F_i = F.sub(i)
+            assert var_is_alias(F_i)
+            test_state(F, F_i)
 
     F = cls(space, name="F")
-    for i in range(dim):
-        F_i = F.sub(i)
-        assert dim == 1 or var_is_alias(F_i)
-        test_state(F, F_i)
+    if len(F.function_space()) > 1:
+        # dim == 1 skipped due to Firedrake issue #3933
+        for i in range(dim):
+            F_i = F.sub(i)
+            assert var_is_alias(F_i)
+            test_state(F, F_i)
     for F_i in F.subfunctions:
         assert var_is_alias(F_i)
         test_state(F, F_i)
