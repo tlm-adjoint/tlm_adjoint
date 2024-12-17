@@ -66,20 +66,11 @@ def project_project(F, space, bc):
 
 
 def project_solve(F, space, bc, *, restrict=False):
-    # Backwards compatibility
-    try:
-        RestrictedFunctionSpace
-        restrict_kwargs = {"restrict": restrict}
-    except NameError:
-        if restrict:
-            pytest.skip()
-        restrict_kwargs = {}
-
     test, trial = TestFunction(space), TrialFunction(space)
     G = Function(space, name="G")
 
     solve(inner(trial, test) * dx == inner(F, test) * dx, G, bcs=bc,
-          solver_parameters=ls_parameters_cg, **restrict_kwargs)
+          solver_parameters=ls_parameters_cg, restrict=restrict)
 
     return G
 
@@ -98,21 +89,12 @@ def project_assemble_LinearSolver(F, space, bc):
 
 
 def project_LinearVariationalSolver(F, space, bc, *, restrict=False):
-    # Backwards compatibility
-    try:
-        RestrictedFunctionSpace
-        restrict_kwargs = {"restrict": restrict}
-    except NameError:
-        if restrict:
-            pytest.skip()
-        restrict_kwargs = {}
-
     test, trial = TestFunction(space), TrialFunction(space)
     G = Function(space, name="G")
 
     eq = inner(trial, test) * dx == inner(F, test) * dx
     problem = LinearVariationalProblem(eq.lhs, eq.rhs, G, bcs=bc,
-                                       **restrict_kwargs)
+                                       restrict=restrict)
     solver = LinearVariationalSolver(
         problem, solver_parameters=ls_parameters_cg)
     solver.solve()
@@ -141,22 +123,13 @@ def project_LinearVariationalSolver_matfree(F, space, bc):
 
 
 def project_NonlinearVariationalSolver(F, space, bc, *, restrict=False):
-    # Backwards compatibility
-    try:
-        RestrictedFunctionSpace
-        restrict_kwargs = {"restrict": restrict}
-    except NameError:
-        if restrict:
-            pytest.skip()
-        restrict_kwargs = {}
-
     test, trial = TestFunction(space), TrialFunction(space)
     G = Function(space, name="G")
 
     eq = inner(G, test) * dx - inner(F, test) * dx
     problem = NonlinearVariationalProblem(eq, G,
                                           J=inner(trial, test) * dx,
-                                          bcs=bc, **restrict_kwargs)
+                                          bcs=bc, restrict=restrict)
     solver = NonlinearVariationalSolver(
         problem, solver_parameters=ns_parameters_newton_cg)
     solver.solve()
