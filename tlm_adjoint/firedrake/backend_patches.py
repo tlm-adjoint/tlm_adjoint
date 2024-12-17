@@ -737,8 +737,6 @@ def SameMeshInterpolator_interpolate_post_call(
 def SameMeshInterpolator_interpolate(
         self, orig, orig_args, *function, output=None, transpose=False,
         default_missing_val=None, **kwargs):
-    if transpose:
-        raise NotImplementedError("transpose not supported")
     if default_missing_val is not None:
         raise NotImplementedError("default_missing_val not supported")
 

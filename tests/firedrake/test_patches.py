@@ -803,8 +803,8 @@ def test_Nullspace(setup_test, test_leaks):
 @pytest.mark.firedrake
 @pytest.mark.parametrize("degree", [1, 2, 3])
 @seed_test
-def test_interpolate(setup_test, test_leaks,
-                     interpolate_expr, degree):
+def test_Function_interpolate(setup_test, test_leaks,
+                              interpolate_expr, degree):
     mesh = UnitIntervalMesh(20)
     X = SpatialCoordinate(mesh)
     space_1 = FunctionSpace(mesh, "Lagrange", 1)
@@ -828,7 +828,6 @@ def test_interpolate(setup_test, test_leaks,
         J.assign(((y_1 - Constant(1.0)) ** 4) * dx)
         return y_1, J
 
-    reset_manager("memory", {"drop_references": True})
     start_manager()
     y_1, J = forward(y_2)
     stop_manager()
@@ -860,6 +859,62 @@ def test_interpolate(setup_test, test_leaks,
 
     min_order = taylor_test_tlm_adjoint(forward_J, y_2, adjoint_order=2)
     assert min_order > 1.99
+
+
+@pytest.mark.firedrake
+@seed_test
+def test_Cofunction_interpolate(setup_test, test_leaks):
+    mesh = UnitIntervalMesh(10)
+    X = SpatialCoordinate(mesh)
+    space_1 = FunctionSpace(mesh, "Lagrange", 1)
+    space_2 = FunctionSpace(mesh, "Lagrange", 2)
+
+    def forward(b):
+        y = Cofunction(space_2.dual(), name="y").interpolate(b)
+        y_dual = y.riesz_representation(
+            "L2", solver_parameters=ls_parameters_cg)
+        J = Functional(name="J")
+        J.assign(((y_dual + Constant(1)) ** 4) * dx)
+        return y, J
+
+    b = assemble(inner(exp(X[0]), TestFunction(space_1)) * dx)
+
+    start_manager()
+    y, J = forward(b)
+    stop_manager()
+
+    for n in range(space_2.dim()):
+        u = Function(space_2, name="u")
+        with u.dat.vec_wo as u_v:
+            u_v.setValue(n, 1)
+            u_v.assemblyBegin()
+            u_v.assemblyEnd()
+        error = abs(assemble(y(u) - b(Function(space_1).interpolate(u))))
+        assert error == 0
+
+    J_val = J.value
+
+    dJ = compute_gradient(J, b)
+
+    def forward_J(b):
+        _, J = forward(b)
+        return J
+
+    min_order = taylor_test(forward_J, b, J_val=J_val, dJ=dJ)
+    assert min_order > 2.00
+
+    ddJ = Hessian(forward_J)
+    min_order = taylor_test(forward_J, b, J_val=J_val, ddJ=ddJ)
+    assert min_order > 3.00
+
+    min_order = taylor_test_tlm(forward_J, b, tlm_order=1)
+    assert min_order > 2.00
+
+    min_order = taylor_test_tlm_adjoint(forward_J, b, adjoint_order=1)
+    assert min_order > 2.00
+
+    min_order = taylor_test_tlm_adjoint(forward_J, b, adjoint_order=2)
+    assert min_order > 2.00
 
 
 @pytest.mark.firedrake
