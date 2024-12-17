@@ -5,16 +5,18 @@ from .backend import (
     FunctionSpace, Interpolator, TestFunction, VertexOnlyMesh,
     backend_Cofunction, backend_Constant, backend_Function)
 from ..interface import (
-    check_space_type, comm_dup_cached, packed, space_new, var_assign, var_comm,
-    var_copy, var_id, var_inner, var_is_scalar, var_new_conjugate_dual,
-    var_replacement, var_scalar_value)
+    check_space_type, check_space_types, comm_dup_cached, packed, space_new,
+    var_assign, var_assign_conjugate, var_axpy, var_axpy_conjugate, var_comm,
+    var_copy_conjugate, var_id, var_inner, var_is_scalar, var_new,
+    var_new_conjugate, var_new_conjugate_dual, var_replacement,
+    var_scalar_value, var_zero)
 
 from ..equation import Equation, ZeroAssignment
 from ..manager import manager_disabled
 
 from .expr import (
     ExprEquation, derivative, eliminate_zeros, expr_zero, extract_dependencies,
-    extract_variables)
+    iter_expr)
 from .variables import ReplacementConstant
 
 import itertools
@@ -30,19 +32,18 @@ __all__ = \
 
 @manager_disabled()
 def interpolate_expression(x, expr, *, adj_x=None):
-    if adj_x is None:
-        check_space_type(x, "primal")
-    else:
-        check_space_type(x, "conjugate_dual")
-        check_space_type(adj_x, "conjugate_dual")
-    for dep in extract_variables(expr):
-        check_space_type(dep, "primal")
+    if adj_x is not None:
+        check_space_types(x, adj_x)
 
     expr = eliminate_zeros(expr)
 
     if adj_x is None:
         if isinstance(x, backend_Constant):
             x.assign(expr)
+        elif isinstance(x, backend_Cofunction):
+            var_zero(x)
+            for weight, comp in iter_expr(expr):
+                var_axpy(x, weight, var_new(x).interpolate(comp))
         elif isinstance(x, backend_Function):
             x.interpolate(expr)
         else:
@@ -54,11 +55,17 @@ def interpolate_expression(x, expr, *, adj_x=None):
         interpolate_expression(expr_val, expr)
         var_assign(x, var_inner(adj_x, expr_val))
     elif isinstance(x, backend_Cofunction):
+        adj_x = var_copy_conjugate(adj_x)
         interp = Interpolator(expr, adj_x.function_space().dual())
-        adj_x = var_copy(adj_x)
-        adj_x.dat.data[:] = adj_x.dat.data_ro.conjugate()
-        interp._interpolate(adj_x, transpose=True, output=x)
-        x.dat.data[:] = x.dat.data_ro.conjugate()
+        x_comp = var_new_conjugate(x)
+        interp._interpolate(adj_x, transpose=True, output=x_comp)
+        var_assign_conjugate(x, x_comp)
+    elif isinstance(x, backend_Function):
+        adj_x = var_copy_conjugate(adj_x)
+        var_zero(x)
+        for weight, comp in iter_expr(expr):
+            x_comp = var_new_conjugate(x).interpolate(comp(adj_x))
+            var_axpy_conjugate(x, weight.conjugate(), x_comp)
     else:
         raise TypeError(f"Unexpected type: {type(x)}")
 
@@ -75,7 +82,7 @@ class ExprInterpolation(ExprEquation):
     """
 
     def __init__(self, x, rhs):
-        deps, nl_deps = extract_dependencies(rhs, space_type="primal")
+        deps, nl_deps = extract_dependencies(rhs)
         if var_id(x) in deps:
             raise ValueError("Invalid dependency")
         deps, nl_deps = list(deps.values()), tuple(nl_deps.values())

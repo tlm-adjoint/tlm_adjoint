@@ -737,12 +737,11 @@ def SameMeshInterpolator_interpolate_post_call(
 def SameMeshInterpolator_interpolate(
         self, orig, orig_args, *function, output=None, transpose=False,
         default_missing_val=None, **kwargs):
-    if transpose:
-        raise NotImplementedError("transpose not supported")
     if default_missing_val is not None:
         raise NotImplementedError("default_missing_val not supported")
 
     return_value = orig_args()
+    check_space_type(return_value, "conjugate_dual" if transpose else "primal")
 
     args = ufl.algorithms.extract_arguments(self.expr)
     if len(args) != len(function):
