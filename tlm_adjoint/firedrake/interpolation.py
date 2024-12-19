@@ -56,10 +56,7 @@ def interpolate_expression(x, expr, *, adj_x=None):
         var_assign(x, var_inner(adj_x, expr_val))
     elif isinstance(x, backend_Cofunction):
         adj_x = var_copy_conjugate(adj_x)
-        interp = Interpolator(expr, adj_x.function_space().dual())
-        x_comp = var_new_conjugate(x)
-        interp._interpolate(adj_x, transpose=True, output=x_comp)
-        var_assign_conjugate(x, x_comp)
+        var_assign_conjugate(x, var_new_conjugate(x).interpolate(adj_x(expr)))
     elif isinstance(x, backend_Function):
         adj_x = var_copy_conjugate(adj_x)
         var_zero(x)
