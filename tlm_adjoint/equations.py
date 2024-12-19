@@ -1,7 +1,7 @@
 from .interface import (
-    Packed, check_space_types, check_space_types_conjugate_dual,
-    check_space_types_dual, packed, var_assign, var_axpy, var_axpy_conjugate,
-    var_dot, var_dtype, var_get_values, var_id, var_is_scalar, var_inner,
+    check_space_types, check_space_types_conjugate_dual,
+    check_space_types_dual, var_assign, var_axpy, var_axpy_conjugate, var_dot,
+    var_dtype, var_get_values, var_id, var_is_scalar, var_inner,
     var_local_size, var_new_conjugate_dual, var_replacement, var_scalar_value,
     var_set_values, var_zero)
 
@@ -22,8 +22,7 @@ __all__ = \
         "DotProductRHS",
         "DotProduct",
         "InnerProductRHS",
-        "InnerProduct",
-        "MatrixActionRHS"
+        "InnerProduct"
     ]
 
 
@@ -270,95 +269,6 @@ class InnerProduct(LinearEquation):
 
     def __init__(self, x, y, z, *, alpha=1.0, M=None):
         super().__init__(x, InnerProductRHS(y, z, alpha=alpha, M=M))
-
-
-class MatrixActionRHS(RHS):
-    """Represents a right-hand-side term
-
-    .. math::
-
-        A x.
-
-    :arg A: A :class:`tlm_adjoint.linear_equation.Matrix` defining :math:`A`.
-    :arg x: A variable or a :class:`Sequence` of variables defining :math:`x`.
-    """
-
-    def __init__(self, A, X):
-        X_packed = Packed(X)
-        X = tuple(X_packed)
-        if len(set(map(var_id, X))) != len(X):
-            raise ValueError("Invalid dependency")
-
-        A_nl_deps = A.nonlinear_dependencies()
-        if len(A_nl_deps) == 0:
-            x_indices = {i: i for i in range(len(X))}
-            super().__init__(X, nl_deps=[])
-        else:
-            nl_deps = list(A_nl_deps)
-            nl_dep_ids = {var_id(dep): i for i, dep in enumerate(nl_deps)}
-            x_indices = {}
-            for i, x in enumerate(X):
-                x_id = var_id(x)
-                if x_id not in nl_dep_ids:
-                    nl_deps.append(x)
-                    nl_dep_ids[x_id] = len(nl_deps) - 1
-                x_indices[nl_dep_ids[x_id]] = i
-            super().__init__(nl_deps, nl_deps=nl_deps)
-
-        self._packed = X_packed.mapped(lambda x: None)
-        self._A = A
-        self._x_indices = x_indices
-
-        self.add_referrer(A)
-
-    def drop_references(self):
-        super().drop_references()
-        self._A = self._A._weak_alias
-
-    def _unpack(self, obj):
-        return self._packed.unpack(obj)
-
-    def add_forward(self, B, deps):
-        B = packed(B)
-        X = tuple(deps[j] for j in self._x_indices)
-        self._A.forward_action(deps[:len(self._A.nonlinear_dependencies())],
-                               self._unpack(X),
-                               self._unpack(B),
-                               method="add")
-
-    def subtract_adjoint_derivative_action(self, nl_deps, dep_index, adj_X, b):
-        adj_X = packed(adj_X)
-        N_A_nl_deps = len(self._A.nonlinear_dependencies())
-        if dep_index < N_A_nl_deps:
-            X = tuple(nl_deps[j] for j in self._x_indices)
-            self._A.adjoint_derivative_action(
-                nl_deps[:N_A_nl_deps], dep_index,
-                self._unpack(X),
-                self._unpack(adj_X),
-                b, method="sub")
-
-        if dep_index in self._x_indices:
-            self._A.adjoint_action(nl_deps[:N_A_nl_deps],
-                                   self._unpack(adj_X),
-                                   b, b_index=self._x_indices[dep_index],
-                                   method="sub")
-
-    def tangent_linear_rhs(self, tlm_map):
-        deps = self.dependencies()
-        N_A_nl_deps = len(self._A.nonlinear_dependencies())
-
-        X = tuple(deps[j] for j in self._x_indices)
-        tlm_X = tuple(tlm_map[x] for x in X)
-        tlm_B = [MatrixActionRHS(self._A, self._unpack(tlm_X))]
-
-        if N_A_nl_deps > 0:
-            tlm_b = self._A.tangent_linear_rhs(tlm_map, X)
-            if tlm_b is None:
-                pass
-            else:
-                tlm_B.extend(packed(tlm_b))
-
-        return tlm_B
 
 
 class DotProductRHS(RHS):

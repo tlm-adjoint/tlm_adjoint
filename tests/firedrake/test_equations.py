@@ -5,7 +5,6 @@ from tlm_adjoint.firedrake.expr import extract_variables
 
 from .test_base import *
 
-import firedrake
 import functools
 import numpy as np
 import os
@@ -209,97 +208,6 @@ def test_FixedPointSolver(setup_test, test_leaks):
         min_order = taylor_test_tlm_adjoint(forward_J, M, adjoint_order=2,
                                             dMs=(dM, dM))
         assert min_order > 1.99
-
-
-@pytest.mark.firedrake
-@pytest.mark.parametrize(
-    "overlap_type", [(firedrake.DistributedMeshOverlapType.NONE, 0),
-                     pytest.param(
-                         (firedrake.DistributedMeshOverlapType.FACET, 1),
-                         marks=pytest.mark.skipif(DEFAULT_COMM.size == 1,
-                                                  reason="parallel only")),
-                     pytest.param(
-                         (firedrake.DistributedMeshOverlapType.VERTEX, 1),
-                         marks=pytest.mark.skipif(DEFAULT_COMM.size == 1,
-                                                  reason="parallel only"))])
-@pytest.mark.parametrize("N_x, N_y, N_z", [(2, 2, 2),
-                                           (5, 5, 5)])
-@pytest.mark.parametrize("c", [-1.5, 1.5])
-@seed_test
-def test_PointInterpolation(setup_test, test_leaks,
-                            overlap_type,
-                            N_x, N_y, N_z,
-                            c):
-    mesh = UnitCubeMesh(N_x, N_y, N_z,
-                        distribution_parameters={"partition": True,
-                                                 "overlap_type": overlap_type})
-    X = SpatialCoordinate(mesh)
-    y_space = FunctionSpace(mesh, "Lagrange", 3)
-    X_coords = np.array([[0.1, 0.1, 0.1],
-                         [0.2, 0.3, 0.4],
-                         [0.9, 0.8, 0.7],
-                         [0.4, 0.2, 0.3]], dtype=backend_RealType)
-
-    def forward(y):
-        X_vals = [Constant(name=f"x_{i:d}")
-                  for i in range(X_coords.shape[0])]
-        eq = PointInterpolation(X_vals, y, X_coords, tolerance=1.0e-14)
-        eq.solve()
-
-        J = Functional(name="J")
-        for x in X_vals:
-            term = Constant()
-            ExprInterpolation(term, x ** 3).solve()
-            J.addto(term)
-        return X_vals, J
-
-    y = Function(y_space, name="y", static=True)
-    if complex_mode:
-        interpolate_expression(y, pow(X[0], 3) - 1.5 * X[0] * X[1] + c
-                               + 1.0j * pow(X[0], 2))
-    else:
-        interpolate_expression(y, pow(X[0], 3) - 1.5 * X[0] * X[1] + c)
-
-    start_manager()
-    X_vals, J = forward(y)
-    stop_manager()
-
-    def x_ref(x):
-        if complex_mode:
-            return x[0] ** 3 - 1.5 * x[0] * x[1] + c + 1.0j * x[0] ** 2
-        else:
-            return x[0] ** 3 - 1.5 * x[0] * x[1] + c
-
-    x_error_norm = 0.0
-    assert len(X_vals) == len(X_coords)
-    for x, x_coord in zip(X_vals, X_coords):
-        x_error_norm = max(x_error_norm,
-                           abs(var_scalar_value(x) - x_ref(x_coord)))
-    info(f"Error norm = {x_error_norm:.16e}")
-    assert x_error_norm < 1.0e-13
-
-    J_val = J.value
-
-    dJ = compute_gradient(J, y)
-
-    def forward_J(y):
-        return forward(y)[1]
-
-    min_order = taylor_test(forward_J, y, J_val=J_val, dJ=dJ)
-    assert min_order > 1.99
-
-    ddJ = Hessian(forward_J)
-    min_order = taylor_test(forward_J, y, J_val=J_val, ddJ=ddJ)
-    assert min_order > 2.99
-
-    min_order = taylor_test_tlm(forward_J, y, tlm_order=1)
-    assert min_order > 1.99
-
-    min_order = taylor_test_tlm_adjoint(forward_J, y, adjoint_order=1)
-    assert min_order > 1.99
-
-    min_order = taylor_test_tlm_adjoint(forward_J, y, adjoint_order=2)
-    assert min_order > 1.99
 
 
 @pytest.mark.firedrake
