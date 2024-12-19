@@ -154,9 +154,7 @@ def test_leaks():
     manager._adj_cache.clear()
     for block in list(manager._blocks) + [manager._block]:
         for eq in block:
-            if isinstance(eq, PointInterpolation):
-                del eq._interp
-            elif isinstance(eq, AdjointActionMarker):
+            if isinstance(eq, AdjointActionMarker):
                 del eq._adj_X
 
     gc.collect()
