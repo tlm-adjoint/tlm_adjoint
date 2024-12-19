@@ -1,7 +1,7 @@
 from .interface import (
     check_space_types, check_space_types_conjugate_dual,
-    check_space_types_dual, packed, var_assign, var_axpy, var_axpy_conjugate,
-    var_dot, var_dtype, var_get_values, var_id, var_is_scalar, var_inner,
+    check_space_types_dual, var_assign, var_axpy, var_axpy_conjugate, var_dot,
+    var_dtype, var_get_values, var_id, var_is_scalar, var_inner,
     var_local_size, var_new_conjugate_dual, var_replacement, var_scalar_value,
     var_set_values, var_zero)
 
