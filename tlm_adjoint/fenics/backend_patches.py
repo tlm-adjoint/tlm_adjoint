@@ -482,9 +482,12 @@ def Function_assign(self, orig, orig_args, rhs):
         orig_args()
 
         if annotate or tlm:
-            eq = ExprInterpolation(self, expr_new_x(rhs, self))
-            assert not eq._pre_process_required
-            eq._post_process()
+            if isinstance(rhs, backend_Constant):
+                eq = ExprInterpolation(self, rhs)
+                assert not eq._pre_process_required
+                eq._post_process()
+            else:
+                raise NotImplementedError("Case not implemented")
 
 
 @manager_method(backend_Function, "copy", patch_without_manager=True)
