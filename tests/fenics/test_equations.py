@@ -490,22 +490,34 @@ def test_Storage(setup_test, test_leaks,
 
     dJ = compute_gradient(J, x)
 
-    min_order = taylor_test(forward_J, x, J_val=J_val, dJ=dJ, seed=1.0e-3)
-    assert min_order > 1.99
+    dMs = tuple(var_new(x) for _ in range(2))
+    for i, dm in enumerate(dMs):
+        if complex_mode:
+            interpolate_expression(
+                dm, cos((i + 1) * pi * X[0]) * exp(1.0j * X[0] + X[1]))
+        else:
+            interpolate_expression(
+                dm, cos((i + 1) * pi * X[0]) * exp(X[1]))
+
+    min_order = taylor_test(forward_J, x, J_val=J_val, dJ=dJ, seed=1.0e-2,
+                            dM=dMs[0])
+    assert min_order > 2.00
 
     ddJ = Hessian(forward_J)
-    min_order = taylor_test(forward_J, x, J_val=J_val, ddJ=ddJ, seed=1.0e-3)
-    assert min_order > 2.98
+    min_order = taylor_test(forward_J, x, J_val=J_val, ddJ=ddJ, seed=1.0e-2,
+                            dM=dMs[0])
+    assert min_order > 3.00
 
-    min_order = taylor_test_tlm(forward_J, x, tlm_order=1, seed=1.0e-3)
-    assert min_order > 1.99
+    min_order = taylor_test_tlm(forward_J, x, tlm_order=1, seed=1.0e-3,
+                                dMs=dMs[:1])
+    assert min_order > 2.00
 
     min_order = taylor_test_tlm_adjoint(forward_J, x, adjoint_order=1,
-                                        seed=1.0e-3)
-    assert min_order > 1.99
+                                        seed=1.0e-3, dMs=dMs[:1])
+    assert min_order > 2.00
 
     min_order = taylor_test_tlm_adjoint(forward_J, x, adjoint_order=2,
-                                        seed=1.0e-3)
+                                        seed=1.0e-3, dMs=dMs)
     assert min_order > 1.99
 
     h.close()
