@@ -889,8 +889,8 @@ def test_Cofunction_interpolate(setup_test, test_leaks):
             u_v.setValue(n, 1)
             u_v.assemblyBegin()
             u_v.assemblyEnd()
-        error = abs(assemble(y(u) - b(Function(space_1).interpolate(u))))
-        assert error == 0
+        error_norm = abs(assemble(y(u) - b(Function(space_1).interpolate(u))))
+        assert error_norm == 0
 
     J_val = J.value
 

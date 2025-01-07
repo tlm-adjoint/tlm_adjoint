@@ -282,28 +282,16 @@ def test_Function_assign(setup_test, test_leaks,
         u.assign(-2.0)
         u.assign(u + 2.0 * m)
 
-        m_ = Function(space, name="m")
-        assign_fn(m_, m)
-        m = m_
-        del m_
-
         u_ = Function(space, name="u")
-        assign_fn(u_, u)
+        assign_fn(u_, m)
         u = u_
         del u_
 
-        one = Function(space, name="one")
-        assign_fn(one, Constant(1.0))
-
         v = Function(space, name="v")
         assign_fn(v, u)
-        v.assign(u + one)
-        assign_fn(v, Constant(0.0))
-        v.assign(u + v + one)
-        v.assign(2.5 * u + 3.6 * v + 4.7 * m)
 
         J = Functional(name="J")
-        J.assign(((v - 1.0) ** 4) * dx)
+        J.assign(((v - 0.5) ** 4) * dx)
         return J
 
     m = Constant(2.0, name="m")
@@ -313,29 +301,29 @@ def test_Function_assign(setup_test, test_leaks,
     stop_manager()
 
     J_val = J.value
-    assert abs(J_val - 342974.2096) < 1.0e-9
+    assert abs(J_val - 1.5 ** 4) < 1.0e-14
 
     dJ = compute_gradient(J, m)
 
     dm = Constant(1.0)
 
     min_order = taylor_test(forward, m, J_val=J_val, dJ=dJ, dM=dm)
-    assert min_order > 1.99
+    assert min_order > 2.00
 
     ddJ = Hessian(forward)
     min_order = taylor_test(forward, m, J_val=J_val, ddJ=ddJ, dM=dm)
-    assert min_order > 2.99
+    assert min_order > 3.00
 
     min_order = taylor_test_tlm(forward, m, tlm_order=1, dMs=(dm,))
-    assert min_order > 1.99
+    assert min_order > 2.00
 
     min_order = taylor_test_tlm_adjoint(forward, m, adjoint_order=1,
                                         dMs=(dm,))
-    assert min_order > 1.99
+    assert min_order > 2.00
 
     min_order = taylor_test_tlm_adjoint(forward, m, adjoint_order=2,
                                         dMs=(dm, dm))
-    assert min_order > 1.99
+    assert min_order > 2.00
 
 
 @pytest.mark.fenics

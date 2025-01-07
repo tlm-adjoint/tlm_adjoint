@@ -56,10 +56,7 @@ def interpolate_expression(x, expr, *, adj_x=None):
                 value, = value
             var_assign(x, value)
         elif isinstance(x, backend_Function):
-            try:
-                x.assign(expr)
-            except RuntimeError:
-                x.interpolate(Expr())
+            x.interpolate(Expr())
         else:
             raise TypeError(f"Unexpected type: {type(x)}")
     else:

@@ -467,32 +467,27 @@ def Function_assign(self, orig, orig_args, rhs):
     annotate = annotation_enabled()
     tlm = tlm_enabled()
     if isinstance(rhs, backend_Function):
-        # Prevent a new vector being created
+        if not space_eq(rhs.function_space(), self.function_space()):
+            raise ValueError("Invalid assignment")
 
-        if space_eq(rhs.function_space(), self.function_space()):
-            if rhs is not self:
-                var_assign(self, rhs)
-
-                if annotate or tlm:
-                    eq = Assignment(self, rhs)
-                    assert not eq._pre_process_required
-                    eq._post_process()
-        else:
-            value = var_new(self)
-            orig(value, rhs)
-            var_assign(self, value)
+        if rhs is not self:
+            # Prevent a new vector being created
+            var_assign(self, rhs)
 
             if annotate or tlm:
-                eq = ExprInterpolation(self, rhs)
+                eq = Assignment(self, rhs)
                 assert not eq._pre_process_required
                 eq._post_process()
     else:
         orig_args()
 
         if annotate or tlm:
-            eq = ExprInterpolation(self, expr_new_x(rhs, self))
-            assert not eq._pre_process_required
-            eq._post_process()
+            if isinstance(rhs, backend_Constant):
+                eq = ExprInterpolation(self, rhs)
+                assert not eq._pre_process_required
+                eq._post_process()
+            else:
+                raise NotImplementedError("Case not implemented")
 
 
 @manager_method(backend_Function, "copy", patch_without_manager=True)
