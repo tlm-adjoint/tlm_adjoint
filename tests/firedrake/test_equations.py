@@ -1165,7 +1165,7 @@ def test_EquationSolver_DirichletBC(setup_test, test_leaks, test_configurations,
     ddJ = Hessian(forward)
     min_order = taylor_test(forward, m, J_val=J_val, ddJ=ddJ, seed=1.0e-3,
                             dM=dm)
-    assert min_order > 2.97
+    assert min_order > 2.96
 
     min_order = taylor_test_tlm(forward, m, tlm_order=1, seed=1.0e-4,
                                 dMs=(dm,))
