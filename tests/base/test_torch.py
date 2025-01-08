@@ -80,10 +80,10 @@ def test_torch_vjp(setup_test,  # noqa: F811
     assert abs(complex(J) - complex(J_ref)) < 1.0e-15
 
     if issubclass(dtype, np.complexfloating):
-        dm = Float(1.0 - 1.0j)
+        m0 = Float(1.0 - 1.0j)
     else:
-        dm = Float(1.0)
-    dm_t = to_torch_tensors(dm, requires_grad=True)
+        m0 = Float(1.0)
+    m0_t = to_torch_tensors(m0, requires_grad=True)
 
-    assert torch.autograd.gradcheck(forward_t, dm_t, eps=1.0e-8,
+    assert torch.autograd.gradcheck(forward_t, m0_t, eps=1.0e-8,
                                     atol=1.0e-8, rtol=1.0e-7)
