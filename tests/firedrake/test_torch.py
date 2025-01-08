@@ -84,8 +84,8 @@ def test_torch_vjp(setup_test, test_leaks):
     from_torch_tensors(J, J_t)
     assert abs(complex(J) - complex(J_ref)) == 0.0
 
-    dm = Function(space, name="dm").interpolate(Constant(1.0))
-    dm_t = to_torch_tensors(dm, requires_grad=True)
+    m0 = Function(space, name="m0").interpolate(Constant(1.0))
+    m0_t = to_torch_tensors(m0, requires_grad=True)
 
-    assert torch.autograd.gradcheck(forward_t, dm_t, eps=1.0e-8,
+    assert torch.autograd.gradcheck(forward_t, m0_t, eps=1.0e-8,
                                     atol=1.0e-8, rtol=1.0e-7)
