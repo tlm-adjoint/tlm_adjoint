@@ -87,7 +87,6 @@ def extract_dependencies(expr, *, space_type=None):
     nl_deps = {}
     for dep in deps.values():
         for nl_dep in extract_derivative_variables(expr, dep):
-            nl_deps.setdefault(var_id(dep), dep)
             nl_deps.setdefault(var_id(nl_dep), nl_dep)
     nl_deps = {nl_dep_id: nl_deps[nl_dep_id]
                for nl_dep_id in sorted(nl_deps.keys())}
