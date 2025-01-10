@@ -856,7 +856,6 @@ class FloatEquation(Equation):
         for dep_index, dep in enumerate(deps):
             dF = dF_expr[dep_index] = F.diff(dep)
             for dep2 in expr_dependencies(dF):
-                nl_deps.setdefault(var_id(dep), dep)
                 nl_deps.setdefault(var_id(dep2), dep2)
         nl_deps = sorted(nl_deps.values(), key=var_id)
         dF = {dep_index: lambdify(dF, nl_deps)
