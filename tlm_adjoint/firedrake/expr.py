@@ -211,7 +211,6 @@ def derivative(expr, x, argument=None, *,
 def action(form, coefficient):
     if isinstance(form, (ufl.classes.Argument,
                          ufl.classes.Coargument)):
-        # Work around Firedrake issue #3130
         if not space_eq(form.ufl_function_space(), coefficient.ufl_function_space()):  # noqa: E501
             raise ValueError("Invalid space")
         return coefficient

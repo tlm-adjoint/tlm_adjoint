@@ -246,11 +246,9 @@ def new_space_id_cached(space):
         mesh._tlm_adjoint__space_ids = {}
     space_ids = mesh._tlm_adjoint__space_ids
 
-    # Work around Firedrake issue #3130
-    key = (space, ufl.duals.is_primal(space))
-    if key not in space_ids:
-        space_ids[key] = new_space_id()
-    return space_ids[key]
+    if space not in space_ids:
+        space_ids[space] = new_space_id()
+    return space_ids[space]
 
 
 def space_local_indices_cached(space, cls):
@@ -258,12 +256,10 @@ def space_local_indices_cached(space, cls):
         space._tlm_adjoint__local_indices = {}
     local_indices = space._tlm_adjoint__local_indices
 
-    # Work around Firedrake issue #3130
-    key = (space, ufl.duals.is_primal(space))
-    if key not in local_indices:
+    if space not in local_indices:
         with cls(space).dat.vec_ro as x_v:
-            local_indices[key] = x_v.getOwnershipRange()
-    return local_indices[key]
+            local_indices[space] = x_v.getOwnershipRange()
+    return local_indices[space]
 
 
 @patch_method(backend_FunctionSpace, "__init__")
