@@ -415,7 +415,7 @@ class AssemblyCache(Cache):
             elif arity == 1:
                 b = assemble(assemble_form, **assemble_kwargs)
                 for bc in bcs:
-                    bc.apply(b)
+                    bc.apply(b.riesz_representation("l2"))
                 var_lock_state(b)
                 return b
             elif arity == 2:
