@@ -356,8 +356,6 @@ class FunctionSpaceInterface(SpaceInterface):
     def _eq(self, other):
         return (space_id(self) == space_id(other)
                 or (isinstance(other, type(self))
-                    # Work around Firedrake issue #3130
-                    and ufl.duals.is_primal(self) == ufl.duals.is_primal(other)
                     and self == other))
 
     def _global_size(self):

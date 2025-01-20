@@ -3,7 +3,7 @@
 
 from .backend import (
     LinearSolver as backend_LinearSolver, TestFunction, TrialFunction,
-    backend_assemble, backend_DirichletBC, dx, inner)
+    backend_Cofunction, backend_DirichletBC, backend_assemble, dx, inner)
 from ..interface import (
     packed, space_dtype, space_eq, var_axpy, var_copy, var_dtype,
     var_get_values, var_inner, var_local_size, var_new, var_set_values)
@@ -49,15 +49,13 @@ __all__ = \
 
 def apply_bcs(u, bcs):
     bcs = packed(bcs)
-    if len(bcs) > 0 and not isinstance(u.function_space(), type(bcs[0].function_space())):  # noqa: E501
-        u_bc = u.riesz_representation("l2")
-    else:
-        u_bc = u
+    if isinstance(u, backend_Cofunction):
+        u = u.riesz_representation("l2")
     for bc in bcs:
-        if not space_eq(bc.function_space(), u_bc.function_space()):
+        if not space_eq(bc.function_space(), u.function_space()):
             raise ValueError("Invalid space")
     for bc in bcs:
-        bc.apply(u_bc)
+        bc.apply(u)
 
 
 class ConstantNullspace(Nullspace):
@@ -202,6 +200,8 @@ class DirichletBCNullspace(Nullspace):
         apply_bcs(y, self._bcs)
 
     def _constraint_correct_lhs(self, x, y, *, alpha=1.0):
+        if isinstance(x, backend_Cofunction):
+            x = x.riesz_representation("l2")
         c = var_new(y)
         apply_bcs(
             c,

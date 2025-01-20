@@ -388,7 +388,7 @@ class EquationSolver(ExprEquation):
 
         # Boundary conditions
         for bc in self._hbcs:
-            bc.apply(b)
+            bc.apply(b.riesz_representation("l2"))
 
         return x_0, b
 
@@ -564,7 +564,7 @@ class EquationSolver(ExprEquation):
             b_0 = var_copy(b)
             for bc in self._hbcs:
                 bc.apply(adj_x)
-                bc.apply(b_0)
+                bc.apply(b_0.riesz_representation("l2"))
 
         if self._adjoint_solver_parameters.get("mat_type", "aij") != "matfree":
             J_solver, _ = self._linear_solver(
@@ -579,7 +579,7 @@ class EquationSolver(ExprEquation):
                   solver_parameters=self._adjoint_solver_parameters)
 
         for bc in self._hbcs:
-            bc.reconstruct(g=b).apply(adj_x.riesz_representation("l2"))
+            bc.reconstruct(g=b.riesz_representation("l2")).apply(adj_x)
         return adj_x
 
     def _tangent_linear_rhs(self, tlm_map):

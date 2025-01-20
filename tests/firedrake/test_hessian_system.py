@@ -84,7 +84,7 @@ def test_hessian_solve(setup_test,
     b_ref = Cofunction(space.dual(), name="b_ref")
     assemble(inner((sin(5.0 * pi * X[0]) * sin(7.0 * pi * X[1])) ** 2, test) * dx,  # noqa: E501
              tensor=b_ref)
-    bc.apply(b_ref)
+    bc.apply(b_ref.riesz_representation("l2"))
 
     start_manager()
     _, J, J_mismatch = forward(u_ref, m)
@@ -124,7 +124,7 @@ def test_hessian_solve(setup_test,
         for lam_i, v_i in zip(Lam, V):
             _, _, v_error = H_mismatch.action(m, v_i)
             var_axpy(v_error, -lam_i, B_inv(v_i))
-            bc.apply(v_error)
+            bc.apply(v_error.riesz_representation("l2"))
             assert var_linf_norm(v_error) < 1.0e-16
 
         pc_fn = esolver.spectral_pc_fn()
