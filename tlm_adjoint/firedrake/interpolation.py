@@ -4,9 +4,8 @@
 from .backend import (
     Interpolator, backend_Cofunction, backend_Constant, backend_Function)
 from ..interface import (
-    check_space_types, var_assign, var_assign_conjugate, var_axpy,
-    var_axpy_conjugate, var_copy_conjugate, var_id, var_inner, var_new,
-    var_new_conjugate, var_new_conjugate_dual, var_replacement, var_zero)
+    check_space_types, var_assign, var_axpy, var_id, var_inner, var_new,
+    var_new_conjugate_dual, var_replacement, var_zero)
 
 from ..equation import ZeroAssignment
 from ..manager import manager_disabled
