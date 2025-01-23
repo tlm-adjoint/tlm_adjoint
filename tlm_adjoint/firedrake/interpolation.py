@@ -54,8 +54,7 @@ def interpolate_expression(x, expr, *, adj_x=None):
         (weight, expr), = iter_expr(expr)
         if weight != 1.0 or not isinstance(expr, ufl.classes.Coargument):
             raise NotImplementedError("Case not implemented")
-        Interpolator(adj_x, x.function_space())._interpolate(
-            output=x)
+        x.interpolate(adj_x)
     else:
         raise TypeError(f"Unexpected type: {type(x)}")
 
