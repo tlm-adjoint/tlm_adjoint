@@ -731,13 +731,15 @@ def SameMeshInterpolator_interpolate_post_call(
 @manager_method(SameMeshInterpolator, "_interpolate",
                 post_call=SameMeshInterpolator_interpolate_post_call)
 def SameMeshInterpolator_interpolate(
-        self, orig, orig_args, *function, output=None, transpose=False,
-        default_missing_val=None, **kwargs):
+        self, orig, orig_args, *function, output=None,
+        transpose=None, adjoint=False, default_missing_val=None, **kwargs):
+    if transpose is not None:
+        adjoint = transpose or adjoint
     if default_missing_val is not None:
         raise NotImplementedError("default_missing_val not supported")
 
     return_value = orig_args()
-    check_space_type(return_value, "conjugate_dual" if transpose else "primal")
+    check_space_type(return_value, "conjugate_dual" if adjoint else "primal")
 
     args = ufl.algorithms.extract_arguments(self.expr)
     if len(args) != len(function):

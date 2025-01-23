@@ -49,17 +49,14 @@ def interpolate_expression(x, expr, *, adj_x=None):
         interpolate_expression(expr_val, expr)
         var_assign(x, var_inner(adj_x, expr_val))
     elif isinstance(x, backend_Cofunction):
-        adj_x = var_copy_conjugate(adj_x)
-        interp = Interpolator(expr, adj_x.function_space().dual())
-        x_comp = var_new_conjugate(x)
-        interp._interpolate(adj_x, transpose=True, output=x_comp)
-        var_assign_conjugate(x, x_comp)
+        Interpolator(expr, adj_x.function_space().dual())._interpolate(
+            adj_x, adjoint=True, output=x)
     elif isinstance(x, backend_Function):
-        adj_x = var_copy_conjugate(adj_x)
-        var_zero(x)
-        for weight, comp in iter_expr(expr):
-            x_comp = var_new_conjugate(x).interpolate(comp(adj_x))
-            var_axpy_conjugate(x, weight.conjugate(), x_comp)
+        (weight, expr), = iter_expr(expr)
+        if weight != 1.0 or not isinstance(expr, ufl.classes.Coargument):
+            raise NotImplementedError("Case not implemented")
+        Interpolator(adj_x, x.function_space())._interpolate(
+            output=x)
     else:
         raise TypeError(f"Unexpected type: {type(x)}")
 
