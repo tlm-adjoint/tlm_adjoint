@@ -4,9 +4,8 @@
 from .backend import (
     Interpolator, backend_Cofunction, backend_Constant, backend_Function)
 from ..interface import (
-    check_space_types, var_assign, var_assign_conjugate, var_axpy,
-    var_axpy_conjugate, var_copy_conjugate, var_id, var_inner, var_new,
-    var_new_conjugate, var_new_conjugate_dual, var_replacement, var_zero)
+    check_space_types, var_assign, var_axpy, var_id, var_inner, var_new,
+    var_new_conjugate_dual, var_replacement, var_zero)
 
 from ..equation import ZeroAssignment
 from ..manager import manager_disabled
@@ -49,17 +48,13 @@ def interpolate_expression(x, expr, *, adj_x=None):
         interpolate_expression(expr_val, expr)
         var_assign(x, var_inner(adj_x, expr_val))
     elif isinstance(x, backend_Cofunction):
-        adj_x = var_copy_conjugate(adj_x)
-        interp = Interpolator(expr, adj_x.function_space().dual())
-        x_comp = var_new_conjugate(x)
-        interp._interpolate(adj_x, transpose=True, output=x_comp)
-        var_assign_conjugate(x, x_comp)
+        Interpolator(expr, adj_x.function_space().dual())._interpolate(
+            adj_x, adjoint=True, output=x)
     elif isinstance(x, backend_Function):
-        adj_x = var_copy_conjugate(adj_x)
-        var_zero(x)
-        for weight, comp in iter_expr(expr):
-            x_comp = var_new_conjugate(x).interpolate(comp(adj_x))
-            var_axpy_conjugate(x, weight.conjugate(), x_comp)
+        (weight, expr), = iter_expr(expr)
+        if weight != 1.0 or not isinstance(expr, ufl.classes.Coargument):
+            raise NotImplementedError("Case not implemented")
+        x.interpolate(adj_x)
     else:
         raise TypeError(f"Unexpected type: {type(x)}")
 
