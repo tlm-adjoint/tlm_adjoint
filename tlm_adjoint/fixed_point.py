@@ -485,7 +485,7 @@ class FixedPointSolver(Equation, CustomNormSq):
             if tlm_eq is None:
                 warnings.warn("Equation.tangent_linear should return an "
                               "Equation",
-                              DeprecationWarning)
+                              FutureWarning)
                 tlm_eq = ZeroAssignment([tlm_map[x] for x in eq.X()])
             tlm_eqs.append(tlm_eq)
         return FixedPointSolver(
