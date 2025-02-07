@@ -21,15 +21,15 @@ pytestmark = pytest.mark.skipif(
 _count = itertools.count()
 
 
+def flatten(options):
+    return dict(PETScOptions(
+        f"_tlm_adjoint__test_petsc_{next(_count):d}",
+        options))
+
+
 @pytest.mark.base
 @seed_test
 def test_flatten_petsc_options(setup_test):  # noqa: F811
-    def flatten(options):
-        petsc_options = PETScOptions(
-            f"_tlm_adjoint__test_flatten_petsc_options_{next(_count):d}")
-        petsc_options.update(options)
-        return dict(petsc_options)
-
     assert flatten({"zero": 0,
                     "one": 1}) == {"zero": "0",
                                    "one": "1"}
@@ -44,3 +44,12 @@ def test_flatten_petsc_options(setup_test):  # noqa: F811
                                              "one_two_three": "3",
                                              "one_two_four": "4",
                                              "one_five": "5"}
+
+
+@pytest.mark.base
+@seed_test
+def test_flatten_petsc_options_duplicate_key(setup_test):  # noqa: F811
+    with pytest.raises(ValueError):
+        flatten({"zero_one": 1, "zero": {"one": 1}})
+    with pytest.raises(ValueError):
+        flatten({"zero": {"one": 1}, "zero_one": 1})

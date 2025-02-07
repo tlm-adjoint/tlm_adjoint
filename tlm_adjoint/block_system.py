@@ -825,8 +825,8 @@ def petsc_ksp(A, *, comm=None, solver_parameters=None, pc_fn=None):
         pc = None
 
     ksp = PETSc.KSP().create(comm=comm)
-    options = PETScOptions(f"_tlm_adjoint__{ksp.name:s}_")
-    options.update(solver_parameters)
+    options = PETScOptions(f"_tlm_adjoint__{ksp.name:s}_",
+                           solver_parameters)
     ksp.setOptionsPrefix(options.options_prefix)
     if pc is not None:
         ksp.setPC(pc)
@@ -992,8 +992,8 @@ def slepc_eps(A, B, *, B_inv=None, solver_parameters=None, comm=None):
         B_mat = None
 
     eps = SLEPc.EPS().create(comm=comm)
-    options = PETScOptions(f"_tlm_adjoint__{eps.name:s}_")
-    options.update(solver_parameters)
+    options = PETScOptions(f"_tlm_adjoint__{eps.name:s}_",
+                           solver_parameters)
     eps.setOptionsPrefix(options.options_prefix)
     if B is None:
         eps.setOperators(A_mat)
@@ -1233,8 +1233,8 @@ def slepc_mfn(A, *, solver_parameters=None, comm=None):
     A_mat.setUp()
 
     mfn = SLEPc.MFN().create(comm=comm)
-    options = PETScOptions(f"_tlm_adjoint__{mfn.name:s}_")
-    options.update(solver_parameters)
+    options = PETScOptions(f"_tlm_adjoint__{mfn.name:s}_",
+                           solver_parameters)
     mfn.setOptionsPrefix(options.options_prefix)
     mfn.setOperator(A_mat)
 
