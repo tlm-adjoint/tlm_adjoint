@@ -22,6 +22,7 @@ import numpy as np
 import petsc4py.PETSc as PETSc
 import pyop2
 import ufl
+import warnings
 import weakref
 
 __all__ = \
@@ -323,6 +324,9 @@ class Constant(backend_Constant):
         if domain is None:
             return object().__new__(cls)
         else:
+            warnings.warn("domain argument is deprecated -- "
+                          "use a Real Function instead",
+                          FutureWarning, stacklevel=2)
             value = constant_value(value, shape)
             if space_type not in {"primal", "conjugate",
                                   "dual", "conjugate_dual"}:
