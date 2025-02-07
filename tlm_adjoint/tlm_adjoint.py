@@ -479,7 +479,7 @@ class EquationManager:
         if _warning:
             warnings.warn("EquationManager.add_tlm method is deprecated -- "
                           "use EquationManager.configure_tlm instead",
-                          DeprecationWarning, stacklevel=2)
+                          FutureWarning, stacklevel=2)
 
         if self._tlm_state == TangentLinearState.FINAL:
             raise RuntimeError("Cannot configure tangent-linear after "
@@ -526,9 +526,9 @@ class EquationManager:
     def function_tlm(self, x, *args):
         """
         """
-        warnings.warn("function_tlm method is deprecated -- "
-                      "use var_tlm instead",
-                      DeprecationWarning, stacklevel=2)
+        warnings.warn("EquationManager.function_tlm method is deprecated -- "
+                      "use EquationManager.var_tlm instead",
+                      FutureWarning, stacklevel=2)
         return self.var_tlm(x, *args)
 
     def annotation_enabled(self):
@@ -691,7 +691,7 @@ class EquationManager:
                     if tlm_eq is None:
                         warnings.warn("Equation.tangent_linear should return "
                                       "an Equation",
-                                      DeprecationWarning)
+                                      FutureWarning)
                         tlm_eq = ZeroAssignment([tlm_map[x] for x in X])
                     tlm_eq._tlm_adjoint__tlm_root_id = getattr(
                         eq, "_tlm_adjoint__tlm_root_id", eq_id)

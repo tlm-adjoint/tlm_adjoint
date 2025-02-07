@@ -154,7 +154,7 @@ def configure_tlm(*args, annotate=None, tlm=True):
 def add_tlm(M, dM, max_depth=1):
     warnings.warn("add_tlm is deprecated -- "
                   "use configure_tlm instead",
-                  DeprecationWarning, stacklevel=2)
+                  FutureWarning, stacklevel=2)
     manager().add_tlm(M, dM, max_depth=max_depth, _warning=False)
 
 
@@ -177,7 +177,7 @@ def function_tlm(x, *args):
 
     warnings.warn("function_tlm is deprecated -- "
                   "use var_tlm instead",
-                  DeprecationWarning, stacklevel=2)
+                  FutureWarning, stacklevel=2)
     return manager().var_tlm(x, *args)
 
 

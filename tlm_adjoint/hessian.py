@@ -66,7 +66,7 @@ class Hessian(ABC):
 
     def action_fn(self, m, m0=None):
         warnings.warn("Hessian.action_fn is deprecated",
-                      DeprecationWarning, stacklevel=2)
+                      FutureWarning, stacklevel=2)
 
         def action(dm):
             _, _, ddJ = self.action(m, dm, M0=m0)
@@ -252,7 +252,7 @@ class GaussNewton(ABC):
 
     def action_fn(self, m, m0=None):
         warnings.warn("GaussNewton.action_fn is deprecated",
-                      DeprecationWarning, stacklevel=2)
+                      FutureWarning, stacklevel=2)
 
         def action(dm):
             return var_copy_conjugate(self.action(m, dm, M0=m0))

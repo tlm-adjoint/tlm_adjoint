@@ -11,7 +11,6 @@ pytestmark = pytest.mark.skipif(
 
 
 @pytest.fixture(params=[{"cls": lambda **kwargs: Constant(**kwargs)},
-                        {"cls": lambda **kwargs: Constant(domain=UnitIntervalMesh(20), **kwargs)},  # noqa: E501
                         {"cls": lambda **kwargs: Function(FunctionSpace(UnitIntervalMesh(20), "Lagrange", 1), **kwargs)},  # noqa: E501
                         {"cls": lambda **kwargs: Cofunction(FunctionSpace(UnitIntervalMesh(20), "Lagrange", 1).dual(), **kwargs)}])  # noqa: E501
 def var_cls(request):
@@ -185,14 +184,8 @@ def test_default_var_flags(setup_test, test_leaks):
     mesh = UnitIntervalMesh(20)
     space = FunctionSpace(mesh, "Lagrange", 1)
 
-    # Constant, without domain
+    # Constant
     c = Constant(0.0)
-    assert var_is_static(c) is not None and not var_is_static(c)
-    assert var_is_cached(c) is not None and not var_is_cached(c)
-    del c
-
-    # Constant, with domain
-    c = Constant(0.0, domain=mesh)
     assert var_is_static(c) is not None and not var_is_static(c)
     assert var_is_cached(c) is not None and not var_is_cached(c)
     del c

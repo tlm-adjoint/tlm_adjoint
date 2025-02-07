@@ -216,7 +216,7 @@ class Equation(Referrer):
                                                       ("self", "nl_deps", "B")}:  # noqa: E501
             warnings.warn("Equation.adjoint_jacobian_solve(self, nl_deps, b/B) "  # noqa: E501
                           "method signature is deprecated",
-                          DeprecationWarning, stacklevel=2)
+                          FutureWarning, stacklevel=2)
 
             def adjoint_jacobian_solve(self, adj_X, nl_deps, B):
                 return adjoint_jacobian_solve_orig(self, nl_deps, B)
@@ -227,7 +227,7 @@ class Equation(Referrer):
         if tuple(tangent_linear_sig.parameters.keys()) == ("self", "M", "dM", "tlm_map"):  # noqa: E501
             warnings.warn("Equation.tangent_linear(self, M, dM, tlm_map) "
                           "method signature is deprecated",
-                          DeprecationWarning, stacklevel=2)
+                          FutureWarning, stacklevel=2)
 
             def tangent_linear(self, tlm_map):
                 return tangent_linear_orig(self, tlm_map.M, tlm_map.dM,
@@ -589,5 +589,5 @@ class NullSolver(ZeroAssignment):
     def __init__(self, X):
         warnings.warn("NullSolver is deprecated -- "
                       "use ZeroAssignment instead",
-                      DeprecationWarning, stacklevel=2)
+                      FutureWarning, stacklevel=2)
         super().__init__(X)

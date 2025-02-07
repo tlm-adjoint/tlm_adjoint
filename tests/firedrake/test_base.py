@@ -1,4 +1,5 @@
 from firedrake import *
+from firedrake.__future__ import Interpolator, interpolate
 from tlm_adjoint.firedrake import *
 from tlm_adjoint.firedrake import manager as _manager
 from tlm_adjoint.firedrake.backend import (
@@ -270,44 +271,35 @@ def solve_eq(request):
     return request.param["solve_eq"]
 
 
-def interpolate_interpolate(v, V):
-    return interpolate(v, V)
-
-
 def interpolate_Function_interpolate(v, V):
     return space_new(V).interpolate(v)
 
 
 def interpolate_Interpolator_Function(v, V):
     interp = Interpolator(v, V)
-    x = space_new(V)
-    interp.interpolate(output=x)
-    return x
+    return assemble(interp.interpolate())
 
 
 def interpolate_Interpolator_test(v, V):
     interp = Interpolator(TestFunction(v.function_space()), V)
+    return assemble(interp.interpolate(v))
+
+
+def interpolate_interpolate(v, V):
+    return assemble(interpolate(v, V))
+
+
+def interpolate_interpolate_tensor(v, V):
     x = space_new(V)
-    interp.interpolate(v, output=x)
+    assemble(interpolate(v, V), tensor=x)
     return x
 
 
-def interpolate_Interpolator_assemble(v, V):
-    return assemble(Interpolate(v, V))
-
-
-def interpolate_Interpolator_assemble_tensor(v, V):
-    x = space_new(V)
-    assemble(Interpolate(v, V), tensor=x)
-    return x
-
-
-@pytest.fixture(params=[{"interpolate_expr": interpolate_interpolate},
-                        {"interpolate_expr": interpolate_Function_interpolate},
+@pytest.fixture(params=[{"interpolate_expr": interpolate_Function_interpolate},
                         {"interpolate_expr": interpolate_Interpolator_Function},  # noqa: E501
                         {"interpolate_expr": interpolate_Interpolator_test},
-                        {"interpolate_expr": interpolate_Interpolator_assemble},  # noqa: E501
-                        {"interpolate_expr": interpolate_Interpolator_assemble_tensor}])  # noqa: E501
+                        {"interpolate_expr": interpolate_interpolate},
+                        {"interpolate_expr": interpolate_interpolate_tensor}])
 def interpolate_expr(request):
     return request.param["interpolate_expr"]
 

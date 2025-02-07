@@ -23,7 +23,7 @@ class Functional(Float):
     def __init__(self, *args, space=None, **kwargs):
         if space is not None:
             warnings.warn("space argument is deprecated",
-                          DeprecationWarning, stacklevel=2)
+                          FutureWarning, stacklevel=2)
         super().__init__(*args, **kwargs)
 
     def assign(self, y):
@@ -67,6 +67,6 @@ class Functional(Float):
 
     def tlm(self, M, dM, *, max_depth=1):
         warnings.warn("Functional.tlm method is deprecated",
-                      DeprecationWarning, stacklevel=2)
+                      FutureWarning, stacklevel=2)
 
         return var_tlm(self, *((M, dM) for _ in range(max_depth)))
