@@ -344,6 +344,17 @@ class MixedSpace(PETScVecInterface, Sequence):
     def to_petsc(self, x, Y):
         super().to_petsc(x, tuple(iter_sub(Y)))
 
+    def configure_fieldsplit(self, pc):
+        """Configure a fieldsplit preconditioner.
+
+        :arg pc: The :class:`petsc4py.PETSc.PC` to configure.
+        """
+
+        if not all(isinstance(space, TypedSpace) for space in self):
+            raise NotImplementedError("Recursive fieldsplit not implemented")
+        for i, iset in enumerate(self._isets):
+            pc.setFieldSplitIS((f"{i:d}", iset))
+
 
 class Nullspace(ABC):
     """Represents a nullspace and left nullspace for a square matrix.
@@ -833,6 +844,12 @@ def petsc_ksp(A, *, comm=None, solver_parameters=None, pc_fn=None):
     ksp.setOperators(A_mat)
 
     ksp.setFromOptions()
+    pc = ksp.getPC()
+    if pc.getType() == PETSc.PC.Type.FIELDSPLIT:
+        if pc_fn is not None:
+            raise RuntimeError("Cannot supply pc_fn with fieldsplit "
+                               "preconditioning")
+        A.arg_space.configure_fieldsplit(pc)
     ksp.setUp()
 
     return ksp
