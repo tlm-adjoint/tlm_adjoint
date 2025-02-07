@@ -371,8 +371,8 @@ class TAOSolver:
         new_vec = vec_interface.new_vec
 
         tao = PETSc.TAO().create(comm=comm)
-        options = PETScOptions(f"_tlm_adjoint__{tao.name:s}_")
-        options.update(solver_parameters)
+        options = PETScOptions(f"_tlm_adjoint__{tao.name:s}_",
+                               solver_parameters)
         tao.setOptionsPrefix(options.options_prefix)
 
         M = [None]

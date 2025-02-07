@@ -2,6 +2,8 @@ from .interface import (
     space_comm, space_global_size, space_local_size, var_from_petsc,
     var_to_petsc)
 
+from collections import deque
+from collections.abc import Mapping
 from contextlib import contextmanager
 try:
     import mpi4py.MPI as MPI
@@ -19,14 +21,15 @@ __all__ = \
     ]
 
 
+# Do not inherit from Mapping as __len__ would be linear time
 class PETScOptions:
-    def __init__(self, options_prefix):
+    def __init__(self, options_prefix, solver_parameters):
         if PETSc is None:
             raise RuntimeError("PETSc not available")
 
         self._options_prefix = options_prefix
         self._options = PETSc.Options()
-        self._keys = {}
+        self._keys = {}  # Use dict as an ordered set
 
         def finalize_callback(options_prefix, options, keys):
             for key in keys:
@@ -38,30 +41,56 @@ class PETScOptions:
             self, finalize_callback,
             self._options_prefix, self._options, self._keys)
 
+        self._update(solver_parameters)
+
+    @staticmethod
+    def _flattened_options(options):
+        options = deque(((), key, value) for key, value in options.items())
+        while len(options) > 0:
+            prefix, key, value = options.popleft()
+            if not isinstance(key, str):
+                raise TypeError("Unexpected key type")
+            if isinstance(value, Mapping):
+                sub_prefix = prefix + (key,)
+                options.extendleft(
+                    (sub_prefix, sub_key, sub_value)
+                    for sub_key, sub_value in reversed(value.items()))
+            else:
+                yield "_".join(prefix + (key,)), value
+
+    def _update(self, other):
+        keys = set()
+        for key, value in self._flattened_options(other):
+            if not isinstance(key, str):
+                raise TypeError("Unexpected key type")
+            if key in self or key in keys:
+                raise ValueError(f"Duplicate value for option key '{key:s}'")
+            keys.add(key)
+        del keys
+
+        for key, value in self._flattened_options(other):
+            self._keys[key] = None
+            self._options[f"{self.options_prefix:s}{key:s}"] = value
+
     @property
     def options_prefix(self):
         return self._options_prefix
 
+    def __contains__(self, key):
+        return (isinstance(key, str)
+                and key in self._keys
+                and f"{self.options_prefix:s}{key:s}" in self._options)
+
     def __getitem__(self, key):
-        if key not in self._keys:
-            raise KeyError(key)
+        if key not in self:
+            raise KeyError(f"Missing option key '{key}'")
         return self._options[f"{self.options_prefix:s}{key:s}"]
 
-    def __setitem__(self, key, value):
-        self._keys[key] = None
-        self._options[f"{self.options_prefix:s}{key:s}"] = value
+    def __iter__(self):
+        yield from self.keys()
 
-    def __delitem__(self, key):
-        del self._keys[key]
-        del self._options[f"{self.options_prefix:s}{key:s}"]
-
-    def clear(self):
-        for key in tuple(self._keys):
-            del self[key]
-
-    def update(self, other):
-        for key, value in other.items():
-            self[key] = value
+    def keys(self):
+        return (key for key in self._keys if key in self)
 
 
 @contextmanager
