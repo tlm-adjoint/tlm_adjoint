@@ -305,8 +305,28 @@ def test_dirichlet_bc_nullspace(setup_test):
 
 
 @pytest.mark.firedrake
+@pytest.mark.parametrize(
+    "solver_parameters", [{"ksp_type": "minres",
+                           "ksp_atol": 1.0e-14,
+                           "ksp_rtol": 1.0e-14},
+                          {"ksp_type": "fgmres",
+                           "pc_type": "fieldsplit",
+                           "pc_fieldsplit": {"type": "schur",
+                                             "schur_fact_type": "full"},
+                           "fielsplit_0": {"ksp_type": "cg",
+                                           "pc_type": "jacobi",
+                                           "ksp_atol": 1.0e-14,
+                                           "ksp_rtol": 1.0e-14},
+                           "fielsplit_1": {"ksp_type": "cg",
+                                           "pc_type": "jacobi",
+                                           "ksp_atol": 1.0e-14,
+                                           "ksp_rtol": 1.0e-14},
+                           "ksp_atol": 1.0e-14,
+                           "ksp_rtol": 1.0e-14}
+                          ])
 @seed_test
-def test_pressure_projection(setup_test):
+def test_pressure_projection(setup_test,
+                             solver_parameters):
     mesh = UnitSquareMesh(10, 10)
     X = SpatialCoordinate(mesh)
     space_0 = VectorFunctionSpace(mesh, "Lagrange", 2)
@@ -342,9 +362,7 @@ def test_pressure_projection(setup_test):
         BlockMatrix((space_0, space_1), (space_0.dual(), space_1.dual()),
                     {(0, 0): block_00, (0, 1): block_01,
                      (1, 0): block_10, (1, 1): block_11}),
-        solver_parameters={"ksp_type": "minres",
-                           "ksp_rtol": 1.0e-14,
-                           "ksp_atol": 1.0e-14},
+        solver_parameters=solver_parameters,
         nullspace=BlockNullspace((DirichletBCNullspace(DirichletBC(space_0, 0.0, "on_boundary")),  # noqa: E501
                                   ConstantNullspace())))
     block_solver.solve(
