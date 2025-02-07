@@ -2,6 +2,8 @@ from .interface import (
     space_comm, space_global_size, space_local_size, var_from_petsc,
     var_to_petsc)
 
+from collections import deque
+from collections.abc import Mapping
 from contextlib import contextmanager
 try:
     import mpi4py.MPI as MPI
@@ -19,6 +21,24 @@ __all__ = \
     ]
 
 
+def flattened_options(options):
+    options = deque(((), key, value) for key, value in options.items())
+    while len(options) > 0:
+        prefix, key, value = options.popleft()
+        if not isinstance(key, str):
+            raise TypeError("Unexpected key type")
+        if isinstance(value, Mapping):
+            sub_prefix = prefix + (key,)
+            options.extendleft(
+                (sub_prefix, sub_key, sub_value)
+                for sub_key, sub_value in reversed(value.items()))
+        else:
+            yield "_".join(prefix + (key,)), value
+
+
+# Do not inherit from Mapping or MutableMapping, as __setitem__ flattens the
+# value (and so can set multiple keys at once), and __len__ would be linear
+# time
 class PETScOptions:
     def __init__(self, options_prefix):
         if PETSc is None:
@@ -43,25 +63,32 @@ class PETScOptions:
         return self._options_prefix
 
     def __getitem__(self, key):
-        if key not in self._keys:
-            raise KeyError(key)
         return self._options[f"{self.options_prefix:s}{key:s}"]
 
     def __setitem__(self, key, value):
-        self._keys[key] = None
-        self._options[f"{self.options_prefix:s}{key:s}"] = value
+        for key, value in flattened_options({key: value}):
+            self._keys[key] = None
+            self._options[f"{self.options_prefix:s}{key:s}"] = value
 
     def __delitem__(self, key):
         del self._keys[key]
         del self._options[f"{self.options_prefix:s}{key:s}"]
 
-    def clear(self):
-        for key in tuple(self._keys):
-            del self[key]
+    def __iter__(self):
+        for key in self._keys:
+            if f"{self.options_prefix:s}{key:s}" in self._options:
+                yield key
+
+    def keys(self):
+        return iter(self)
 
     def update(self, other):
         for key, value in other.items():
             self[key] = value
+
+    def clear(self):
+        for key in self:
+            del self[key]
 
 
 @contextmanager
