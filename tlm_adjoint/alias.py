@@ -3,7 +3,6 @@ import gc
 
 __all__ = \
     [
-        "Alias",
         "WeakAlias",
 
         "gc_disabled"
@@ -35,43 +34,6 @@ def gc_disabled(fn):
             if gc_enabled:
                 gc.enable()
     return wrapped_fn
-
-
-class Alias:
-    """An alias to an object. Holds a reference to the original object.
-
-    Parameters
-    ----------
-
-    obj : object
-        Object to alias.
-    """
-
-    def __init__(self, obj):
-        if isinstance(obj, Alias):
-            raise TypeError("Cannot alias Alias")
-        super().__setattr__("_tlm_adjoint__alias", obj)
-
-    def __new__(cls, obj, *args, **kwargs):
-        obj_cls = type(obj)
-
-        class Alias(cls, obj_cls):
-            pass
-
-        Alias.__name__ = f"{obj_cls.__name__:s}Alias"
-        return super().__new__(Alias)
-
-    def __getattr__(self, key):
-        return getattr(self._tlm_adjoint__alias, key)
-
-    def __setattr__(self, key, value):
-        setattr(self._tlm_adjoint__alias, key, value)
-
-    def __delattr__(self, key):
-        delattr(self._tlm_adjoint__alias, key)
-
-    def __dir__(self):
-        return dir(self._tlm_adjoint__alias)
 
 
 class WeakAlias:
