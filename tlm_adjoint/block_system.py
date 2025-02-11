@@ -71,8 +71,8 @@ representations of a mixed space solution.
 
 from .interface import (
     Packed, comm_dup_cached, packed, paused_space_type_checking, space_comm,
-    space_default_space_type, space_eq, space_new, var_assign, var_axpy,
-    var_locked, var_zero)
+    space_default_space_type, space_eq, space_global_size, space_local_size,
+    space_new, var_assign, var_axpy, var_locked, var_zero)
 from .manager import manager_disabled
 from .petsc import PETScOptions, PETScVecInterface
 
@@ -213,6 +213,14 @@ class TypedSpace:
     def space_type(self):
         return self._space_type
 
+    @property
+    def local_size(self):
+        return space_local_size(self.space)
+
+    @property
+    def global_size(self):
+        return space_global_size(self.space)
+
     def new(self):
         """Create a new variable in the space.
 
@@ -350,10 +358,13 @@ class MixedSpace(PETScVecInterface, Sequence):
         :arg pc: The :class:`petsc4py.PETSc.PC` to configure.
         """
 
-        if not all(isinstance(space, TypedSpace) for space in self):
-            raise NotImplementedError("Recursive fieldsplit not implemented")
-        for i, iset in enumerate(self._isets):
+        i0 = self._i0
+        for i, space in enumerate(self.split_space):
+            i1 = i0 + space.local_size
+            iset = PETSc.IS().createStride(
+                size=i1 - i0, first=i0, step=1, comm=self.comm)
             pc.setFieldSplitIS((f"{i:d}", iset))
+            i0 = i1
 
 
 class Nullspace(ABC):
