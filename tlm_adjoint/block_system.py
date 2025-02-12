@@ -271,7 +271,11 @@ class MixedSpace(PETScVecInterface, Sequence):
 
         mixed_space.from_petsc(u_petsc, ((u_0, u_1), u_2))
 
-    :arg spaces: Defines the split space.
+    Parameters
+    ----------
+
+    spaces : Sequence
+        Defines the split space.
     """
 
     def __init__(self, spaces):
@@ -330,17 +334,33 @@ class MixedSpace(PETScVecInterface, Sequence):
         return self._flattened_spaces
 
     def tuple_sub(self, u):
-        """
-        :arg u: An :class:`Iterable`.
-        :returns: A :class:`tuple` storing elements in `u` using the tree
-            structure of the split space.
+        """Pack elements in an :class:`Iterable` using the tree structure of
+        the split space.
+
+        Parameters
+        ----------
+
+        u : Iterable
+            The :class:`Iterable` to pack.
+
+        Returns
+        -------
+
+        tuple
+            Stores the elements in `u` using the tree structure of the split
+            space.
         """
 
         return tuple_sub(u, self.split_space)
 
     def new(self):
-        """
-        :returns: A new element in the split space.
+        """Create a new element in the split space.
+
+        Returns
+        -------
+
+        Sequence
+            A new element in the split space.
         """
 
         u = tuple(space.new() for space in self.flattened_space)
@@ -355,7 +375,11 @@ class MixedSpace(PETScVecInterface, Sequence):
     def configure_fieldsplit(self, pc):
         """Configure a fieldsplit preconditioner.
 
-        :arg pc: The :class:`petsc4py.PETSc.PC` to configure.
+        Parameters
+        ----------
+
+        pc : :class:`petsc4py.PETSc.PC`
+            The preconditioner to configure.
         """
 
         i0 = self._i0
