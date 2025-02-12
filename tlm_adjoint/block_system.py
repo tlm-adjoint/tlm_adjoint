@@ -586,8 +586,18 @@ class Matrix:
     r"""Represents a matrix defining a mapping
     :math:`A` mapping :math:`V \rightarrow W`.
 
-    :arg arg_space: Defines the space :math:`V`.
-    :arg action_space: Defines the space :math:`W`.
+    Subclasses must override at least one of
+    :class:`tlm_adjoint.block_system.Matrix.mult` or
+    :class:`tlm_adjoint.block_system.Matrix.mult_add`.
+
+    Parameters
+    ----------
+
+    arg_space : space, :class:`.TypedSpace`, :class:`.MixedSpace`, or Sequence
+        Defines the space :math:`V`.
+    action_space : space, :class:`.TypedSpace`, :class:`.MixedSpace`, or \
+            Sequence
+        Defines the space :math:`W`.
     """
 
     def __init__(self, arg_space, action_space):
@@ -628,8 +638,13 @@ class Matrix:
     def mult(self, x, y):
         """Compute :math:`y = A x`.
 
-        :arg x: Defines :math:`x`. Should not be modified.
-        :arg y: Defines :math:`y`.
+        Parameters
+        ----------
+
+        x : variable or Sequence
+            Defines :math:`x`. Should not be modified.
+        y : variable or Sequence
+            Defines :math:`y`.
         """
 
         x = Packed(x)
@@ -643,8 +658,13 @@ class Matrix:
     def mult_add(self, x, y):
         """Add :math:`A x` to :math:`y`.
 
-        :arg x: Defines :math:`x`. Should not be modified.
-        :arg y: Defines :math:`y`.
+        Parameters
+        ----------
+
+        x : variable or Sequence
+            Defines :math:`x`. Should not be modified.
+        y : variable or Sequence
+            Defines :math:`y`.
         """
 
         x = Packed(x)
@@ -658,6 +678,23 @@ class Matrix:
 
 
 class MatrixFreeMatrix(Matrix):
+    """A matrix defined via a callable.
+
+    Parameters
+    ----------
+
+    mult : callable
+
+            .. code-block:: python
+
+                def mult(x, y):
+
+        Defines a matrix (left) multiply.
+
+    Remaining arguments are as for the :class:`tlm_adjoint.block_system.Matrix`
+    constructor.
+    """
+
     def __init__(self, arg_space, action_space, mult):
         super().__init__(arg_space, action_space)
         self._mult = mult
@@ -870,21 +907,25 @@ class LinearSolver:
 
     using PETSc.
 
-    :arg A: A :class:`tlm_adjoint.block_system.Matrix` defining :math:`A`.
-    :arg nullspace: A :class:`.Nullspace` or a :class:`Sequence` of
-        :class:`.Nullspace` objects defining the nullspace and left nullspace
-        of :math:`A`. `None` indicates a :class:`.NoneNullspace`.
-    :arg solver_parameters: A :class:`Mapping` defining Krylov solver
-        parameters.
-    :arg pc_fn: Defines the application of a preconditioner. A callable
+    Parameters
+    ----------
 
-        .. code-block:: python
+    A : A :class:`tlm_adjoint.block_system.Matrix`
+        Defines :math:`A`.
+    nullspace: :class:`.Nullspace` or a Sequence[:class:`.Nullspace`, ...]
+        Defines the nullspace and left nullspace of :math:`A`.
+    solver_parameters : Mapping
+        Defines PETSc Krylov solver parameters.
+    pc_fn : callable
 
-            def pc_fn(u, b):
+            .. code-block:: python
+
+                def pc_fn(u, b):
 
         The preconditioner is applied to `b`, and the result stored in `u`.
         Defaults to an identity.
-    :arg comm: Communicator.
+    comm : communicator
+        :class:`petsc4py.PETSc.KSP` communicator.
     """
 
     def __init__(self, A, *, nullspace=None, solver_parameters=None,
@@ -934,12 +975,17 @@ class LinearSolver:
               correct_initial_guess=True, correct_solution=True):
         """Solve the linear system.
 
-        :arg u: Defines the solution :math:`u`.
-        :arg b: Defines the right-hand-side :math:`b`.
-        :arg correct_initial_guess: Whether to apply a nullspace correction to
-            the initial guess.
-        :arg correct_solution: Whether to apply a nullspace correction to
-            the solution.
+        Parameters
+        ----------
+
+        u : variable or Sequence[variable, ...]
+            Defines the solution :math:`u`.
+        b : variable or Sequence[variable, ...]
+            Defines the right-hand-side :math:`b`.
+        correct_initial_guess : bool
+            Whether to apply a nullspace correction to the initial guess.
+        correct_solution : bool
+            Whether to apply a nullspace correction to the solution.
         """
 
         u_packed = Packed(u)
