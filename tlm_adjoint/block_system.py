@@ -940,28 +940,18 @@ class LinearSolver:
                 nullspace = BlockNullspace((nullspace,))
         if solver_parameters is None:
             solver_parameters = {}
-        _pc_pc_fn = [None]
-        if pc_fn is None:
-            pc_pc_fn = None
-        else:
-            def pc_pc_fn(u, b):
-                pc_fn, = _pc_pc_fn
-                with var_locked(*iter_sub(b)):
-                    pc_fn(u, b)
 
         A = SystemMatrix(A, nullspace=nullspace)
-        if pc_pc_fn is None:
+        if pc_fn is None:
             pc = None
         else:
             pc = MatrixFreeMatrix(A.action_space, A.arg_space,
-                                  lambda b, u: pc_pc_fn(u, b))
+                                  lambda b, u: pc_fn(u, b))
         ksp = petsc_ksp(
             A, solver_parameters=solver_parameters, pc=pc, comm=comm)
 
         self._A = A
         self._ksp = ksp
-        self._pc_fn = pc_fn
-        self._pc_pc_fn = _pc_pc_fn
 
     @property
     def ksp(self):
@@ -993,21 +983,6 @@ class LinearSolver:
         u = tuple(u_packed)
         b = tuple(b_packed)
 
-        pc_fn = self._pc_fn
-        if u_packed.is_packed:
-            pc_fn_u = pc_fn
-
-            def pc_fn(u, b):
-                u, = tuple(iter_sub(u))
-                pc_fn_u(u, b)
-
-        if b_packed.is_packed:
-            pc_fn_b = pc_fn
-
-            def pc_fn(u, b):
-                b, = tuple(iter_sub(b))
-                pc_fn_b(u, b)
-
         u = self._A.arg_space.tuple_sub(u)
         b = self._A.action_space.tuple_sub(b)
 
@@ -1026,11 +1001,7 @@ class LinearSolver:
         b_petsc.to_petsc(b_c)
         del b_c
 
-        try:
-            self._pc_pc_fn[0] = pc_fn
-            self.ksp.solve(b_petsc.vec, u_petsc.vec)
-        finally:
-            self._pc_pc_fn[0] = self._pc_fn
+        self.ksp.solve(b_petsc.vec, u_petsc.vec)
         del b_petsc
 
         u_petsc.from_petsc(u)
