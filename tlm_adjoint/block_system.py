@@ -71,8 +71,8 @@ representations of a mixed space solution.
 
 from .interface import (
     Packed, comm_dup_cached, packed, paused_space_type_checking, space_comm,
-    space_default_space_type, space_eq, space_new, var_assign, var_axpy,
-    var_locked, var_zero)
+    space_default_space_type, space_eq, space_global_size, space_local_size,
+    space_new, var_assign, var_axpy, var_locked, var_zero)
 from .manager import manager_disabled
 from .petsc import PETScOptions, PETScVecInterface
 
@@ -213,6 +213,14 @@ class TypedSpace:
     def space_type(self):
         return self._space_type
 
+    @property
+    def local_size(self):
+        return space_local_size(self.space)
+
+    @property
+    def global_size(self):
+        return space_global_size(self.space)
+
     def new(self):
         """Create a new variable in the space.
 
@@ -343,6 +351,20 @@ class MixedSpace(PETScVecInterface, Sequence):
 
     def to_petsc(self, x, Y):
         super().to_petsc(x, tuple(iter_sub(Y)))
+
+    def configure_fieldsplit(self, pc):
+        """Configure a fieldsplit preconditioner.
+
+        :arg pc: The :class:`petsc4py.PETSc.PC` to configure.
+        """
+
+        i0 = self._i0
+        for i, space in enumerate(self.split_space):
+            i1 = i0 + space.local_size
+            iset = PETSc.IS().createStride(
+                size=i1 - i0, first=i0, step=1, comm=self.comm)
+            pc.setFieldSplitIS((f"{i:d}", iset))
+            i0 = i1
 
 
 class Nullspace(ABC):
@@ -564,8 +586,18 @@ class Matrix:
     r"""Represents a matrix defining a mapping
     :math:`A` mapping :math:`V \rightarrow W`.
 
-    :arg arg_space: Defines the space :math:`V`.
-    :arg action_space: Defines the space :math:`W`.
+    Subclasses must override at least one of
+    :class:`tlm_adjoint.block_system.Matrix.mult` or
+    :class:`tlm_adjoint.block_system.Matrix.mult_add`.
+
+    Parameters
+    ----------
+
+    arg_space : space, :class:`.TypedSpace`, :class:`.MixedSpace`, or Sequence
+        Defines the space :math:`V`.
+    action_space : space, :class:`.TypedSpace`, :class:`.MixedSpace`, or \
+            Sequence
+        Defines the space :math:`W`.
     """
 
     def __init__(self, arg_space, action_space):
@@ -606,8 +638,13 @@ class Matrix:
     def mult(self, x, y):
         """Compute :math:`y = A x`.
 
-        :arg x: Defines :math:`x`. Should not be modified.
-        :arg y: Defines :math:`y`.
+        Parameters
+        ----------
+
+        x : variable or Sequence
+            Defines :math:`x`. Should not be modified.
+        y : variable or Sequence
+            Defines :math:`y`.
         """
 
         x = Packed(x)
@@ -621,8 +658,13 @@ class Matrix:
     def mult_add(self, x, y):
         """Add :math:`A x` to :math:`y`.
 
-        :arg x: Defines :math:`x`. Should not be modified.
-        :arg y: Defines :math:`y`.
+        Parameters
+        ----------
+
+        x : variable or Sequence
+            Defines :math:`x`. Should not be modified.
+        y : variable or Sequence
+            Defines :math:`y`.
         """
 
         x = Packed(x)
@@ -636,6 +678,23 @@ class Matrix:
 
 
 class MatrixFreeMatrix(Matrix):
+    """A matrix defined via a callable.
+
+    Parameters
+    ----------
+
+    mult : callable
+
+            .. code-block:: python
+
+                def mult(x, y):
+
+        Defines a matrix (left) multiply.
+
+    Remaining arguments are as for the :class:`tlm_adjoint.block_system.Matrix`
+    constructor.
+    """
+
     def __init__(self, arg_space, action_space, mult):
         super().__init__(arg_space, action_space)
         self._mult = mult
@@ -800,7 +859,7 @@ class Preconditioner(PETScSquareMatInterface):
         self._post_mult(y)
 
 
-def petsc_ksp(A, *, comm=None, solver_parameters=None, pc_fn=None):
+def petsc_ksp(A, *, pc=None, comm=None, solver_parameters=None):
     if comm is None:
         comm = A.arg_space.comm
     if solver_parameters is None:
@@ -814,25 +873,26 @@ def petsc_ksp(A, *, comm=None, solver_parameters=None, pc_fn=None):
         comm=comm)
     A_mat.setUp()
 
-    if pc_fn is not None:
-        A_pc = Preconditioner(MatrixFreeMatrix(A.action_space, A.arg_space,
-                                               lambda b, u: pc_fn(u, b)),
-                              nullspace=A.nullspace)
-        pc = PETSc.PC().createPython(A_pc, comm=comm)
-        pc.setOperators(A_mat)
-        pc.setUp()
+    if pc is not None:
+        pc = Preconditioner(pc, nullspace=A.nullspace)
+        A_pc = PETSc.PC().createPython(pc, comm=comm)
+        A_pc.setOperators(A_mat)
+        A_pc.setUp()
     else:
-        pc = None
+        A_pc = None
 
     ksp = PETSc.KSP().create(comm=comm)
     options = PETScOptions(f"_tlm_adjoint__{ksp.name:s}_",
                            solver_parameters)
     ksp.setOptionsPrefix(options.options_prefix)
-    if pc is not None:
-        ksp.setPC(pc)
+    if A_pc is not None:
+        ksp.setPC(A_pc)
     ksp.setOperators(A_mat)
 
     ksp.setFromOptions()
+    A_pc = ksp.getPC()
+    if A_pc.getType() == PETSc.PC.Type.FIELDSPLIT:
+        A.arg_space.configure_fieldsplit(A_pc)
     ksp.setUp()
 
     return ksp
@@ -847,52 +907,47 @@ class LinearSolver:
 
     using PETSc.
 
-    :arg A: A :class:`tlm_adjoint.block_system.Matrix` defining :math:`A`.
-    :arg nullspace: A :class:`.Nullspace` or a :class:`Sequence` of
-        :class:`.Nullspace` objects defining the nullspace and left nullspace
-        of :math:`A`. `None` indicates a :class:`.NoneNullspace`.
-    :arg solver_parameters: A :class:`Mapping` defining Krylov solver
-        parameters.
-    :arg pc_fn: Defines the application of a preconditioner. A callable
+    Parameters
+    ----------
 
-        .. code-block:: python
-
-            def pc_fn(u, b):
-
-        The preconditioner is applied to `b`, and the result stored in `u`.
-        Defaults to an identity.
-    :arg comm: Communicator.
+    A : A :class:`tlm_adjoint.block_system.Matrix`
+        Defines :math:`A`.
+    nullspace: :class:`.Nullspace` or a Sequence[:class:`.Nullspace`, ...]
+        Defines the nullspace and left nullspace of :math:`A`.
+    solver_parameters : Mapping
+        Defines PETSc Krylov solver parameters.
+    pc : :class:`tlm_adjoint.block_system.Matrix`
+        Defines the preconditioner.
+    comm : communicator
+        :class:`petsc4py.PETSc.KSP` communicator.
     """
 
     def __init__(self, A, *, nullspace=None, solver_parameters=None,
-                 pc_fn=None, comm=None):
+                 pc=None, comm=None):
+        if solver_parameters is None:
+            solver_parameters = {}
+
         if nullspace is None:
             nullspace = NoneNullspace()
         elif isinstance(nullspace, Sequence):
             nullspace = BlockNullspace(nullspace)
+
         if not isinstance(A, BlockMatrix):
             A = BlockMatrix((A.arg_space,), (A.action_space,), A)
             if not isinstance(nullspace, NoneNullspace):
                 nullspace = BlockNullspace((nullspace,))
-        if solver_parameters is None:
-            solver_parameters = {}
-        _pc_pc_fn = [None]
-        if pc_fn is None:
-            pc_pc_fn = None
-        else:
-            def pc_pc_fn(u, b):
-                pc_fn, = _pc_pc_fn
-                with var_locked(*iter_sub(b)):
-                    pc_fn(u, b)
-
+            if pc is not None:
+                pc = BlockMatrix((pc.arg_space,), (pc.action_space,), pc)
         A = SystemMatrix(A, nullspace=nullspace)
+        if pc is not None \
+                and (pc.arg_space, pc.action_space) != (A.action_space, A.arg_space):  # noqa: E501
+            raise ValueError("Invalid preconditioner space(s)")
+
         ksp = petsc_ksp(
-            A, solver_parameters=solver_parameters, pc_fn=pc_pc_fn, comm=comm)
+            A, pc=pc, solver_parameters=solver_parameters, comm=comm)
 
         self._A = A
         self._ksp = ksp
-        self._pc_fn = pc_fn
-        self._pc_pc_fn = _pc_pc_fn
 
     @property
     def ksp(self):
@@ -906,33 +961,23 @@ class LinearSolver:
               correct_initial_guess=True, correct_solution=True):
         """Solve the linear system.
 
-        :arg u: Defines the solution :math:`u`.
-        :arg b: Defines the right-hand-side :math:`b`.
-        :arg correct_initial_guess: Whether to apply a nullspace correction to
-            the initial guess.
-        :arg correct_solution: Whether to apply a nullspace correction to
-            the solution.
+        Parameters
+        ----------
+
+        u : variable or Sequence[variable, ...]
+            Defines the solution :math:`u`.
+        b : variable or Sequence[variable, ...]
+            Defines the right-hand-side :math:`b`.
+        correct_initial_guess : bool
+            Whether to apply a nullspace correction to the initial guess.
+        correct_solution : bool
+            Whether to apply a nullspace correction to the solution.
         """
 
         u_packed = Packed(u)
         b_packed = Packed(b)
         u = tuple(u_packed)
         b = tuple(b_packed)
-
-        pc_fn = self._pc_fn
-        if u_packed.is_packed:
-            pc_fn_u = pc_fn
-
-            def pc_fn(u, b):
-                u, = tuple(iter_sub(u))
-                pc_fn_u(u, b)
-
-        if b_packed.is_packed:
-            pc_fn_b = pc_fn
-
-            def pc_fn(u, b):
-                b, = tuple(iter_sub(b))
-                pc_fn_b(u, b)
 
         u = self._A.arg_space.tuple_sub(u)
         b = self._A.action_space.tuple_sub(b)
@@ -952,11 +997,7 @@ class LinearSolver:
         b_petsc.to_petsc(b_c)
         del b_c
 
-        try:
-            self._pc_pc_fn[0] = pc_fn
-            self.ksp.solve(b_petsc.vec, u_petsc.vec)
-        finally:
-            self._pc_pc_fn[0] = self._pc_fn
+        self.ksp.solve(b_petsc.vec, u_petsc.vec)
         del b_petsc
 
         u_petsc.from_petsc(u)
