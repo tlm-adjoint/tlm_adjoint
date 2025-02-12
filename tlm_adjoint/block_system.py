@@ -334,8 +334,8 @@ class MixedSpace(PETScVecInterface, Sequence):
         return self._flattened_spaces
 
     def tuple_sub(self, u):
-        """Pack elements in an :class:`Iterable` using the tree structure of
-        the split space.
+        """Recursively unpack all :class:`Iterable` elements in `u`, and
+        repack using the tree structure of the split space.
 
         Parameters
         ----------
@@ -988,9 +988,9 @@ class LinearSolver:
         Parameters
         ----------
 
-        u : variable or Sequence[variable, ...]
+        u : variable or Sequence
             Defines the solution :math:`u`.
-        b : variable or Sequence[variable, ...]
+        b : variable or Sequence
             Defines the right-hand-side :math:`b`.
         correct_initial_guess : bool
             Whether to apply a nullspace correction to the initial guess.
