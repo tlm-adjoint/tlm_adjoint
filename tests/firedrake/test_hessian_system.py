@@ -96,7 +96,7 @@ def test_hessian_solve(setup_test,
     v = Function(space, name="v")
 
     if N_eigenvalues == 0:
-        pc_fn = None
+        pc = None
     else:
         try:
             import slepc4py.SLEPc as SLEPc    # noqa: F401
@@ -127,14 +127,14 @@ def test_hessian_solve(setup_test,
             bc.apply(v_error.riesz_representation("l2"))
             assert var_linf_norm(v_error) < 1.0e-16
 
-        pc_fn = esolver.spectral_pc_fn()
+        pc = esolver.spectral_pc()
 
     H_solver = HessianLinearSolver(
         H, m,
         solver_parameters={"ksp_type": "cg",
                            "ksp_atol": 1.0e-12,
                            "ksp_rtol": 1.0e-12},
-        pc_fn=pc_fn,
+        pc=pc,
         nullspace=nullspace)
     H_solver.solve(
         v, b_ref)

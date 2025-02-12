@@ -63,7 +63,7 @@ def test_block_diagonal(setup_test, pc):
     if pc == "none":
         pc_fn = None
     elif pc == "block_jacobi":
-        def pc_fn(u, b):
+        def pc_fn(b, u):
             u_0, u_1 = u
             b_0, b_1 = b
             solver_0 = LinearSolver(
@@ -85,7 +85,7 @@ def test_block_diagonal(setup_test, pc):
     else:
         assert pc == "block_chebyshev"
 
-        def pc_fn(u, b):
+        def pc_fn(b, u):
             u_0, u_1 = u
             b_0, b_1 = b
             # Eigenvalue bounds: 0.0006819477595146459, 0.009730121547766488
@@ -121,14 +121,16 @@ def test_block_diagonal(setup_test, pc):
             except ConvergenceError:
                 assert solver_1.ksp.getConvergedReason() == PETSc.KSP.ConvergedReason.DIVERGED_MAX_IT  # noqa: E501
 
+    V = (space_0, space_1)
+    W = (space_0.dual(), space_1.dual())
     block_solver = BlockLinearSolver(
-        BlockMatrix((space_0, space_1), (space_0.dual(), space_1.dual()),
+        BlockMatrix(V, W,
                     {(0, 0): block_00, (0, 1): block_01,
                      (1, 0): block_10, (1, 1): block_11}),
         solver_parameters={"ksp_type": "cg",
                            "ksp_rtol": 1.0e-14,
                            "ksp_atol": 1.0e-14},
-        pc_fn=pc_fn)
+        pc=None if pc_fn is None else MatrixFreeMatrix(W, V, pc_fn))
     block_solver.solve(
         (u_0, u_1), (b_0, b_1))
     ksp_its = block_solver.ksp.getIterationNumber()
@@ -471,7 +473,7 @@ def test_sub_block(setup_test):
     u_1 = Function(space_1)
     u_2 = Function(space_2)
 
-    def pc_fn(u, b):
+    def pc_fn(b, u):
         (u_0, u_1), u_2 = u
         (b_0, b_1), b_2 = b
         assert u_0.function_space() == space_0
@@ -484,13 +486,15 @@ def test_sub_block(setup_test):
         u_1.assign(b_1.riesz_representation("l2"))
         u_2.assign(b_2.riesz_representation("l2"))
 
+    V = ((space_0, space_1), space_2)
+    W = ((space_0.dual(), space_1.dual()), space_2.dual())
     block_solver = BlockLinearSolver(
-        BlockMatrix(((space_0, space_1), space_2), ((space_0.dual(), space_1.dual()), space_2.dual()),  # noqa: E501
+        BlockMatrix(V, W,
                     {(0, 0): block_00, (1, 1): block_11}),
         solver_parameters={"ksp_type": "cg",
                            "ksp_rtol": 1.0e-14,
                            "ksp_atol": 1.0e-14},
-        pc_fn=pc_fn,
+        pc=MatrixFreeMatrix(W, V, pc_fn),
         nullspace=(None, nullspace_2))
     block_solver.solve(
         ((u_0, u_1), u_2), ((b_0, b_1), b_2))

@@ -859,7 +859,7 @@ class Preconditioner(PETScSquareMatInterface):
         self._post_mult(y)
 
 
-def petsc_ksp(A, *, comm=None, solver_parameters=None, pc=None):
+def petsc_ksp(A, *, pc=None, comm=None, solver_parameters=None):
     if comm is None:
         comm = A.arg_space.comm
     if solver_parameters is None:
@@ -916,39 +916,35 @@ class LinearSolver:
         Defines the nullspace and left nullspace of :math:`A`.
     solver_parameters : Mapping
         Defines PETSc Krylov solver parameters.
-    pc_fn : callable
-
-            .. code-block:: python
-
-                def pc_fn(u, b):
-
-        The preconditioner is applied to `b`, and the result stored in `u`.
-        Defaults to an identity.
+    pc : :class:`tlm_adjoint.block_system.Matrix`
+        Defines the preconditioner.
     comm : communicator
         :class:`petsc4py.PETSc.KSP` communicator.
     """
 
     def __init__(self, A, *, nullspace=None, solver_parameters=None,
-                 pc_fn=None, comm=None):
+                 pc=None, comm=None):
+        if solver_parameters is None:
+            solver_parameters = {}
+
         if nullspace is None:
             nullspace = NoneNullspace()
         elif isinstance(nullspace, Sequence):
             nullspace = BlockNullspace(nullspace)
+
         if not isinstance(A, BlockMatrix):
             A = BlockMatrix((A.arg_space,), (A.action_space,), A)
             if not isinstance(nullspace, NoneNullspace):
                 nullspace = BlockNullspace((nullspace,))
-        if solver_parameters is None:
-            solver_parameters = {}
-
+            if pc is not None:
+                pc = BlockMatrix((pc.arg_space,), (pc.action_space,), pc)
         A = SystemMatrix(A, nullspace=nullspace)
-        if pc_fn is None:
-            pc = None
-        else:
-            pc = MatrixFreeMatrix(A.action_space, A.arg_space,
-                                  lambda b, u: pc_fn(u, b))
+        if pc is not None \
+                and (pc.arg_space, pc.action_space) != (A.action_space, A.arg_space):  # noqa: E501
+            raise ValueError("Invalid preconditioner space(s)")
+
         ksp = petsc_ksp(
-            A, solver_parameters=solver_parameters, pc=pc, comm=comm)
+            A, pc=pc, solver_parameters=solver_parameters, comm=comm)
 
         self._A = A
         self._ksp = ksp
