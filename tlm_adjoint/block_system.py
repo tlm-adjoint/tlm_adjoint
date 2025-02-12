@@ -822,7 +822,7 @@ class Preconditioner(PETScSquareMatInterface):
         self._post_mult(y)
 
 
-def petsc_ksp(A, *, comm=None, solver_parameters=None, pc_fn=None):
+def petsc_ksp(A, *, comm=None, solver_parameters=None, pc=None):
     if comm is None:
         comm = A.arg_space.comm
     if solver_parameters is None:
@@ -836,31 +836,26 @@ def petsc_ksp(A, *, comm=None, solver_parameters=None, pc_fn=None):
         comm=comm)
     A_mat.setUp()
 
-    if pc_fn is not None:
-        A_pc = Preconditioner(MatrixFreeMatrix(A.action_space, A.arg_space,
-                                               lambda b, u: pc_fn(u, b)),
-                              nullspace=A.nullspace)
-        pc = PETSc.PC().createPython(A_pc, comm=comm)
-        pc.setOperators(A_mat)
-        pc.setUp()
+    if pc is not None:
+        pc = Preconditioner(pc, nullspace=A.nullspace)
+        A_pc = PETSc.PC().createPython(pc, comm=comm)
+        A_pc.setOperators(A_mat)
+        A_pc.setUp()
     else:
-        pc = None
+        A_pc = None
 
     ksp = PETSc.KSP().create(comm=comm)
     options = PETScOptions(f"_tlm_adjoint__{ksp.name:s}_",
                            solver_parameters)
     ksp.setOptionsPrefix(options.options_prefix)
-    if pc is not None:
-        ksp.setPC(pc)
+    if A_pc is not None:
+        ksp.setPC(A_pc)
     ksp.setOperators(A_mat)
 
     ksp.setFromOptions()
-    pc = ksp.getPC()
-    if pc.getType() == PETSc.PC.Type.FIELDSPLIT:
-        if pc_fn is not None:
-            raise RuntimeError("Cannot supply pc_fn with fieldsplit "
-                               "preconditioning")
-        A.arg_space.configure_fieldsplit(pc)
+    A_pc = ksp.getPC()
+    if A_pc.getType() == PETSc.PC.Type.FIELDSPLIT:
+        A.arg_space.configure_fieldsplit(A_pc)
     ksp.setUp()
 
     return ksp
@@ -914,8 +909,13 @@ class LinearSolver:
                     pc_fn(u, b)
 
         A = SystemMatrix(A, nullspace=nullspace)
+        if pc_pc_fn is None:
+            pc = None
+        else:
+            pc = MatrixFreeMatrix(A.action_space, A.arg_space,
+                                  lambda b, u: pc_pc_fn(u, b))
         ksp = petsc_ksp(
-            A, solver_parameters=solver_parameters, pc_fn=pc_pc_fn, comm=comm)
+            A, solver_parameters=solver_parameters, pc=pc, comm=comm)
 
         self._A = A
         self._ksp = ksp
