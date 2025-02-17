@@ -43,7 +43,7 @@ __all__ = \
 
 def packed_solver_parameters(solver_parameters, *, options_prefix=None,
                              nullspace=None, transpose_nullspace=None,
-                             near_nullspace=None):
+                             near_nullspace=None, pre_apply_bcs=None):
     solver_parameters = dict(solver_parameters)
     tlm_adjoint_parameters = solver_parameters["tlm_adjoint"] = \
         dict(solver_parameters.get("tlm_adjoint", {}))
@@ -59,6 +59,7 @@ def packed_solver_parameters(solver_parameters, *, options_prefix=None,
     set_parameter("nullspace", nullspace)
     set_parameter("transpose_nullspace", transpose_nullspace)
     set_parameter("near_nullspace", near_nullspace)
+    set_parameter("pre_apply_bcs", pre_apply_bcs)
 
     return solver_parameters
 
@@ -682,7 +683,8 @@ def NonlinearVariationalSolver_solve(
         self.parameters, options_prefix=self.options_prefix,
         nullspace=self._ctx._nullspace,
         transpose_nullspace=self._ctx._nullspace_T,
-        near_nullspace=self._ctx._near_nullspace)
+        near_nullspace=self._ctx._near_nullspace,
+        pre_apply_bcs=getattr(self, "pre_apply_bcs", None))
     form_compiler_parameters = self._problem.form_compiler_parameters
 
     u = self._problem.u

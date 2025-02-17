@@ -223,7 +223,7 @@ def solve(*args, **kwargs):
     extracted_args = extract_args(*args, **kwargs)
     eq, x, bcs, J, Jp, M, form_compiler_parameters, solver_parameters, \
         nullspace, transpose_nullspace, near_nullspace, options_prefix, \
-        restrict \
+        restrict, pre_apply_bcs, \
         = extracted_args
     check_space_type(x, "primal")
     if bcs is None:
@@ -235,33 +235,23 @@ def solve(*args, **kwargs):
     if solver_parameters is None:
         solver_parameters = {}
 
-    if "tlm_adjoint" in solver_parameters:
-        solver_parameters = dict(solver_parameters)
-        tlm_adjoint_parameters = solver_parameters.pop("tlm_adjoint")
+    solver_parameters = dict(solver_parameters)
+    tlm_adjoint_parameters = solver_parameters.pop("tlm_adjoint", {})
 
-        if "options_prefix" in tlm_adjoint_parameters:
-            if options_prefix is not None:
-                raise TypeError("Cannot pass both options_prefix argument and "
-                                "solver parameter")
-            options_prefix = tlm_adjoint_parameters["options_prefix"]
+    def get_parameter(key, value):
+        if value is not None:
+            if key in tlm_adjoint_parameters:
+                raise TypeError(f"Cannot pass both {key:s} argument and "
+                                f"solver parameter")
+            return value
+        else:
+            return tlm_adjoint_parameters.get(key, None)
 
-        if "nullspace" in tlm_adjoint_parameters:
-            if nullspace is not None:
-                raise TypeError("Cannot pass both nullspace argument and "
-                                "solver parameter")
-            nullspace = tlm_adjoint_parameters["nullspace"]
-
-        if "transpose_nullspace" in tlm_adjoint_parameters:
-            if transpose_nullspace is not None:
-                raise TypeError("Cannot pass both transpose_nullspace "
-                                "argument and solver parameter")
-            transpose_nullspace = tlm_adjoint_parameters["transpose_nullspace"]
-
-        if "near_nullspace" in tlm_adjoint_parameters:
-            if near_nullspace is not None:
-                raise TypeError("Cannot pass both near_nullspace argument and "
-                                "solver parameter")
-            near_nullspace = tlm_adjoint_parameters["near_nullspace"]
+    options_prefix = get_parameter("options_prefix", options_prefix)
+    nullspace = get_parameter("nullspace", nullspace)
+    transpose_nullspace = get_parameter("transpose_nullspace", transpose_nullspace)  # noqa: E501
+    near_nullspace = get_parameter("near_nullspace", near_nullspace)
+    pre_apply_bcs = get_parameter("pre_apply_bcs", pre_apply_bcs)
 
     return backend_solve(eq, x, tuple(bcs), J=J, Jp=Jp, M=M,
                          form_compiler_parameters=form_compiler_parameters,
@@ -270,7 +260,8 @@ def solve(*args, **kwargs):
                          transpose_nullspace=transpose_nullspace,
                          near_nullspace=near_nullspace,
                          options_prefix=options_prefix,
-                         restrict=restrict)
+                         restrict=restrict,
+                         pre_apply_bcs=pre_apply_bcs)
 
 
 class LocalSolver:
