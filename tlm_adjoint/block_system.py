@@ -101,6 +101,7 @@ __all__ = \
 
         "Matrix",
         "MatrixFreeMatrix",
+        "PETScMatrix",
         "BlockMatrix",
 
         "LinearSolver",
@@ -641,7 +642,14 @@ class Matrix:
 
     def __init_subclass__(cls, **kwargs):
         super().__init_subclass__(**kwargs)
-        if cls.mult is Matrix.mult and cls.mult_add is Matrix.mult_add:
+        try:
+            abstract = cls._abstract
+            del cls._abstract
+        except AttributeError:
+            abstract = False
+        if not abstract \
+                and cls.mult is Matrix.mult \
+                and cls.mult_add is Matrix.mult_add:
             raise RuntimeError("Must override at least one of mult or "
                                "mult_add")
 
@@ -726,6 +734,32 @@ class MatrixFreeMatrix(Matrix):
     def mult(self, x, y):
         with var_locked(*iter_sub(packed(x))):
             self._mult(x, y)
+
+
+class PETScMatrix(Matrix):
+    r"""A :class:`tlm_adjoint.block_system.Matrix` associated with a
+    :class:`petsc4py.PETSc.KSP` :math:`A` defining a mapping
+    :math:`V \rightarrow W`.
+
+    Parameters
+    ----------
+
+    mat :  :class:`petsc4py.PETSc.KSP`
+        Defines :math:`A`.
+    """
+
+    _abstract = True
+
+    def __init__(self, arg_space, action_space, mat):
+        super().__init__(arg_space, action_space)
+        self._mat = mat
+
+    @property
+    def mat(self):
+        """The :class:`petsc4py.PETSc.KSP`.
+        """
+
+        return self._mat
 
 
 class BlockMatrix(Matrix, MutableMapping):

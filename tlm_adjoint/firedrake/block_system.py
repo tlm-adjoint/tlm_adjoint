@@ -11,7 +11,8 @@ from ..interface import (
 from ..block_system import (
     BlockMatrix as _BlockMatrix, BlockNullspace, Eigensolver,
     LinearSolver as _LinearSolver, Matrix, MatrixFunctionSolver,
-    MatrixFreeMatrix, MixedSpace, NoneNullspace, Nullspace, TypedSpace)
+    MatrixFreeMatrix, MixedSpace, NoneNullspace, Nullspace,
+    PETScMatrix as _PETScMatrix, TypedSpace)
 
 from .backend_interface import assemble, matrix_multiply
 from .parameters import copy_parameters
@@ -216,7 +217,7 @@ class DirichletBCNullspace(Nullspace):
         self._constraint_correct_lhs(b, u, alpha=1.0 / self._alpha)
 
 
-class PETScMatrix(Matrix):
+class PETScMatrix(_PETScMatrix):
     r"""A :class:`tlm_adjoint.block_system.Matrix` associated with a
     :class:`firedrake.matrix.Matrix` :math:`A` defining a mapping
     :math:`V \rightarrow W`.
@@ -230,11 +231,11 @@ class PETScMatrix(Matrix):
     def __init__(self, A):
         test, trial = A.form.arguments()
         assert test.number() < trial.number()
-        super().__init__(trial.function_space(), test.function_space().dual())
-        self._A = A
+        super().__init__(
+            trial.function_space(), test.function_space().dual(), A)
 
     def mult_add(self, x, y):
-        matrix_multiply(self._A, x, tensor=y, addto=True)
+        matrix_multiply(self.mat, x, tensor=y, addto=True)
 
 
 def form_matrix(a, *args, **kwargs):
