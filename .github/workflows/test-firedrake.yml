@@ -17,7 +17,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 60
     container:
-      image: firedrakeproject/firedrake:latest
+      image: firedrakeproject/firedrake:pip
       options: --user root
     env:
       OMP_NUM_THREADS: 1
@@ -30,7 +30,7 @@ jobs:
       - name: Install dependencies
         run: |
           . /home/firedrake/firedrake/bin/activate
-          python3 -m pip install jax[cpu] ruff pytest-timeout pytest-xdist
+          python3 -m pip install jax[cpu] pytest-timeout ruff
           python3 -m pip install torch --index-url https://download.pytorch.org/whl/cpu
       - name: Lint
         run: |
@@ -47,7 +47,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 60
     container:
-      image: firedrakeproject/firedrake-complex:latest
+      image: firedrakeproject/firedrake-complex:pip
       options: --user root
     env:
       OMP_NUM_THREADS: 1
@@ -60,7 +60,7 @@ jobs:
       - name: Install dependencies
         run: |
           . /home/firedrake/firedrake/bin/activate
-          python3 -m pip install jax[cpu] ruff pytest-timeout pytest-xdist
+          python3 -m pip install jax[cpu] pytest-timeout ruff
           python3 -m pip install torch --index-url https://download.pytorch.org/whl/cpu
       - name: Lint
         run: |
