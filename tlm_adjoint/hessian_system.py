@@ -159,7 +159,7 @@ class HessianEigensolver(Eigensolver):
             with var_locked(*x):
                 vars_assign(y, packed(B_inv_action_arg(*x)))
 
-        A = HessianMatrix(H, M)
+        self._H = A = HessianMatrix(H, M)
         B = MatrixFreeMatrix(A.arg_space, A.action_space, B_action)
         B_inv = MatrixFreeMatrix(A.action_space, A.arg_space, B_inv_action)
         super().__init__(A, B, B_inv=B_inv, *args, **kwargs)
@@ -175,8 +175,7 @@ class HessianEigensolver(Eigensolver):
 
         where :math:`H` and :math:`B` define the eigenproblem solved by this
         :class:`.HessianEigensolver`. The approximation is constructed using
-        a partial eigenspectrum -- see
-        :meth:`.HessianEigensolver.spectral_pc_fn`.
+        a partial eigenspectrum -- see :meth:`.HessianEigensolver.spectral_pc`.
 
         Parameters
         ----------
@@ -193,7 +192,7 @@ class HessianEigensolver(Eigensolver):
         See also
         --------
 
-        :meth:`.HessianEigensolver.spectral_pc_fn`
+        :meth:`.HessianEigensolver.spectral_pc`
         """
 
         if not self.is_hermitian_and_positive():
@@ -212,7 +211,7 @@ class HessianEigensolver(Eigensolver):
 
         return b_packed.unpack(u)
 
-    def spectral_pc_fn(self):
+    def spectral_pc(self):
         r"""Construct a partial eigenspectrum preconditioner.
 
         Constructs a matrix preconditioner using a partial eigenspectrum.
@@ -254,8 +253,8 @@ class HessianEigensolver(Eigensolver):
         Returns
         -------
 
-        callable
-            Suitable for use as the `pc_fn` argument to
+        :class:`.MatrixFreeMatrix`
+            Suitable for use as the `pc` argument to
             :meth:`.HessianLinearSolver.solve`.
         """
 
@@ -264,7 +263,7 @@ class HessianEigensolver(Eigensolver):
 
         lam, V = self.eigenpairs()
 
-        def pc_fn(u, b):
+        def pc_fn(b, u):
             u = Packed(u)
             b = Packed(b).mapped(var_copy_conjugate)
 
@@ -276,4 +275,4 @@ class HessianEigensolver(Eigensolver):
                 alpha = -(lam_i / (1.0 + lam_i)) * vars_inner(b, v)
                 vars_axpy(u, alpha, v)
 
-        return pc_fn
+        return MatrixFreeMatrix(self._H.action_space, self._H.arg_space, pc_fn)
