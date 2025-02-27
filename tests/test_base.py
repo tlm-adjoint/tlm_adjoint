@@ -110,7 +110,8 @@ def run_example_notebook(filename, tmp_path):
 
     tmp_filename = os.path.join(tmp_path, "tmp.py")
 
-    with open(filename) as nb_h, open(tmp_filename, "w") as py_h:
+    with open(filename, encoding="utf-8") as nb_h, \
+            open(tmp_filename, "w", encoding="utf-8") as py_h:
         nb = json.load(nb_h)
         if nb["metadata"]["language_info"]["name"] != "python":
             raise RuntimeError("Expected a Python notebook")
