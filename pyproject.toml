@@ -15,6 +15,15 @@ dependencies = [
     "sympy"
 ]
 
+[tool.setuptools]
+
+packages = [
+    "tlm_adjoint",
+    "tlm_adjoint.checkpoint_schedules",
+    "tlm_adjoint.fenics",
+    "tlm_adjoint.firedrake"
+]
+
 [tool.pytest.ini_options]
 
 markers = [
