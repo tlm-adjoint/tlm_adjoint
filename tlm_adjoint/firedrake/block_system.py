@@ -232,10 +232,11 @@ class PETScMatrix(_PETScMatrix):
         test, trial = A.form.arguments()
         assert test.number() < trial.number()
         super().__init__(
-            trial.function_space(), test.function_space().dual(), A)
+            trial.function_space(), test.function_space().dual(), A.petscmat)
+        self._A = A
 
     def mult_add(self, x, y):
-        matrix_multiply(self.mat, x, tensor=y, addto=True)
+        matrix_multiply(self._A, x, tensor=y, addto=True)
 
 
 def form_matrix(a, *args, **kwargs):

@@ -79,6 +79,7 @@ from .petsc import PETScOptions, PETScVecInterface
 from abc import ABC, abstractmethod
 from collections.abc import Mapping, MutableMapping, Sequence
 from collections import deque
+from functools import cached_property
 import numpy as np
 try:
     import petsc4py.PETSc as PETSc
@@ -373,6 +374,17 @@ class MixedSpace(PETScVecInterface, Sequence):
     def to_petsc(self, x, Y):
         super().to_petsc(x, tuple(iter_sub(Y)))
 
+    @cached_property
+    def fieldsplit_isets(self):
+        isets = []
+        i0 = self._i0
+        for i, space in enumerate(self.split_space):
+            i1 = i0 + space.local_size
+            isets.append(PETSc.IS().createStride(
+                size=i1 - i0, first=i0, step=1, comm=self.comm))
+            i0 = i1
+        return tuple(isets)
+
     def configure_fieldsplit(self, pc):
         """Configure a fieldsplit preconditioner.
 
@@ -383,13 +395,8 @@ class MixedSpace(PETScVecInterface, Sequence):
             The preconditioner to configure.
         """
 
-        i0 = self._i0
-        for i, space in enumerate(self.split_space):
-            i1 = i0 + space.local_size
-            iset = PETSc.IS().createStride(
-                size=i1 - i0, first=i0, step=1, comm=self.comm)
+        for i, iset in enumerate(self.fieldsplit_isets):
             pc.setFieldSplitIS((f"{i:d}", iset))
-            i0 = i1
 
 
 class Nullspace(ABC):
@@ -821,7 +828,7 @@ class BlockMatrix(Matrix, MutableMapping):
                 block.mult_add(x[j], y[i])
 
 
-class PETScSquareMatInterface:
+class PETScMatInterface:
     def __init__(self, arg_space, action_space, *,
                  nullspace=None, nullspace_constraint=True):
         if not isinstance(arg_space, MixedSpace):
@@ -867,7 +874,7 @@ class PETScSquareMatInterface:
         self.action_space.to_petsc(y_petsc, self._y)
 
 
-class SystemMatrix(PETScSquareMatInterface):
+class SystemMatrix(PETScMatInterface):
     def __init__(self, matrix, *,
                  nullspace=None, nullspace_constraint=True):
         super().__init__(matrix.arg_space, matrix.action_space,
@@ -892,7 +899,7 @@ class SystemMatrix(PETScSquareMatInterface):
         self._post_mult(y)
 
 
-class Preconditioner(PETScSquareMatInterface):
+class Preconditioner(PETScMatInterface):
     def __init__(self, matrix, *,
                  nullspace=None, nullspace_constraint=True):
         super().__init__(matrix.arg_space, matrix.action_space,
