@@ -17,13 +17,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 60
     container:
-      # UNDO ME
-      # image: firedrakeproject/firedrake-vanilla-default:latest
-      image: firedrakeproject/firedrake-vanilla-default:roottest
-    # These are set in the container? Check
-    # env:
-    #   OMP_NUM_THREADS: 1
-    #   OPENBLAS_NUM_THREADS: 1
+      image: firedrakeproject/firedrake-vanilla-default:latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -52,13 +46,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 60
     container:
-      # UNDO ME
-      # image: firedrakeproject/firedrake-vanilla-complex:latest
-      image: firedrakeproject/firedrake-vanilla-complex:roottest
-    # needed?
-    # env:
-    #   OMP_NUM_THREADS: 1
-    #   OPENBLAS_NUM_THREADS: 1
+      image: firedrakeproject/firedrake-vanilla-complex:latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
