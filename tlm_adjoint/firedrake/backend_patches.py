@@ -14,8 +14,7 @@ from ..interface import (
 from ..equation import ZeroAssignment
 from ..equations import Assignment, LinearCombination
 from ..manager import annotation_enabled, tlm_enabled
-from ..patch import (
-    add_manager_controls, manager_method, patch_method, patch_property)
+from ..patch import add_manager_controls, manager_method, patch_method
 
 from .assembly import Assembly
 from .assignment import ExprAssignment
@@ -463,14 +462,6 @@ def Function_riesz_representation(self, orig, orig_args,
     return return_value
 
 
-@patch_property(backend_Function, "subfunctions", cached=True)
-def Function_subfunctions(self, orig):
-    Y = orig()
-    for i, y in enumerate(Y):
-        define_var_alias(y, self, key=("subfunctions", i))
-    return Y
-
-
 @patch_method(backend_Function, "sub")
 def Function_sub(self, orig, orig_args, i):
     self.subfunctions
@@ -562,14 +553,6 @@ def Cofunction_riesz_representation(self, orig, orig_args,
         "space_type",
         relative_space_type(self._tlm_adjoint__var_interface_attrs["space_type"], "conjugate_dual"))  # noqa: E501
     return return_value
-
-
-@patch_property(backend_Cofunction, "subfunctions", cached=True)
-def Cofunction_subfunctions(self, orig):
-    Y = orig()
-    for i, y in enumerate(Y):
-        define_var_alias(y, self, key=("subfunctions", i))
-    return Y
 
 
 @patch_method(backend_Cofunction, "sub")

@@ -29,34 +29,23 @@ jobs:
           path: 'tlm_adjoint'
       - name: Install dependencies
         run: |
-          cp -pr ${GITHUB_WORKSPACE}/tlm_adjoint /home/firedrake
-          chown -R firedrake:firedrake /home/firedrake/tlm_adjoint
           apt-get update
           apt-get install -y flake8
-          su - firedrake
-          export HOME=/home/firedrake
-          cd
           python3 -m venv --system-site-packages tlm_adjoint_venv
           . tlm_adjoint_venv/bin/activate
           python3 -m pip install jax[cpu] ruff
           python3 -m pip install torch --index-url https://download.pytorch.org/whl/cpu
       - name: Lint
         run: |
-          su - firedrake
-          export HOME=/home/firedrake
-          cd
           . tlm_adjoint_venv/bin/activate
           cd tlm_adjoint
           flake8
           ruff check
       - name: Run tests
         run: |
-          su - firedrake
-          export HOME=/home/firedrake
-          cd
           . tlm_adjoint_venv/bin/activate
           cd tlm_adjoint
-          pytest -v tests/base tests/checkpoint_schedules tests/firedrake -n 2 --timeout=300 --timeout-method=thread
+          pytest -v tests/base tests/checkpoint_schedules tests/firedrake -n 4 --timeout=300 --timeout-method=thread
   test-complex:
     runs-on: ubuntu-latest
     timeout-minutes: 60
@@ -73,31 +62,20 @@ jobs:
           path: 'tlm_adjoint'
       - name: Install dependencies
         run: |
-          cp -pr ${GITHUB_WORKSPACE}/tlm_adjoint /home/firedrake
-          chown -R firedrake:firedrake /home/firedrake/tlm_adjoint
           apt-get update
           apt-get install -y flake8
-          su - firedrake
-          export HOME=/home/firedrake
-          cd
           python3 -m venv --system-site-packages tlm_adjoint_venv
           . tlm_adjoint_venv/bin/activate
           python3 -m pip install jax[cpu] ruff
           python3 -m pip install torch --index-url https://download.pytorch.org/whl/cpu
       - name: Lint
         run: |
-          su - firedrake
-          export HOME=/home/firedrake
-          cd
           . tlm_adjoint_venv/bin/activate
           cd tlm_adjoint
           flake8
           ruff check
       - name: Run tests
         run: |
-          su - firedrake
-          export HOME=/home/firedrake
-          cd
           . tlm_adjoint_venv/bin/activate
           cd tlm_adjoint
-          pytest -v tests/base tests/checkpoint_schedules tests/firedrake -n 2 --timeout=300 --timeout-method=thread
+          pytest -v tests/base tests/checkpoint_schedules tests/firedrake -n 4 --timeout=300 --timeout-method=thread
