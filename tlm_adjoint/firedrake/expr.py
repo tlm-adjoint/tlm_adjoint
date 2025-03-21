@@ -33,7 +33,7 @@ def iter_expr(expr, *, evaluate_weights=False):
             yield (weight, comp)
     elif isinstance(expr, (ufl.classes.Action, ufl.classes.Coargument,
                            ufl.classes.Cofunction, ufl.classes.Expr,
-                           ufl.classes.Form)):
+                           ufl.classes.Form, ufl.classes.Matrix)):
         yield (1, expr)
     elif isinstance(expr, ufl.classes.ZeroBaseForm):
         return
