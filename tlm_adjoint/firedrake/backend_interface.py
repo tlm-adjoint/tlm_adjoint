@@ -5,8 +5,6 @@ from ..interface import (
     check_space_type, check_space_types_conjugate_dual, packed,
     register_garbage_cleanup, space_eq, space_new)
 
-from ..patch import patch_method
-
 from .expr import action, eliminate_zeros
 
 import petsc4py.PETSc as PETSc
@@ -89,17 +87,7 @@ def _assemble_system(A_form, b_form=None, bcs=None, *,
                 form_compiler_parameters=form_compiler_parameters,
                 mat_type=mat_type)
 
-    A._tlm_adjoint__lift_bcs = False
-
     return A, b
-
-
-@patch_method(LinearSolver, "_lifted")
-def LinearSolver_lifted(self, orig, orig_args, b):
-    if getattr(self.A, "_tlm_adjoint__lift_bcs", True):
-        return orig_args()
-    else:
-        return b
 
 
 def assemble_matrix(form, bcs=None, *,
@@ -143,9 +131,6 @@ def matrix_copy(A):
 
     # MatAXPY does not propagate the options prefix
     A_copy.petscmat.setOptionsPrefix(options_prefix)
-
-    if hasattr(A, "_tlm_adjoint__lift_bcs"):
-        A_copy._tlm_adjoint__lift_bcs = A._tlm_adjoint__lift_bcs
 
     return A_copy
 
