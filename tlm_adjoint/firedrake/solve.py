@@ -1,7 +1,7 @@
 """Finite element variational problem solution operations with Firedrake.
 """
 
-from .backend import adjoint, parameters
+from .backend import adjoint, backend_Matrix, parameters
 from ..interface import (
     check_space_type, is_var, packed, var_axpy, var_copy, var_id, var_new,
     var_new_conjugate_dual, var_replacement, var_update_caches, var_zero)
@@ -175,6 +175,8 @@ class EquationSolver(ExprEquation):
                     or x in extract_variables(rhs):
                 raise ValueError("Invalid dependency")
 
+            if isinstance(lhs, backend_Matrix):
+                lhs = lhs.a
             F = action(lhs, x) - rhs
             nl_solve_J = None
             J = lhs

@@ -608,7 +608,7 @@ def test_initial_guess(setup_test, test_leaks,
                                "preconditioner": "sor",
                                "krylov_solver": {"nonzero_initial_guess": True,
                                                  "relative_tolerance": 1.0e-10,
-                                                 "absolute_tolerance": 1.0e-16}}).solve()  # noqa: E501
+                                                 "absolute_tolerance": 1.0e-10}}).solve()  # noqa: E501
 
         J = Functional(name="J")
         J.assign((dot(x, x) ** 2) * dx)

@@ -1,10 +1,9 @@
 from .backend import (
-    BaseFormAssembler, LinearSolver, LinearVariationalProblem,
-    NonlinearVariationalSolver, OneFormAssembler, Projector,
-    SameMeshInterpolator, TwoFormAssembler, backend_Cofunction,
-    backend_CofunctionSpace, backend_Constant, backend_DirichletBC,
-    backend_Function, backend_FunctionSpace, backend_ScalarType,
-    backend_Vector, backend_assemble, backend_project, backend_solve,
+    BaseFormAssembler, LinearVariationalProblem, NonlinearVariationalSolver,
+    OneFormAssembler, Projector, SameMeshInterpolator, TwoFormAssembler,
+    backend_Cofunction, backend_CofunctionSpace, backend_Constant,
+    backend_DirichletBC, backend_Function, backend_FunctionSpace,
+    backend_ScalarType, backend_assemble, backend_project, backend_solve,
     homogenize)
 from ..interface import (
     DEFAULT_COMM, add_interface, check_space_type, comm_dup_cached,
@@ -562,47 +561,6 @@ def Cofunction_sub(self, orig, orig_args, i):
     if not var_is_alias(y):
         define_var_alias(y, self, key=("sub", i))
     return y
-
-
-def LinearSolver_solve_post_call(self, return_value, x, b):
-    if isinstance(x, backend_Vector):
-        x = x.function
-    if isinstance(b, backend_Vector):
-        b = b.function
-    var_update_state(x)
-    var_update_state(b)
-    return return_value
-
-
-@manager_method(LinearSolver, "solve",
-                post_call=LinearSolver_solve_post_call)
-def LinearSolver_solve(self, orig, orig_args, x, b):
-    if self.P is not self.A:
-        raise NotImplementedError("Preconditioners not supported")
-
-    if isinstance(x, backend_Vector):
-        x = x.function
-    if isinstance(b, backend_Vector):
-        b = b.function
-
-    A = self.A
-    bcs = A.bcs
-    solver_parameters = packed_solver_parameters(
-        self.parameters, options_prefix=self.options_prefix,
-        nullspace=self.nullspace, transpose_nullspace=self.transpose_nullspace,
-        near_nullspace=self.near_nullspace)
-    form_compiler_parameters = A._tlm_adjoint__form_compiler_parameters
-
-    eq = EquationSolver(
-        linear_equation_new_x(A.a == b, x),
-        x, bcs, solver_parameters=solver_parameters,
-        form_compiler_parameters=form_compiler_parameters,
-        cache_jacobian=False, cache_rhs_assembly=False)
-
-    eq._pre_process()
-    return_value = orig_args()
-    eq._post_process()
-    return return_value
 
 
 @patch_method(LinearVariationalProblem, "__init__")

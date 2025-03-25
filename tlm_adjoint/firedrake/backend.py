@@ -29,7 +29,6 @@ backend_DirichletBC = DirichletBC
 backend_Function = Function
 backend_FunctionSpace = firedrake.functionspaceimpl.WithGeometry
 backend_Matrix = firedrake.matrix.Matrix
-backend_Vector = Vector
 backend_action = action
 backend_assemble = assemble
 backend_interpolate = interpolate

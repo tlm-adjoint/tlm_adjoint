@@ -932,7 +932,7 @@ def test_initial_guess(setup_test, test_leaks,
             solver_parameters={"ksp_type": "cg",
                                "pc_type": "sor",
                                "ksp_rtol": 1.0e-10,
-                               "ksp_atol": 1.0e-16,
+                               "ksp_atol": 1.0e-10,
                                "ksp_initial_guess_nonzero": True}).solve()
 
         J = Functional(name="J")
@@ -966,16 +966,16 @@ def test_initial_guess(setup_test, test_leaks,
     assert tuple(manager()._cp._refs.keys()) == (var_id(y),
                                                  var_id(zero),
                                                  var_id(adj_x_0))
-    assert len(manager()._cp._cp) == 0
+    assert len(manager()._cp._cp) == 1
     if test_adj_ic:
-        assert len(manager()._cp._data) == 9
+        assert len(manager()._cp._data) == 12
         assert tuple(map(len, manager()._cp._data.values())) \
-            == (0, 0, 0, 0, 1, 0, 2, 0, 0)
+            == (0, 0, 0, 0, 0, 0, 0, 1, 0, 2, 0, 0)
     else:
-        assert len(manager()._cp._data) == 10
+        assert len(manager()._cp._data) == 13
         assert tuple(map(len, manager()._cp._data.values())) \
-            == (0, 0, 0, 0, 1, 0, 0, 2, 0, 0)
-    assert len(manager()._cp._storage) == 5
+            == (0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 2, 0, 0)
+    assert len(manager()._cp._storage) == 6
 
     dJdx_0, dJdy = compute_gradient(J, [x_0, y])
     assert var_linf_norm(dJdx_0) == 0.0
