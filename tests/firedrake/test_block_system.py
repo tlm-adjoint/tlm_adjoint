@@ -80,6 +80,9 @@ def test_block_diagonal(setup_test, pc):
                                    "ksp_max_it": 1,
                                    "ksp_atol": 0.0,
                                    "ksp_rtol": 0.0})
+            # Work around firedrake issue #4142
+            var_zero(u_0)
+            var_zero(u_1)
             solver_0.solve(u_0, b_0.copy(deepcopy=True))
             solver_1.solve(u_1, b_1.copy(deepcopy=True))
     else:
@@ -112,14 +115,18 @@ def test_block_diagonal(setup_test, pc):
                                    "ksp_max_it": 8,
                                    "ksp_atol": 0.0,
                                    "ksp_rtol": 0.0})
-            try:
-                solver_0.solve(u_0, b_0.copy(deepcopy=True))
-            except ConvergenceError:
-                assert solver_0.ksp.getConvergedReason() == PETSc.KSP.ConvergedReason.DIVERGED_MAX_IT  # noqa: E501
-            try:
-                solver_1.solve(u_1, b_1.copy(deepcopy=True))
-            except ConvergenceError:
-                assert solver_1.ksp.getConvergedReason() == PETSc.KSP.ConvergedReason.DIVERGED_MAX_IT  # noqa: E501
+
+            def converged(ksp, it, rnorm):
+                return it >= 8
+
+            solver_0.ksp.addConvergenceTest(converged, prepend=True)
+            solver_1.ksp.addConvergenceTest(converged, prepend=True)
+
+            # Work around firedrake issue #4142
+            var_zero(u_0)
+            var_zero(u_1)
+            solver_0.solve(u_0, b_0.copy(deepcopy=True))
+            solver_1.solve(u_1, b_1.copy(deepcopy=True))
 
     block_solver = BlockLinearSolver(
         BlockMatrix((space_0, space_1), (space_0.dual(), space_1.dual()),
