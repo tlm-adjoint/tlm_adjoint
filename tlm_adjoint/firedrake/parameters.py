@@ -1,5 +1,7 @@
 from .backend import Parameters, parameters
 
+from ..petsc import flattened_options
+
 import ufl
 
 __all__ = []
@@ -36,6 +38,19 @@ def process_form_compiler_parameters(form_compiler_parameters):
     return params
 
 
+def flattened_solver_parameters(solver_parameters):
+    solver_parameters = copy_parameters(solver_parameters)
+    have_tlm_adjoint_parameters = "tlm_adjoint" in solver_parameters
+    if have_tlm_adjoint_parameters:
+        tlm_adjoint_parameters = solver_parameters["tlm_adjoint"]
+    solver_parameters = dict(flattened_options(solver_parameters))
+    if have_tlm_adjoint_parameters:
+        if "tlm_adjoint" in solver_parameters:
+            raise ValueError("Duplicate key")
+        solver_parameters["tlm_adjoint"] = tlm_adjoint_parameters
+    return solver_parameters
+
+
 def form_compiler_quadrature_parameters(form, form_compiler_parameters):
     qd = form_compiler_parameters.get("quadrature_degree", "auto")
     if qd in {None, "auto", -1}:
@@ -44,7 +59,7 @@ def form_compiler_quadrature_parameters(form, form_compiler_parameters):
 
 
 def process_solver_parameters(solver_parameters, *, linear):
-    solver_parameters = copy_parameters(solver_parameters)
+    solver_parameters = flattened_solver_parameters(solver_parameters)
 
     tlm_adjoint_parameters = solver_parameters.setdefault("tlm_adjoint", {})
     tlm_adjoint_parameters.setdefault("options_prefix", None)
@@ -63,7 +78,7 @@ def process_adjoint_solver_parameters(linear_solver_parameters):
     nullspace = tlm_adjoint_parameters.get("nullspace", None)
     transpose_nullspace = tlm_adjoint_parameters.get("transpose_nullspace", None)  # noqa: E501
 
-    adjoint_solver_parameters = copy_parameters(linear_solver_parameters)
+    adjoint_solver_parameters = flattened_solver_parameters(linear_solver_parameters)  # noqa: E501
     adjoint_tlm_adjoint_parameters = adjoint_solver_parameters.setdefault("tlm_adjoint", {})  # noqa: E501
     adjoint_tlm_adjoint_parameters["nullspace"] = transpose_nullspace
     adjoint_tlm_adjoint_parameters["transpose_nullspace"] = nullspace
