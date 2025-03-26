@@ -227,7 +227,7 @@ class EquationSolver(ExprEquation):
             adj_ic = J_ic
         else:
             (_, adjoint_solver_parameters,
-             adj_ic, _) = process_solver_parameters(adjoint_solver_parameters, linear=True)  # noqa: E501
+             _, adj_ic) = process_solver_parameters(adjoint_solver_parameters, linear=True)  # noqa: E501
         if tlm_solver_parameters is None:
             tlm_solver_parameters = linear_solver_parameters
         else:
