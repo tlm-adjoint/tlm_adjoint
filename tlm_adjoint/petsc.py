@@ -21,6 +21,21 @@ __all__ = \
     ]
 
 
+def flattened_options(options):
+    options = deque(((), key, value) for key, value in options.items())
+    while len(options) > 0:
+        prefix, key, value = options.popleft()
+        if not isinstance(key, str):
+            raise TypeError("Unexpected key type")
+        if isinstance(value, Mapping):
+            sub_prefix = prefix + (key,)
+            options.extendleft(
+                (sub_prefix, sub_key, sub_value)
+                for sub_key, sub_value in reversed(value.items()))
+        else:
+            yield "_".join(prefix + (key,)), value
+
+
 # Do not inherit from Mapping as __len__ would be linear time
 class PETScOptions:
     def __init__(self, options_prefix, solver_parameters):
@@ -43,24 +58,9 @@ class PETScOptions:
 
         self._update(solver_parameters)
 
-    @staticmethod
-    def _flattened_options(options):
-        options = deque(((), key, value) for key, value in options.items())
-        while len(options) > 0:
-            prefix, key, value = options.popleft()
-            if not isinstance(key, str):
-                raise TypeError("Unexpected key type")
-            if isinstance(value, Mapping):
-                sub_prefix = prefix + (key,)
-                options.extendleft(
-                    (sub_prefix, sub_key, sub_value)
-                    for sub_key, sub_value in reversed(value.items()))
-            else:
-                yield "_".join(prefix + (key,)), value
-
     def _update(self, other):
         keys = set()
-        for key, value in self._flattened_options(other):
+        for key, value in flattened_options(other):
             if not isinstance(key, str):
                 raise TypeError("Unexpected key type")
             if key in self or key in keys:
@@ -68,7 +68,7 @@ class PETScOptions:
             keys.add(key)
         del keys
 
-        for key, value in self._flattened_options(other):
+        for key, value in flattened_options(other):
             self._keys[key] = None
             self._options[f"{self.options_prefix:s}{key:s}"] = value
 

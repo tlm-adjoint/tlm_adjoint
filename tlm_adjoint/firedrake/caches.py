@@ -14,6 +14,7 @@ from .backend_interface import (
 from .expr import (
     derivative, eliminate_zeros, expr_zero, extract_coefficients,
     extract_variables, form_cached, iter_expr, replaced_form)
+from .parameters import flattened_solver_parameters
 from .variables import ReplacementFunction
 
 from collections import defaultdict
@@ -479,7 +480,7 @@ class LinearSolverCache(Cache):
         key = (form_key(form, assemble_form),
                tuple(bcs),
                parameters_key(form_compiler_parameters),
-               parameters_key(linear_solver_parameters))
+               parameters_key(flattened_solver_parameters(linear_solver_parameters)))  # noqa: E501
 
         if assembly_cache is None:
             assembly_cache = globals()["assembly_cache"]()

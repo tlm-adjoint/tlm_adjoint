@@ -12,9 +12,9 @@ from ..block_system import (
     BlockMatrix as _BlockMatrix, BlockNullspace, Eigensolver,
     LinearSolver as _LinearSolver, Matrix, MatrixFunctionSolver,
     MatrixFreeMatrix, MixedSpace, NoneNullspace, Nullspace, TypedSpace)
+from ..petsc import flattened_options
 
 from .backend_interface import assemble, matrix_multiply
-from .parameters import copy_parameters
 from .variables import Cofunction, Constant, Function
 
 from functools import cached_property
@@ -352,8 +352,8 @@ class WhiteNoiseSampler:
         self._M = M
         self._rng = rng
         self._pc = pc
-        self._mfn_solver_parameters = copy_parameters(mfn_solver_parameters)
-        self._ksp_solver_parameters = copy_parameters(ksp_solver_parameters)
+        self._mfn_solver_parameters = dict(flattened_options(mfn_solver_parameters))  # noqa: E501
+        self._ksp_solver_parameters = dict(flattened_options(ksp_solver_parameters))  # noqa: E501
 
     @cached_property
     def _mfn(self):
