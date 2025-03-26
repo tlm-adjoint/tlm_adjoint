@@ -799,11 +799,11 @@ def test_Storage(setup_test, test_leaks,
 
     assert len(manager()._cp._refs) == 1
     assert tuple(manager()._cp._refs.keys()) == (var_id(x),)
-    assert len(manager()._cp._cp) == 0
+    assert len(manager()._cp._cp) == 1
     assert len(manager()._cp._data) == 4
     assert tuple(len(nl_deps) for nl_deps in manager()._cp._data.values()) \
         == (0, 2, 0, 2)
-    assert len(manager()._cp._storage) == 4
+    assert len(manager()._cp._storage) == 5
 
     J_val = J.value
 
