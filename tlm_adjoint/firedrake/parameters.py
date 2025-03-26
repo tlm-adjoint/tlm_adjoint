@@ -45,6 +45,8 @@ def flattened_solver_parameters(solver_parameters):
         tlm_adjoint_parameters = solver_parameters["tlm_adjoint"]
     solver_parameters = dict(flattened_options(solver_parameters))
     if have_tlm_adjoint_parameters:
+        if "tlm_adjoint" in solver_parameters:
+            raise ValueError("Duplicate key")
         solver_parameters["tlm_adjoint"] = tlm_adjoint_parameters
     return solver_parameters
 

@@ -64,7 +64,7 @@ class PETScOptions:
             if not isinstance(key, str):
                 raise TypeError("Unexpected key type")
             if key in self or key in keys:
-                raise ValueError(f"Duplicate value for option key '{key:s}'")
+                raise ValueError(f"Duplicate key '{key:s}'")
             keys.add(key)
         del keys
 
