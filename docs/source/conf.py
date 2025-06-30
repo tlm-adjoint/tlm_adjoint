@@ -47,7 +47,7 @@ intersphinx_mapping = {"checkpoint_schedules": ("https://www.firedrakeproject.or
                        "scipy": ("https://docs.scipy.org/doc/scipy", None),
                        "sympy": ("https://docs.sympy.org/latest", None),
                        "torch": ("https://pytorch.org/docs/stable", None),
-                       "ufl": ("https://fenics.readthedocs.io/projects/ufl/en/latest", None)}  # noqa: E501
+                       "ufl": ("https://docs.fenicsproject.org/ufl/main", None)}  # noqa: E501
 
 if "PYTHONWARNINGS" not in os.environ:
     os.environ["PYTHONWARNINGS"] = "ignore"
