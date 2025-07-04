@@ -17,7 +17,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 60
     container:
-      image: firedrakeproject/firedrake-vanilla-default:2025.4.1
+      image: firedrakeproject/firedrake-vanilla-default:2025.4.2
       options: --user root
     env:
       OMP_NUM_THREADS: 1
@@ -50,7 +50,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 60
     container:
-      image: firedrakeproject/firedrake-vanilla-complex:2025.4.1
+      image: firedrakeproject/firedrake-vanilla-complex:2025.4.2
       options: --user root
     env:
       OMP_NUM_THREADS: 1
