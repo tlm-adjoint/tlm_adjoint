@@ -45,7 +45,7 @@ jobs:
         run: |
           . tlm_adjoint_venv/bin/activate
           cd tlm_adjoint
-          pytest -v tests/base tests/checkpoint_schedules tests/firedrake -n 4 --timeout=300 --timeout-method=thread
+          python3 -m pytest -v tests/base tests/checkpoint_schedules tests/firedrake -n 4 --timeout=300 --timeout-method=thread
   test-complex:
     runs-on: ubuntu-latest
     timeout-minutes: 60
@@ -78,4 +78,4 @@ jobs:
         run: |
           . tlm_adjoint_venv/bin/activate
           cd tlm_adjoint
-          pytest -v tests/base tests/checkpoint_schedules tests/firedrake -n 4 --timeout=300 --timeout-method=thread
+          python3 -m pytest -v tests/base tests/checkpoint_schedules tests/firedrake -n 4 --timeout=300 --timeout-method=thread
