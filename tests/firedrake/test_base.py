@@ -163,7 +163,8 @@ def test_leaks():
 
     refs = 0
     for F in referenced_vars():
-        if var_name(F) != f"{DEFAULT_MESH_NAME:s}_coordinates":
+        if var_name(F) not in {f"{DEFAULT_MESH_NAME:s}_coordinates",
+                               f"{DEFAULT_MESH_NAME:s}_topology_coordinates"}:
             info(f"{var_name(F):s} referenced")
             refs += 1
     if refs == 0:
