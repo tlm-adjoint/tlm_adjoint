@@ -173,7 +173,9 @@ def Constant_init_assign(self, value):
 def backend_Constant__init__(self, orig, orig_args, value, domain=None, *,
                              name=None, space=None, comm=None,
                              **kwargs):
-    orig(self, value, domain=domain, name=name, **kwargs)
+    if domain is not None:
+        kwargs["domain"] = domain  # Backwards compatibility
+    orig(self, value, name=name, **kwargs)
 
     if name is None:
         name = self.name
