@@ -487,8 +487,7 @@ class FunctionInterface(FunctionInterfaceBase):
         if isinstance(x, backend_Function):
             if not space_eq(x.function_space(), self.function_space()):
                 raise ValueError("Invalid function space")
-            with self.dat.vec as y_v, x.dat.vec_ro as x_v:
-                y_v.axpy(alpha, x_v)
+            self.dat.axpy(alpha, x.dat)
         else:
             raise TypeError(f"Unexpected type: {type(x)}")
 
@@ -562,8 +561,7 @@ class CofunctionInterface(FunctionInterfaceBase):
         if isinstance(x, backend_Cofunction):
             if not space_eq(x.function_space(), self.function_space()):
                 raise ValueError("Invalid function space")
-            with self.dat.vec as y_v, x.dat.vec_ro as x_v:
-                y_v.axpy(alpha, x_v)
+            self.dat.axpy(alpha, x.dat)
         else:
             raise TypeError(f"Unexpected type: {type(x)}")
 
