@@ -15,7 +15,7 @@ from .expr import (
     derivative, eliminate_zeros, expr_zero, extract_coefficients,
     extract_variables, form_cached, iter_expr, replaced_form)
 from .parameters import flattened_solver_parameters
-from .variables import ReplacementFunction
+from .variables import ReplacementFunction, l2_riesz
 
 from collections import defaultdict
 from collections.abc import Mapping, Sequence
@@ -416,7 +416,7 @@ class AssemblyCache(Cache):
             elif arity == 1:
                 b = assemble(assemble_form, **assemble_kwargs)
                 for bc in bcs:
-                    bc.apply(b.riesz_representation("l2"))
+                    bc.apply(l2_riesz(b, alias=True))
                 var_lock_state(b)
                 return b
             elif arity == 2:

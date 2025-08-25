@@ -6,9 +6,10 @@ from .backend import (
     backend_Cofunction, backend_Constant, backend_Function, backend_ScalarType)
 from ..interface import (
     SpaceInterface, VariableInterface, add_replacement_interface,
-    register_subtract_adjoint_derivative_action, space_comm, space_dtype,
-    space_eq, space_id, subtract_adjoint_derivative_action_base, var_comm,
-    var_dtype, var_is_cached, var_is_static, var_linf_norm, var_lock_state,
+    conjugate_dual_space_type, register_subtract_adjoint_derivative_action,
+    space_comm, space_dtype, space_eq, space_id,
+    subtract_adjoint_derivative_action_base, var_comm, var_dtype,
+    var_is_cached, var_is_static, var_linf_norm, var_lock_state,
     var_scalar_value, var_space, var_space_type)
 
 from ..caches import Caches
@@ -40,6 +41,7 @@ __all__ = \
         "ReplacementZeroConstant",
         "ReplacementZeroFunction",
 
+        "l2_riesz",
         "to_firedrake"
     ]
 
@@ -468,7 +470,7 @@ class FunctionInterfaceBase(VariableInterface):
 class FunctionInterface(FunctionInterfaceBase):
     def _assign(self, y):
         if isinstance(y, backend_Cofunction):
-            y = y.riesz_representation("l2")
+            y = l2_riesz(y)
         if isinstance(y, numbers.Complex):
             if len(self.ufl_shape) != 0:
                 raise ValueError("Invalid shape")
@@ -483,7 +485,7 @@ class FunctionInterface(FunctionInterfaceBase):
 
     def _axpy(self, alpha, x, /):
         if isinstance(x, backend_Cofunction):
-            x = x.riesz_representation("l2")
+            x = l2_riesz(x)
         if isinstance(x, backend_Function):
             if not space_eq(x.function_space(), self.function_space()):
                 raise ValueError("Invalid function space")
@@ -493,7 +495,7 @@ class FunctionInterface(FunctionInterfaceBase):
 
     def _inner(self, y):
         if isinstance(y, backend_Function):
-            y = y.riesz_representation("l2")
+            y = l2_riesz(y)
         if isinstance(y, backend_Cofunction):
             if not space_eq(y.function_space(), self.function_space().dual()):
                 raise ValueError("Invalid function space")
@@ -546,7 +548,7 @@ class Function(backend_Function):
 class CofunctionInterface(FunctionInterfaceBase):
     def _assign(self, y):
         if isinstance(y, backend_Function):
-            y = y.riesz_representation("l2")
+            y = l2_riesz(y)
         if isinstance(y, backend_Cofunction):
             if not space_eq(y.function_space(), self.function_space()):
                 raise ValueError("Invalid function space")
@@ -557,7 +559,7 @@ class CofunctionInterface(FunctionInterfaceBase):
 
     def _axpy(self, alpha, x, /):
         if isinstance(x, backend_Function):
-            x = x.riesz_representation("l2")
+            x = l2_riesz(x)
         if isinstance(x, backend_Cofunction):
             if not space_eq(x.function_space(), self.function_space()):
                 raise ValueError("Invalid function space")
@@ -567,7 +569,7 @@ class CofunctionInterface(FunctionInterfaceBase):
 
     def _inner(self, y):
         if isinstance(y, backend_Cofunction):
-            y = y.riesz_representation("l2")
+            y = l2_riesz(y)
         if isinstance(y, backend_Function):
             if not space_eq(y.function_space(), self.function_space().dual()):
                 raise ValueError("Invalid function space")
@@ -617,6 +619,42 @@ class Cofunction(backend_Cofunction):
             return True
         else:
             return ufl.classes.Cofunction.equals(self, other)
+
+
+def l2_riesz(u, *, alias=False):
+    """Construct a Riesz representative for an :math:`l_2` Riesz map.
+
+    Parameters
+    ----------
+
+    u : :class:`firedrake.function.Function` \
+            or :class:`firedrake.cofunction.Cofunction`
+        The variable for which a Riesz representative should be constructed.
+    alias : bool
+        Whether the result should alias the same data as the input.
+
+    Returns
+    -------
+
+    u : :class:`.Function` or :class:`.Cofunction`
+        The Riesz representative.
+    """
+
+    if isinstance(u, backend_Function):
+        cls = Cofunction
+    elif isinstance(u, backend_Cofunction):
+        cls = Function
+    else:
+        raise TypeError(f"Unexpected type: {type(u)}")
+    space = var_space(u).dual()
+    space_type = conjugate_dual_space_type(var_space_type(u))
+    if alias:
+        v = cls(space, space_type=space_type, val=u.dat)
+        define_var_alias(v, u, key=("l2_riesz",))
+    else:
+        v = cls(space, space_type=space_type)
+        v.dat.axpy(1.0, u.dat)
+    return v
 
 
 class ZeroConstant(Constant, Zero):

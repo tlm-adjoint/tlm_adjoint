@@ -13,7 +13,7 @@ from ..equation import ZeroAssignment
 from .expr import (
     ExprEquation, derivative, eliminate_zeros, expr_zero, extract_dependencies)
 from .variables import (
-    ReplacementCofunction, ReplacementConstant, ReplacementFunction)
+    ReplacementCofunction, ReplacementConstant, ReplacementFunction, l2_riesz)
 
 import ufl
 
@@ -86,7 +86,7 @@ class ExprAssignment(ExprEquation):
                 adj_x = adj_x_
                 del adj_x_
             else:
-                adj_x = adj_x.riesz_representation("l2")
+                adj_x = l2_riesz(adj_x)
 
             test = TestFunction(dep)
             # dF = derivative(action(cotest, self._rhs), dep, argument=trial)
@@ -111,7 +111,7 @@ class ExprAssignment(ExprEquation):
                 F = F_
                 del F_
             else:
-                F = F.riesz_representation("l2")
+                F = l2_riesz(F)
         else:
             dF = derivative(self._rhs, dep, argument=ufl.classes.IntValue(1))
             dF = eliminate_zeros(dF)

@@ -36,7 +36,8 @@ def _assemble(form, tensor=None, bcs=None, *,
             form_compiler_parameters=form_compiler_parameters,
             mat_type=mat_type)
         for bc in bcs:
-            bc.apply(b.riesz_representation("l2") if isinstance(b, backend_Cofunction) else b)  # noqa: E501
+            bc.apply(backend_Function(b.function_space().dual(), val=b.dat)
+                     if isinstance(b, backend_Cofunction) else b)
     else:
         b = backend_assemble(
             form, tensor=tensor, bcs=tuple(bcs),

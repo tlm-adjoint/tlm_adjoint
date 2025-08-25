@@ -15,7 +15,7 @@ from ..block_system import (
 from ..petsc import flattened_options
 
 from .backend_interface import assemble, matrix_multiply
-from .variables import Cofunction, Constant, Function
+from .variables import Cofunction, Constant, Function, l2_riesz
 
 from functools import cached_property
 import numpy as np
@@ -50,7 +50,7 @@ __all__ = \
 def apply_bcs(u, bcs):
     bcs = packed(bcs)
     if isinstance(u, backend_Cofunction):
-        u = u.riesz_representation("l2")
+        u = l2_riesz(u, alias=True)
     for bc in bcs:
         if not space_eq(bc.function_space(), u.function_space()):
             raise ValueError("Invalid space")
@@ -201,7 +201,7 @@ class DirichletBCNullspace(Nullspace):
 
     def _constraint_correct_lhs(self, x, y, *, alpha=1.0):
         if isinstance(x, backend_Cofunction):
-            x = x.riesz_representation("l2")
+            x = l2_riesz(x)
         c = var_new(y)
         apply_bcs(
             c,

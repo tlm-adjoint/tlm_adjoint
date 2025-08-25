@@ -469,9 +469,9 @@ def test_sub_block(setup_test):
         assert b_0.function_space() == space_0.dual()
         assert b_1.function_space() == space_1.dual()
         assert b_2.function_space() == space_2.dual()
-        u_0.assign(b_0.riesz_representation("l2"))
-        u_1.assign(b_1.riesz_representation("l2"))
-        u_2.assign(b_2.riesz_representation("l2"))
+        u_0.assign(l2_riesz(b_0))
+        u_1.assign(l2_riesz(b_1))
+        u_2.assign(l2_riesz(b_2))
 
     block_solver = BlockLinearSolver(
         BlockMatrix(((space_0, space_1), space_2), ((space_0.dual(), space_1.dual()), space_2.dual()),  # noqa: E501

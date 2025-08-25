@@ -400,7 +400,8 @@ def test_Function_in_place(setup_test, test_leaks):
 
 @pytest.mark.firedrake
 @pytest.mark.parametrize("riesz_map, riesz_map_ref",
-                         [("L2", lambda u, test: inner(u, test) * dx),
+                         [("l2", None),
+                          ("L2", lambda u, test: inner(u, test) * dx),
                           ("H1", lambda u, test: inner(u, test) * dx + inner(grad(u), grad(test)) * dx)])  # noqa: E501
 @pytest.mark.skipif(complex_mode, reason="real only")
 @seed_test
@@ -413,6 +414,8 @@ def test_Function_riesz_representation(setup_test, test_leaks,
 
     def forward(m):
         u = m.riesz_representation(riesz_map)
+        if u.dat is m.dat:  # Backwards compatibility
+            pytest.skip()
         v = Function(space).interpolate(m - Constant(1.0))
 
         J = Functional(name="J")
@@ -428,8 +431,12 @@ def test_Function_riesz_representation(setup_test, test_leaks,
     stop_manager()
 
     m_u = Function(space, name="m_u")
-    solve(riesz_map_ref(trial, test) == u, m_u,
-          solver_parameters=ls_parameters_cg)
+    if riesz_map == "l2":
+        m_u = Function(u.function_space().dual())
+        m_u.dat.axpy(1.0, u.dat)
+    else:
+        solve(riesz_map_ref(trial, test) == u, m_u,
+              solver_parameters=ls_parameters_cg)
     m_error = var_copy(m_ref)
     var_axpy(m_error, -1.0, m_u)
     assert var_linf_norm(m_error) < 1.0e-13
@@ -618,7 +625,8 @@ def test_Cofunction_assign(setup_test, test_leaks):
 
 @pytest.mark.firedrake
 @pytest.mark.parametrize("riesz_map, riesz_map_ref",
-                         [("L2", lambda u, test: inner(u, test) * dx),
+                         [("l2", None),
+                          ("L2", lambda u, test: inner(u, test) * dx),
                           ("H1", lambda u, test: inner(u, test) * dx + inner(grad(u), grad(test)) * dx)])  # noqa: E501
 @seed_test
 def test_Cofunction_riesz_representation(setup_test, test_leaks,
@@ -631,6 +639,8 @@ def test_Cofunction_riesz_representation(setup_test, test_leaks,
     def forward(m):
         u = m.riesz_representation(riesz_map,
                                    solver_parameters=ls_parameters_cg)
+        if u.dat is m.dat:  # Backwards compatibility
+            pytest.skip()
 
         J = Functional(name="J")
         J.assign(((u - Constant(1.0)) ** 4) * dx)
@@ -639,7 +649,11 @@ def test_Cofunction_riesz_representation(setup_test, test_leaks,
     u_ref = Function(space, name="u_ref")
     interpolate_expression(
         u_ref, Constant(1.5 + (1.0j if complex_mode else 0.0)) - exp(X[0] * X[1]))  # noqa: E501
-    m = assemble(riesz_map_ref(u_ref, test))
+    if riesz_map == "l2":
+        m = Cofunction(u_ref.function_space().dual())
+        m.dat.axpy(1.0, u_ref.dat)
+    else:
+        m = assemble(riesz_map_ref(u_ref, test))
 
     start_manager()
     u, J = forward(m)
