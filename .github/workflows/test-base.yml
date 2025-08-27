@@ -28,7 +28,7 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install flake8 python3-h5py python3-numpy python3-pytest python3-pytest-timeout python3-pytest-xdist python3-scipy python3-sympy
-          python3 -m venv tlm_adjoint_venv
+          python3 -m venv --system-site-packages tlm_adjoint_venv
           . tlm_adjoint_venv/bin/activate
           python3 -m pip install ruff
       - name: Lint
@@ -41,4 +41,4 @@ jobs:
         run: |
           . tlm_adjoint_venv/bin/activate
           cd tlm_adjoint
-          pytest -v -n 4 --timeout=300 --timeout-method=thread
+          python3 -m pytest -v -n 4 --timeout=300 --timeout-method=thread
