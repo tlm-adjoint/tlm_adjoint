@@ -27,9 +27,11 @@ from .variables import (
     ConstantSpaceInterface, FunctionInterface, FunctionSpaceInterface,
     constant_space, define_var_alias)
 
+import inspect
 import numbers
 import operator
 import ufl
+import warnings
 
 __all__ = \
     [
@@ -549,10 +551,22 @@ def Cofunction_copy(self, orig, orig_args, deepcopy=False):
 @patch_method(backend_Cofunction, "riesz_representation")
 def Cofunction_riesz_representation(self, orig, orig_args,
                                     riesz_map="L2", *args, **kwargs):
+    # Backwards compatibility
+    sig = inspect.signature(backend_Cofunction.riesz_representation)
+    if "solver_parameters" in kwargs \
+            and sig.parameters["solver_options"].kind == inspect.Parameter.KEYWORD_ONLY:  # noqa: E501
+        warnings.warn("solver_parameters argument has been renamed to "
+                      "solver_options",
+                      FutureWarning, stacklevel=3)
+        if "solver_options" in kwargs:
+            raise TypeError("Cannot supply both solver_options and "
+                            "and solver_parameters arguments")
+        kwargs["solver_options"] = kwargs.pop("solver_parameters")
+
     check_space_type(self, "conjugate_dual")
     if riesz_map == "l2":
         with paused_manager():
-            v = orig_args()
+            v = orig(self, riesz_map, *args, **kwargs)
         if v.dat is self.dat:  # Backwards compatibility
             define_var_alias(v, self,
                              key=("riesz_representation", "l2"))
@@ -564,7 +578,7 @@ def Cofunction_riesz_representation(self, orig, orig_args,
             assert not eq._pre_process_required
             eq._post_process()
     else:
-        v = orig_args()
+        v = orig(self, riesz_map, *args, **kwargs)
     return v
 
 
