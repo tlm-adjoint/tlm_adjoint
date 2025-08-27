@@ -104,7 +104,6 @@ class Conversion(Equation):
     def __init__(self, x, y):
         if var_local_size(x) != var_local_size(y):
             raise ValueError("Invalid shape")
-        check_space_types(x, y)
         super().__init__(x, [x, y], nl_deps=[], ic=False, adj_ic=False)
 
     def forward_solve(self, x, deps=None):

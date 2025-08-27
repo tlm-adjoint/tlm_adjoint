@@ -21,6 +21,7 @@ from .parameters import (
     form_compiler_quadrature_parameters, process_adjoint_solver_parameters,
     process_form_compiler_parameters, process_solver_parameters,
     update_parameters)
+from .variables import l2_riesz
 
 from collections import defaultdict
 import ufl
@@ -390,7 +391,7 @@ class EquationSolver(ExprEquation):
 
         # Boundary conditions
         for bc in self._hbcs:
-            bc.apply(b.riesz_representation("l2"))
+            bc.apply(l2_riesz(b, alias=True))
 
         return x_0, b
 
@@ -545,7 +546,7 @@ class EquationSolver(ExprEquation):
                                                eq_deps=eq_nl_deps, deps=nl_deps)  # noqa: E501
 
                 dF_term = var_new(dF_bc).assign(
-                    dF_bc - adj_x.riesz_representation("l2"),
+                    dF_bc - l2_riesz(adj_x),
                     subset=self._bc_nodes[dep_index])
                 dep_B.sub(dF_term)
 
@@ -566,7 +567,7 @@ class EquationSolver(ExprEquation):
             b_0 = var_copy(b)
             for bc in self._hbcs:
                 bc.apply(adj_x)
-                bc.apply(b_0.riesz_representation("l2"))
+                bc.apply(l2_riesz(b_0, alias=True))
 
         if self._adjoint_solver_parameters.get("mat_type", "aij") != "matfree":
             J_solver, _ = self._linear_solver(
@@ -581,7 +582,7 @@ class EquationSolver(ExprEquation):
                   solver_parameters=self._adjoint_solver_parameters)
 
         for bc in self._hbcs:
-            bc.reconstruct(g=b.riesz_representation("l2")).apply(adj_x)
+            bc.reconstruct(g=l2_riesz(b)).apply(adj_x)
         return adj_x
 
     def _tangent_linear_rhs(self, tlm_map):

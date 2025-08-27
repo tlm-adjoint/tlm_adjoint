@@ -7,12 +7,12 @@ from .backend import (
     homogenize)
 from ..interface import (
     DEFAULT_COMM, add_interface, check_space_type, comm_dup_cached,
-    comm_parent, is_var, new_space_id, new_var_id, relative_space_type,
+    comm_parent, conjugate_dual_space_type, is_var, new_space_id, new_var_id,
     space_eq, var_comm, var_is_alias, var_new, var_update_state)
 
 from ..equation import ZeroAssignment
-from ..equations import Assignment, LinearCombination
-from ..manager import annotation_enabled, tlm_enabled
+from ..equations import Assignment, Conversion, LinearCombination
+from ..manager import annotation_enabled, paused_manager, tlm_enabled
 from ..patch import add_manager_controls, manager_method, patch_method
 
 from .assembly import Assembly
@@ -27,9 +27,11 @@ from .variables import (
     ConstantSpaceInterface, FunctionInterface, FunctionSpaceInterface,
     constant_space, define_var_alias)
 
+import inspect
 import numbers
 import operator
 import ufl
+import warnings
 
 __all__ = \
     [
@@ -173,7 +175,9 @@ def Constant_init_assign(self, value):
 def backend_Constant__init__(self, orig, orig_args, value, domain=None, *,
                              name=None, space=None, comm=None,
                              **kwargs):
-    orig(self, value, domain=domain, name=name, **kwargs)
+    if domain is not None:
+        kwargs["domain"] = domain  # Backwards compatibility
+    orig(self, value, name=name, **kwargs)
 
     if name is None:
         name = self.name
@@ -448,17 +452,23 @@ def Function_project(self, orig, orig_args, b, bcs=None,
 @patch_method(backend_Function, "riesz_representation")
 def Function_riesz_representation(self, orig, orig_args,
                                   riesz_map="L2", *args, **kwargs):
-    if riesz_map != "l2":
-        check_space_type(self, "primal")
-    return_value = orig_args()
+    check_space_type(self, "primal")
     if riesz_map == "l2":
-        define_var_alias(return_value, self,
-                         key=("riesz_representation", "l2"))
-    # define_var_alias sets the space_type, so this has to appear after
-    return_value._tlm_adjoint__var_interface_attrs.d_setitem(
-        "space_type",
-        relative_space_type(self._tlm_adjoint__var_interface_attrs["space_type"], "conjugate_dual"))  # noqa: E501
-    return return_value
+        with paused_manager():
+            v = orig_args()
+        if v.dat is self.dat:  # Backwards compatibility
+            define_var_alias(v, self,
+                             key=("riesz_representation", "l2"))
+            v._tlm_adjoint__var_interface_attrs.d_setitem(
+                "space_type",
+                conjugate_dual_space_type(self._tlm_adjoint__var_interface_attrs["space_type"]))  # noqa: E501
+        elif annotation_enabled() or tlm_enabled():
+            eq = Conversion(v, self)
+            assert not eq._pre_process_required
+            eq._post_process()
+    else:
+        v = orig_args()
+    return v
 
 
 @patch_method(backend_Function, "sub")
@@ -541,17 +551,35 @@ def Cofunction_copy(self, orig, orig_args, deepcopy=False):
 @patch_method(backend_Cofunction, "riesz_representation")
 def Cofunction_riesz_representation(self, orig, orig_args,
                                     riesz_map="L2", *args, **kwargs):
-    if riesz_map != "l2":
-        check_space_type(self, "conjugate_dual")
-    return_value = orig_args()
+    # Backwards compatibility
+    sig = inspect.signature(backend_Cofunction.riesz_representation)
+    if "solver_parameters" in kwargs \
+            and sig.parameters["solver_options"].kind == inspect.Parameter.KEYWORD_ONLY:  # noqa: E501
+        warnings.warn("solver_parameters argument has been renamed to "
+                      "solver_options",
+                      FutureWarning, stacklevel=3)
+        if "solver_options" in kwargs:
+            raise TypeError("Cannot supply both solver_options and "
+                            "and solver_parameters arguments")
+        kwargs["solver_options"] = kwargs.pop("solver_parameters")
+
+    check_space_type(self, "conjugate_dual")
     if riesz_map == "l2":
-        define_var_alias(return_value, self,
-                         key=("riesz_representation", "l2"))
-    # define_var_alias sets the space_type, so this has to appear after
-    return_value._tlm_adjoint__var_interface_attrs.d_setitem(
-        "space_type",
-        relative_space_type(self._tlm_adjoint__var_interface_attrs["space_type"], "conjugate_dual"))  # noqa: E501
-    return return_value
+        with paused_manager():
+            v = orig(self, riesz_map, *args, **kwargs)
+        if v.dat is self.dat:  # Backwards compatibility
+            define_var_alias(v, self,
+                             key=("riesz_representation", "l2"))
+            v._tlm_adjoint__var_interface_attrs.d_setitem(
+                "space_type",
+                conjugate_dual_space_type(self._tlm_adjoint__var_interface_attrs["space_type"]))  # noqa: E501
+        elif annotation_enabled() or tlm_enabled():
+            eq = Conversion(v, self)
+            assert not eq._pre_process_required
+            eq._post_process()
+    else:
+        v = orig(self, riesz_map, *args, **kwargs)
+    return v
 
 
 @patch_method(backend_Cofunction, "sub")
