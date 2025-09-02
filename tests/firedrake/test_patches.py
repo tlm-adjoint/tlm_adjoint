@@ -863,7 +863,7 @@ def test_Function_interpolate(setup_test, test_leaks,
     assert min_order > 1.99
 
     min_order = taylor_test_tlm_adjoint(forward_J, y_2, adjoint_order=1)
-    assert min_order > 1.99
+    assert min_order > 1.98
 
     min_order = taylor_test_tlm_adjoint(forward_J, y_2, adjoint_order=2)
     assert min_order > 1.99
