@@ -1,5 +1,5 @@
 from firedrake import *
-from firedrake.__future__ import Interpolator, interpolate
+from firedrake.__future__ import interpolate
 from tlm_adjoint.firedrake import *
 from tlm_adjoint.firedrake import manager as _manager
 from tlm_adjoint.firedrake.backend import (
@@ -276,31 +276,25 @@ def interpolate_Function_interpolate(v, V):
     return space_new(V).interpolate(v)
 
 
-def interpolate_Interpolator_Function(v, V):
-    interp = Interpolator(v, V)
-    return assemble(interp.interpolate())
-
-
-def interpolate_Interpolator_test(v, V):
-    interp = Interpolator(TestFunction(v.function_space()), V)
-    return assemble(interp.interpolate(v))
-
-
-def interpolate_interpolate(v, V):
+def interpolate_interpolate_Function(v, V):
     return assemble(interpolate(v, V))
 
 
-def interpolate_interpolate_tensor(v, V):
+def interpolate_interpolate_Function_tensor(v, V):
     x = space_new(V)
     assemble(interpolate(v, V), tensor=x)
     return x
 
 
+def interpolate_interpolate_test(v, V):
+    return assemble(
+        action(interpolate(TestFunction(v.function_space()), V), v))
+
+
 @pytest.fixture(params=[{"interpolate_expr": interpolate_Function_interpolate},
-                        {"interpolate_expr": interpolate_Interpolator_Function},  # noqa: E501
-                        {"interpolate_expr": interpolate_Interpolator_test},
-                        {"interpolate_expr": interpolate_interpolate},
-                        {"interpolate_expr": interpolate_interpolate_tensor}])
+                        {"interpolate_expr": interpolate_interpolate_Function},  # noqa: E501
+                        {"interpolate_expr": interpolate_interpolate_Function_tensor},  # noqa: E501
+                        {"interpolate_expr": interpolate_interpolate_test}])
 def interpolate_expr(request):
     return request.param["interpolate_expr"]
 
