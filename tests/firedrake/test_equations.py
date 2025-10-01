@@ -42,10 +42,10 @@ def test_Assignment(setup_test, test_leaks):
             x,
             sin(pi * X[0]) * sin(3.0 * pi * X[1]))
 
-    start_manager()
-    y, J = forward(x)
-    stop_manager()
-    assert var_state(x) == 1
+    with var_locked(x):
+        start_manager()
+        y, J = forward(x)
+        stop_manager()
 
     y_error = var_copy(y)
     var_axpy(y_error, -1.0, x)
@@ -110,10 +110,10 @@ def test_Axpy(setup_test, test_leaks,
             x,
             sin(pi * X[0]) * sin(3.0 * pi * X[1]))
 
-    start_manager()
-    y, J = forward(x)
-    stop_manager()
-    assert var_state(x) == 1
+    with var_locked(x):
+        start_manager()
+        y, J = forward(x)
+        stop_manager()
 
     y_error = var_copy(y)
     var_axpy(y_error, -1.0, x)
