@@ -693,6 +693,13 @@ def NonlinearVariationalSolver_solve(
     return return_value
 
 
+@patch_method(SameMeshInterpolator, "__init__")
+def SameMeshInterpolator__init__(
+        self, orig, orig_args, expr, *args, **kwargs):
+    orig_args()
+    self._tlm_adjoint__expr = expr
+
+
 def SameMeshInterpolator_interpolate_post_call(
         self, return_value, *args, **kwargs):
     var_update_state(return_value)
@@ -704,18 +711,31 @@ def SameMeshInterpolator_interpolate_post_call(
 def SameMeshInterpolator_interpolate(
         self, orig, orig_args, *function, output=None,
         transpose=None, adjoint=False, default_missing_val=None, **kwargs):
-    if transpose is not None:
-        adjoint = transpose or adjoint
     if default_missing_val is not None:
         raise NotImplementedError("default_missing_val not supported")
 
     return_value = orig_args()
-    check_space_type(return_value, "conjugate_dual" if adjoint else "primal")
 
-    args = ufl.algorithms.extract_arguments(self.expr)
-    if len(args) != len(function):
-        raise TypeError("Unexpected number of functions")
-    expr = ufl.replace(self.expr, dict(zip(args, function)))
+    expr = self._tlm_adjoint__expr
+    if isinstance(expr, ufl.classes.Interpolate):  # Backwards compatibility
+        if len(function) > 0:
+            raise NotImplementedError("function not supported")
+
+        if isinstance(return_value, backend_Function):
+            arg, expr = expr.argument_slots()
+            if not isinstance(arg, ufl.classes.Coargument):
+                raise NotImplementedError("Interpolation case not supported")
+        elif isinstance(return_value, backend_Cofunction):
+            expr, arg = expr.argument_slots()
+            if not isinstance(arg, ufl.classes.Argument):
+                raise NotImplementedError("Interpolation case not supported")
+        else:
+            raise NotImplementedError("Interpolation case not supported")
+    else:
+        args = ufl.algorithms.extract_arguments(expr)
+        if len(args) != len(function):
+            raise TypeError("Unexpected number of functions")
+        expr = ufl.replace(expr, dict(zip(args, function)))
     expr = expr_new_x(expr, return_value)
     eq = ExprInterpolation(return_value, expr)
 
