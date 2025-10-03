@@ -414,8 +414,6 @@ def test_Function_riesz_representation(setup_test, test_leaks,
 
     def forward(m):
         u = m.riesz_representation(riesz_map)
-        if u.dat is m.dat:  # Backwards compatibility
-            pytest.skip()
         v = Function(space).interpolate(m - Constant(1.0))
 
         J = Functional(name="J")
@@ -637,10 +635,7 @@ def test_Cofunction_riesz_representation(setup_test, test_leaks,
     test = TestFunction(space)
 
     def forward(m):
-        u = m.riesz_representation(riesz_map,
-                                   solver_parameters=ls_parameters_cg)
-        if u.dat is m.dat:  # Backwards compatibility
-            pytest.skip()
+        u = m.riesz_representation(riesz_map, solver_options=ls_parameters_cg)
 
         J = Functional(name="J")
         J.assign(((u - Constant(1.0)) ** 4) * dx)
@@ -708,8 +703,7 @@ def test_deepcopy(setup_test, test_leaks,
             assert space_type == "conjugate_dual"
             u = assemble(inner(m, test) * dx)
             u = u.copy(deepcopy=True)
-            u = u.riesz_representation(
-                "L2", solver_parameters=ls_parameters_cg)
+            u = u.riesz_representation("L2", solver_options=ls_parameters_cg)
 
         J = Functional(name="J")
         J.assign(((u - Constant(1.0)) ** 4) * dx)
@@ -879,8 +873,7 @@ def test_Cofunction_interpolate(setup_test, test_leaks):
 
     def forward(b):
         y = Cofunction(space_2.dual(), name="y").interpolate(b)
-        y_dual = y.riesz_representation(
-            "L2", solver_parameters=ls_parameters_cg)
+        y_dual = y.riesz_representation("L2", solver_options=ls_parameters_cg)
         J = Functional(name="J")
         J.assign(((y_dual + Constant(1)) ** 4) * dx)
         return y, J

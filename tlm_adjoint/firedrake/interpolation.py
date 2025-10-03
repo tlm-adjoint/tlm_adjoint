@@ -2,10 +2,11 @@
 """
 
 from .backend import (
-    Interpolator, backend_Cofunction, backend_Constant, backend_Function)
+    Interpolator, backend_Cofunction, backend_Constant, backend_Function,
+    TrialFunction)
 from ..interface import (
     check_space_types, var_assign, var_axpy, var_id, var_inner, var_new,
-    var_new_conjugate_dual, var_replacement, var_zero)
+    var_new_conjugate_dual, var_replacement, var_space, var_zero)
 
 from ..equation import ZeroAssignment
 from ..manager import manager_disabled
@@ -100,9 +101,10 @@ class ExprInterpolation(ExprEquation):
         if isinstance(dep, (backend_Constant, ReplacementConstant)):
             if len(dep.ufl_shape) > 0:
                 raise NotImplementedError("Case not implemented")
-            dF = derivative(self._rhs, dep, argument=ufl.classes.IntValue(1))
+            argument = ufl.classes.IntValue(1)
         else:
-            dF = derivative(self._rhs, dep)
+            argument = TrialFunction(var_space(dep))
+        dF = derivative(self._rhs, dep, argument=argument)
         dF = eliminate_zeros(dF)
         dF = self._nonlinear_replace(dF, nl_deps)
 

@@ -23,7 +23,6 @@ import numpy as np
 import petsc4py.PETSc as PETSc
 import pyop2
 import ufl
-import warnings
 import weakref
 
 __all__ = \
@@ -83,9 +82,8 @@ class ConstantSpaceInterface(SpaceInterface):
 
     def _new(self, *, name=None, space_type="primal", static=False,
              cache=None):
-        domain = self._tlm_adjoint__space_interface_attrs["domain"]
-        return Constant(name=name, domain=domain, space=self,
-                        space_type=space_type, static=static, cache=cache)
+        return Constant(name=name, space=self, space_type=space_type,
+                        static=static, cache=cache)
 
 
 class ConstantInterface(VariableInterface):
@@ -267,7 +265,6 @@ class Constant(backend_Constant):
 
     :arg value: The initial value. `None` indicates a value of zero.
     :arg name: A :class:`str` name.
-    :arg domain: The domain on which the :class:`.Constant` is defined.
     :arg space: The space on which the :class:`.Constant` is defined.
     :arg space_type: The space type for the :class:`.Constant`. `'primal'`,
         `'dual'`, `'conjugate'`, or `'conjugate_dual'`.
@@ -284,17 +281,11 @@ class Constant(backend_Constant):
     constructor.
     """
 
-    def __init__(self, value=None, *args, name=None, domain=None, space=None,
+    def __init__(self, value=None, *args, name=None, space=None,
                  space_type="primal", shape=None, comm=None, static=False,
                  cache=None, **kwargs):
         if space_type not in {"primal", "conjugate", "dual", "conjugate_dual"}:
             raise ValueError("Invalid space type")
-
-        if domain is None and space is not None:
-            domains = space.ufl_domains()
-            if len(domains) > 0:
-                domain, = domains
-            del domains
 
         # Shape initialization / checking
         if space is not None:
@@ -314,33 +305,10 @@ class Constant(backend_Constant):
 
         with paused_manager():
             super().__init__(
-                value, *args, name=name, domain=domain, space=space,
-                comm=comm, **kwargs)
+                value, *args, name=name, space=space, comm=comm, **kwargs)
         self._tlm_adjoint__var_interface_attrs.d_setitem("space_type", space_type)  # noqa: E501
         self._tlm_adjoint__var_interface_attrs.d_setitem("static", static)
         self._tlm_adjoint__var_interface_attrs.d_setitem("cache", cache)
-
-    def __new__(cls, value=None, *args, name=None, domain=None,
-                space_type="primal", shape=None, static=False, cache=None,
-                **kwargs):
-        if domain is None:
-            return object().__new__(cls)
-        else:
-            warnings.warn("domain argument is deprecated -- "
-                          "use a Real Function instead",
-                          FutureWarning, stacklevel=2)
-            value = constant_value(value, shape)
-            if space_type not in {"primal", "conjugate",
-                                  "dual", "conjugate_dual"}:
-                raise ValueError("Invalid space type")
-            if cache is None:
-                cache = static
-            F = super().__new__(cls, value, domain=domain)
-            F.rename(name=name)
-            F._tlm_adjoint__var_interface_attrs.d_setitem("space_type", space_type)  # noqa: E501
-            F._tlm_adjoint__var_interface_attrs.d_setitem("static", static)
-            F._tlm_adjoint__var_interface_attrs.d_setitem("cache", cache)
-            return F
 
 
 class FunctionSpaceInterface(SpaceInterface):
@@ -664,19 +632,14 @@ class ZeroConstant(Constant, Zero):
     `static=True` and `cache=True`.
     """
 
-    def __init__(self, *, name=None, domain=None, space=None,
-                 space_type="primal", shape=None, comm=None):
+    def __init__(self, *, name=None, space=None, space_type="primal",
+                 shape=None, comm=None):
         Constant.__init__(
-            self, name=name, domain=domain, space=space, space_type=space_type,
-            shape=shape, comm=comm, static=True, cache=True)
+            self, name=name, space=space, space_type=space_type, shape=shape,
+            comm=comm, static=True, cache=True)
         var_lock_state(self)
         if var_linf_norm(self) != 0.0:
             raise RuntimeError("ZeroConstant is not zero-valued")
-
-    def __new__(cls, *args, shape=None, **kwargs):
-        return Constant.__new__(
-            cls, constant_value(shape=shape), *args,
-            shape=shape, static=True, cache=True, **kwargs)
 
 
 class ZeroFunction(Function, Zero):
