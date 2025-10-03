@@ -388,25 +388,29 @@ class TransposeComputationalGraph:
         adj_ics = {J_i: {} for J_i in range(len(Js))}
         for J_i in range(len(Js)):
             last_eq = {}
+            adj_last_eq = {}
             for n in blocks_n:
                 block = blocks[n]
                 for i, eq in enumerate(block):
-                    adj_ic_ids = set(map(var_id,
-                                         eq.adjoint_initial_condition_dependencies()))  # noqa: E501
+                    ic_ids = set(map(var_id, eq.initial_condition_dependencies()))  # noqa: E501
+                    adj_ic_ids = set(map(var_id, eq.adjoint_initial_condition_dependencies()))  # noqa: E501
                     for m, x in enumerate(eq.X()):
                         adj_x_type = var_space_type(x, rel_space_type=eq.adj_X_type(m))  # noqa: E501
                         x_id = var_id(x)
-                        if x_id in last_eq:
-                            adj_x_p_k_m_type, (p, k) = last_eq[x_id]
-                            if adj_x_type == adj_x_p_k_m_type:
+                        if x_id in adj_last_eq:
+                            adj_x_p_k_m_type, (p, k) = adj_last_eq[x_id]
+                            if adj_x_type == adj_x_p_k_m_type \
+                                    and x_id in ic_ids \
+                                    and last_eq[x_id] == (p, k):
                                 stored_adj_ics[J_i][(n, i, m)] = (p, k)
+                        last_eq[x_id] = (n, i)
                         if x_id in adj_ic_ids:
                             adj_ics[J_i][x_id] = (n, i)
-                            last_eq[x_id] = (adj_x_type, (n, i))
+                            adj_last_eq[x_id] = (adj_x_type, (n, i))
                         else:
                             adj_ics[J_i].pop(x_id, None)
-                            last_eq.pop(x_id, None)
-            del last_eq
+                            adj_last_eq.pop(x_id, None)
+            del last_eq, adj_last_eq
 
         self._transpose_deps = transpose_deps
         self._active = active
