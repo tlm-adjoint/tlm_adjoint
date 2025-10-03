@@ -1,5 +1,4 @@
 from firedrake import *
-from firedrake.__future__ import interpolate
 from tlm_adjoint.firedrake import *
 from tlm_adjoint.firedrake import manager as _manager
 from tlm_adjoint.firedrake.backend import (
@@ -286,15 +285,15 @@ def interpolate_interpolate_Function_tensor(v, V):
     return x
 
 
-def interpolate_interpolate_test(v, V):
+def interpolate_interpolate_trial(v, V):
     return assemble(
-        action(interpolate(TestFunction(v.function_space()), V), v))
+        action(interpolate(TrialFunction(v.function_space()), V), v))
 
 
 @pytest.fixture(params=[{"interpolate_expr": interpolate_Function_interpolate},
                         {"interpolate_expr": interpolate_interpolate_Function},  # noqa: E501
                         {"interpolate_expr": interpolate_interpolate_Function_tensor},  # noqa: E501
-                        {"interpolate_expr": interpolate_interpolate_test}])
+                        {"interpolate_expr": interpolate_interpolate_trial}])
 def interpolate_expr(request):
     return request.param["interpolate_expr"]
 

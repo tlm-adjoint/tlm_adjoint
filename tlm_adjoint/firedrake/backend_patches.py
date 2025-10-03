@@ -7,8 +7,8 @@ from .backend import (
     homogenize)
 from ..interface import (
     DEFAULT_COMM, add_interface, check_space_type, comm_dup_cached,
-    comm_parent, conjugate_dual_space_type, is_var, new_space_id, new_var_id,
-    space_eq, var_comm, var_is_alias, var_new, var_update_state)
+    comm_parent, is_var, new_space_id, new_var_id, space_eq, var_comm,
+    var_is_alias, var_new, var_update_state)
 
 from ..equation import ZeroAssignment
 from ..equations import Assignment, Conversion, LinearCombination
@@ -27,11 +27,9 @@ from .variables import (
     ConstantSpaceInterface, FunctionInterface, FunctionSpaceInterface,
     constant_space, define_var_alias)
 
-import inspect
 import numbers
 import operator
 import ufl
-import warnings
 
 __all__ = \
     [
@@ -172,26 +170,21 @@ def Constant_init_assign(self, value):
 
 
 @manager_method(backend_Constant, "__init__", patch_without_manager=True)
-def backend_Constant__init__(self, orig, orig_args, value, domain=None, *,
+def backend_Constant__init__(self, orig, orig_args, value, *,
                              name=None, space=None, comm=None,
                              **kwargs):
-    if domain is not None:
-        kwargs["domain"] = domain  # Backwards compatibility
     orig(self, value, name=name, **kwargs)
 
     if name is None:
         name = self.name
     if comm is None:
-        if domain is None:
-            comm = DEFAULT_COMM
-        else:
-            comm = domain.comm
+        comm = DEFAULT_COMM
     comm = comm_parent(comm)
 
     if space is None:
-        space = constant_space(self.ufl_shape, domain=domain)
+        space = constant_space(self.ufl_shape)
         add_interface(space, ConstantSpaceInterface,
-                      {"comm": comm_dup_cached(comm), "domain": domain,
+                      {"comm": comm_dup_cached(comm),
                        "dtype": backend_ScalarType, "id": new_space_id()})
     add_interface(self, ConstantInterface,
                   {"id": new_var_id(), "name": lambda x: name,
@@ -452,17 +445,11 @@ def Function_project(self, orig, orig_args, b, bcs=None,
 @patch_method(backend_Function, "riesz_representation")
 def Function_riesz_representation(self, orig, orig_args,
                                   riesz_map="L2", *args, **kwargs):
-    check_space_type(self, "primal")
     if riesz_map == "l2":
         with paused_manager():
             v = orig_args()
-        if v.dat is self.dat:  # Backwards compatibility
-            define_var_alias(v, self,
-                             key=("riesz_representation", "l2"))
-            v._tlm_adjoint__var_interface_attrs.d_setitem(
-                "space_type",
-                conjugate_dual_space_type(self._tlm_adjoint__var_interface_attrs["space_type"]))  # noqa: E501
-        elif annotation_enabled() or tlm_enabled():
+        if annotation_enabled() or tlm_enabled():
+            check_space_type(self, "primal")
             eq = Conversion(v, self)
             assert not eq._pre_process_required
             eq._post_process()
@@ -551,29 +538,11 @@ def Cofunction_copy(self, orig, orig_args, deepcopy=False):
 @patch_method(backend_Cofunction, "riesz_representation")
 def Cofunction_riesz_representation(self, orig, orig_args,
                                     riesz_map="L2", *args, **kwargs):
-    # Backwards compatibility
-    sig = inspect.signature(backend_Cofunction.riesz_representation)
-    if "solver_parameters" in kwargs \
-            and sig.parameters["solver_options"].kind == inspect.Parameter.KEYWORD_ONLY:  # noqa: E501
-        warnings.warn("solver_parameters argument has been renamed to "
-                      "solver_options",
-                      FutureWarning, stacklevel=3)
-        if "solver_options" in kwargs:
-            raise TypeError("Cannot supply both solver_options and "
-                            "and solver_parameters arguments")
-        kwargs["solver_options"] = kwargs.pop("solver_parameters")
-
-    check_space_type(self, "conjugate_dual")
     if riesz_map == "l2":
         with paused_manager():
             v = orig(self, riesz_map, *args, **kwargs)
-        if v.dat is self.dat:  # Backwards compatibility
-            define_var_alias(v, self,
-                             key=("riesz_representation", "l2"))
-            v._tlm_adjoint__var_interface_attrs.d_setitem(
-                "space_type",
-                conjugate_dual_space_type(self._tlm_adjoint__var_interface_attrs["space_type"]))  # noqa: E501
-        elif annotation_enabled() or tlm_enabled():
+        if annotation_enabled() or tlm_enabled():
+            check_space_type(self, "conjugate_dual")
             eq = Conversion(v, self)
             assert not eq._pre_process_required
             eq._post_process()
@@ -711,16 +680,15 @@ def SameMeshInterpolator_interpolate_post_call(
 def SameMeshInterpolator_interpolate(
         self, orig, orig_args, *function, output=None,
         transpose=None, adjoint=False, default_missing_val=None, **kwargs):
+    if len(function) > 0:
+        raise NotImplementedError("function not supported")
     if default_missing_val is not None:
         raise NotImplementedError("default_missing_val not supported")
 
     return_value = orig_args()
 
     expr = self._tlm_adjoint__expr
-    if isinstance(expr, ufl.classes.Interpolate):  # Backwards compatibility
-        if len(function) > 0:
-            raise NotImplementedError("function not supported")
-
+    if isinstance(expr, ufl.classes.Interpolate):
         if isinstance(return_value, backend_Function):
             arg, expr = expr.argument_slots()
             if not isinstance(arg, ufl.classes.Coargument):
@@ -731,11 +699,6 @@ def SameMeshInterpolator_interpolate(
                 raise NotImplementedError("Interpolation case not supported")
         else:
             raise NotImplementedError("Interpolation case not supported")
-    else:
-        args = ufl.algorithms.extract_arguments(expr)
-        if len(args) != len(function):
-            raise TypeError("Unexpected number of functions")
-        expr = ufl.replace(expr, dict(zip(args, function)))
     expr = expr_new_x(expr, return_value)
     eq = ExprInterpolation(return_value, expr)
 
