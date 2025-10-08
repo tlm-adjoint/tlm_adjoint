@@ -67,9 +67,7 @@ def process_solver_parameters(solver_parameters, *, linear):
     tlm_adjoint_parameters.setdefault("transpose_nullspace", None)
     tlm_adjoint_parameters.setdefault("near_nullspace", None)
 
-    linear_solver_ic = solver_parameters.setdefault("ksp_initial_guess_nonzero", False)  # noqa: E501
-
-    return (solver_parameters, solver_parameters, True, linear_solver_ic)
+    return (solver_parameters, solver_parameters, True, True)
 
 
 def process_adjoint_solver_parameters(linear_solver_parameters):

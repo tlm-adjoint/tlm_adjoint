@@ -602,13 +602,13 @@ def test_initial_guess(setup_test, test_leaks,
                 return adj_x
 
         x.assign(x_0)
+        solver_parameters = {"linear_solver": "cg",
+                             "preconditioner": "sor",
+                             "krylov_solver": {"nonzero_initial_guess": True,
+                                               "relative_tolerance": 0.0,
+                                               "absolute_tolerance": 1.0e-10}}
         CustomProjection(
-            x, y,
-            solver_parameters={"linear_solver": "cg",
-                               "preconditioner": "sor",
-                               "krylov_solver": {"nonzero_initial_guess": True,
-                                                 "relative_tolerance": 1.0e-10,
-                                                 "absolute_tolerance": 1.0e-10}}).solve()  # noqa: E501
+            x, y, solver_parameters=solver_parameters).solve()
 
         J = Functional(name="J")
         J.assign((dot(x, x) ** 2) * dx)
@@ -618,8 +618,8 @@ def test_initial_guess(setup_test, test_leaks,
         with paused_manager():
             assemble(4 * dot(ufl.conj(dot(x, x) * x), ufl.conj(test_1)) * dx,
                      tensor=adj_x_0)
-        Projection(x, zero,
-                   solver_parameters=ls_parameters_cg).solve()
+        Projection(
+            x, zero, solver_parameters=solver_parameters).solve()
         if not test_adj_ic:
             ZeroAssignment(x).solve()
         J_term = var_new(J)
