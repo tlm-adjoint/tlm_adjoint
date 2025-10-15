@@ -147,6 +147,19 @@ def duplicated_comm(comm):
         dup_comm.Free()
 
 
+_no_jac = {"cobyla", "cobyqa", "nelder-mead", "powell"}
+_no_hessp = {"bfgs", "cg", "l-bfgs-b", "slsqp", "tnc"}
+
+
+def _minimize_kwargs(*, jac, hessp, **kwargs):
+    method = kwargs.get("method", None)
+    if isinstance(method, str) and method.lower() not in _no_jac:
+        kwargs["jac"] = jac
+    if isinstance(method, str) and method.lower() not in _no_hessp:
+        kwargs["hessp"] = hessp
+    return kwargs
+
+
 @local_caches
 def minimize_scipy(forward, M0, *,
                    manager=None, **kwargs):
@@ -266,8 +279,9 @@ def minimize_scipy(forward, M0, *,
         from scipy.optimize import minimize
         if comm.rank == 0:
             x0 = get(M0)
-            return_value = minimize(fun_bcast, x0,
-                                    jac=jac_bcast, hessp=hessp_bcast, **kwargs)
+            return_value = minimize(
+                fun_bcast, x0,
+                **_minimize_kwargs(jac=jac_bcast, hessp=hessp_bcast, **kwargs))
             comm.bcast(("return", return_value), root=0)
             set(M, return_value.x)
         else:
