@@ -601,147 +601,147 @@ class _tlm_adjoint__OverloadedFloat(np.lib.mixins.NDArrayOperatorsMixin,  # noqa
         return SymbolicFloat.__hash__(self)
 
     @register_operation(np.abs)
-    def abs(x):
-        return sp.Abs(x)
+    def abs(self):
+        return sp.Abs(self)
 
     @register_operation(np.negative)
-    def negative(x):
-        return SymbolicFloat.__neg__(x)
+    def negative(self):
+        return SymbolicFloat.__neg__(self)
 
     @register_operation(np.add)
-    def add(x1, x2):
-        if isinstance(x1, SymbolicFloat):
-            return SymbolicFloat.__add__(x1, x2)
+    def add(self, other):
+        if isinstance(self, SymbolicFloat):
+            return SymbolicFloat.__add__(self, other)
         else:
-            return SymbolicFloat.__radd__(x2, x1)
+            return SymbolicFloat.__radd__(other, self)
 
     @register_operation(np.subtract)
-    def subtract(x1, x2):
-        if isinstance(x1, SymbolicFloat):
-            return SymbolicFloat.__sub__(x1, x2)
+    def subtract(self, other):
+        if isinstance(self, SymbolicFloat):
+            return SymbolicFloat.__sub__(self, other)
         else:
-            return SymbolicFloat.__rsub__(x2, x1)
+            return SymbolicFloat.__rsub__(other, self)
 
     @register_operation(np.multiply)
-    def multiply(x1, x2):
-        if isinstance(x1, SymbolicFloat):
-            return SymbolicFloat.__mul__(x1, x2)
+    def multiply(self, other):
+        if isinstance(self, SymbolicFloat):
+            return SymbolicFloat.__mul__(self, other)
         else:
-            return SymbolicFloat.__rmul__(x2, x1)
+            return SymbolicFloat.__rmul__(other, self)
 
     @register_operation(np.divide)
-    def divide(x1, x2):
-        if isinstance(x1, SymbolicFloat):
-            return SymbolicFloat.__truediv__(x1, x2)
+    def divide(self, other):
+        if isinstance(self, SymbolicFloat):
+            return SymbolicFloat.__truediv__(self, other)
         else:
-            return SymbolicFloat.__rtruediv__(x2, x1)
+            return SymbolicFloat.__rtruediv__(other, self)
 
     @register_operation(np.power)
-    def power(x1, x2):
-        if isinstance(x1, SymbolicFloat):
-            return SymbolicFloat.__pow__(x1, x2)
+    def power(self, other):
+        if isinstance(self, SymbolicFloat):
+            return SymbolicFloat.__pow__(self, other)
         else:
-            return SymbolicFloat.__rpow__(x2, x1)
+            return SymbolicFloat.__rpow__(other, self)
 
     @register_operation(np.sin)
-    def sin(x):
-        return sp.sin(x)
+    def sin(self):
+        return sp.sin(self)
 
     @register_operation(np.cos)
-    def cos(x):
-        return sp.cos(x)
+    def cos(self):
+        return sp.cos(self)
 
     @register_operation(np.tan)
-    def tan(x):
-        return sp.tan(x)
+    def tan(self):
+        return sp.tan(self)
 
     @register_operation(np.arcsin)
-    def arcsin(x):
-        return sp.asin(x)
+    def arcsin(self):
+        return sp.asin(self)
 
     @register_operation(np.arccos)
-    def arccos(x):
-        return sp.acos(x)
+    def arccos(self):
+        return sp.acos(self)
 
     @register_operation(np.arctan)
-    def arctan(x):
-        return sp.atan(x)
+    def arctan(self):
+        return sp.atan(self)
 
     @register_operation(np.arctan2)
-    def arctan2(x1, x2):
-        return sp.atan2(x1, x2)
+    def arctan2(self, other):
+        return sp.atan2(self, other)
 
     @register_operation(np.hypot)
-    def hypot(x1, x2):
-        return _tlm_adjoint__hypot(x1, x2)
+    def hypot(self, other):
+        return _tlm_adjoint__hypot(self, other)
 
     @register_operation(np.sinh)
-    def sinh(x):
-        return sp.sinh(x)
+    def sinh(self):
+        return sp.sinh(self)
 
     @register_operation(np.cosh)
-    def cosh(x):
-        return sp.cosh(x)
+    def cosh(self):
+        return sp.cosh(self)
 
     @register_operation(np.tanh)
-    def tanh(x):
-        return sp.tanh(x)
+    def tanh(self):
+        return sp.tanh(self)
 
     @register_operation(np.arcsinh)
-    def arcsinh(x):
-        return sp.asinh(x)
+    def arcsinh(self):
+        return sp.asinh(self)
 
     @register_operation(np.arccosh)
-    def arccosh(x):
-        return sp.acosh(x)
+    def arccosh(self):
+        return sp.acosh(self)
 
     @register_operation(np.arctanh)
-    def arctanh(x):
-        return sp.atanh(x)
+    def arctanh(self):
+        return sp.atanh(self)
 
     @register_operation(np.exp)
-    def exp(x):
-        return sp.exp(x)
+    def exp(self):
+        return sp.exp(self)
 
     @register_operation(np.exp2)
-    def exp2(x):
-        return 2 ** x
+    def exp2(self):
+        return 2 ** self
 
     @register_operation(np.expm1)
-    def expm1(x):
-        return _tlm_adjoint__expm1(x)
+    def expm1(self):
+        return _tlm_adjoint__expm1(self)
 
     @register_operation(np.log)
-    def log(x):
-        return sp.log(x)
+    def log(self):
+        return sp.log(self)
 
     @register_operation(np.log2)
-    def log2(x):
-        return sp.log(x, 2)
+    def log2(self):
+        return sp.log(self, 2)
 
     @register_operation(np.log10)
-    def log10(x):
-        return sp.log(x, 10)
+    def log10(self):
+        return sp.log(self, 10)
 
     @register_operation(np.log1p)
-    def log1p(x):
-        return _tlm_adjoint__log1p(x)
+    def log1p(self):
+        return _tlm_adjoint__log1p(self)
 
     @register_operation(np.sqrt)
-    def sqrt(x):
-        return sp.sqrt(x)
+    def sqrt(self):
+        return sp.sqrt(self)
 
     @register_operation(np.square)
-    def square(x):
-        return x ** 2
+    def square(self):
+        return self ** 2
 
     @register_operation(np.cbrt)
-    def cbrt(x):
-        return x ** sp.Rational(1, 3)
+    def cbrt(self):
+        return self ** sp.Rational(1, 3)
 
     @register_operation(np.reciprocal)
-    def reciprocal(x):
-        return sp.Integer(1) / x
+    def reciprocal(self):
+        return sp.Integer(1) / self
 
 
 # Required by Sphinx
