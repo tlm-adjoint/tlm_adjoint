@@ -35,7 +35,6 @@ import itertools
 import numbers
 import numpy as np
 import sympy as sp
-from sympy.printing.numpy import NumPyPrinter
 
 __all__ = \
     [
@@ -528,30 +527,30 @@ def register_operation(np_op, *, replace=False):
     return register
 
 
-def register_function(np_op, np_code, *, replace=False):
+def register_function(np_op, *, replace=False):
     def register(cls):
         if not replace and cls.__name__ in _op_fns:
             raise RuntimeError("Function already registered")
-        _op_fns[cls.__name__] = np_code
+        _op_fns[cls.__name__] = np_op
         return cls
     return register
 
 
-@register_function(np.expm1, "numpy.expm1")
+@register_function(np.expm1)
 class _tlm_adjoint__expm1(sp.Function):  # noqa: N801
     def fdiff(self, argindex=1):
         if argindex == 1:
             return sp.exp(self.args[0])
 
 
-@register_function(np.log1p, "numpy.log1p")
+@register_function(np.log1p)
 class _tlm_adjoint__log1p(sp.Function):  # noqa: N801
     def fdiff(self, argindex=1):
         if argindex == 1:
             return sp.Integer(1) / (sp.Integer(1) + self.args[0])
 
 
-@register_function(np.hypot, "numpy.hypot")
+@register_function(np.hypot)
 class _tlm_adjoint__hypot(sp.Function):  # noqa: N801
     def fdiff(self, argindex=1):
         if argindex == 1:
@@ -766,10 +765,7 @@ Float = _tlm_adjoint__Float  # noqa: F811
 
 @no_float_overloading
 def lambdify(expr, deps):
-    printer = NumPyPrinter(
-        settings={"fully_qualified_modules": True,
-                  "user_functions": _op_fns})
-    return sp.lambdify(deps, expr, modules=["numpy"], printer=printer)
+    return sp.lambdify(deps, expr, modules=["numpy", _op_fns])
 
 
 class FloatEquation(Equation):
