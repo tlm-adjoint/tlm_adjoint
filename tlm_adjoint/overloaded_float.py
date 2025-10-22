@@ -601,7 +601,15 @@ class _tlm_adjoint__OverloadedFloat(np.lib.mixins.NDArrayOperatorsMixin,  # noqa
 
     @register_operation(np.abs)
     def abs(self):
-        return sp.Abs(self)
+        if not isinstance(self, SymbolicFloat):
+            return NotImplemented
+        if not issubclass(self.space.dtype, numbers.Real):
+            return NotImplemented
+
+        if self.value >= 0.0:
+            return self
+        else:
+            return -self
 
     @register_operation(np.negative)
     def negative(self):
