@@ -803,7 +803,7 @@ class FloatEquation(Equation):
         dF_expr = {}
         nl_deps = {}
         for dep_index, dep in enumerate(deps):
-            dF = dF_expr[dep_index] = sp.simplify(F.diff(dep))
+            dF = dF_expr[dep_index] = F.diff(dep)
             for dep2 in expr_dependencies(dF):
                 nl_deps.setdefault(var_id(dep2), dep2)
         nl_deps = sorted(nl_deps.values(), key=var_id)
