@@ -35,12 +35,7 @@ import itertools
 import numbers
 import numpy as np
 import sympy as sp
-from sympy.utilities.lambdify import lambdastr
-try:
-    from sympy.printing.numpy import NumPyPrinter
-except ImportError:
-    from sympy.printing.pycode import NumPyPrinter
-
+from sympy.printing.numpy import NumPyPrinter
 
 __all__ = \
     [
@@ -528,7 +523,7 @@ def register_operation(np_op, *, replace=False):
     def register(sp_op):
         if not replace and np_op in _ops:
             raise RuntimeError("Operation already registered")
-        op = _ops[np_op] = functools.partial(operation, sp_op)
+        op = _ops[np_op] = lambda *args: operation(sp_op, *args)
         return op
     return register
 
@@ -581,11 +576,20 @@ class _tlm_adjoint__OverloadedFloat(np.lib.mixins.NDArrayOperatorsMixin,  # noqa
     def __array_ufunc__(self, ufunc, method, *inputs, **kwargs):
         if method != "__call__":
             return NotImplemented
+        out = kwargs.pop("out", None)
+        if out is not None and len(out) != 1:
+            return NotImplemented
         if len(kwargs) > 0:
             return NotImplemented
         if ufunc not in _ops:
             return NotImplemented
-        return _ops[ufunc](*inputs)
+        value = _ops[ufunc](*inputs)
+        if out is None:
+            out = value
+        else:
+            out, = out
+            out.assign(value)
+        return out
 
     def __eq__(self, other):
         return SymbolicFloat.__eq__(self, other)
@@ -596,25 +600,14 @@ class _tlm_adjoint__OverloadedFloat(np.lib.mixins.NDArrayOperatorsMixin,  # noqa
     def __hash__(self):
         return SymbolicFloat.__hash__(self)
 
-    @staticmethod
     @register_operation(np.abs)
     def abs(x):
-        if not isinstance(x, SymbolicFloat):
-            return NotImplemented
-        if not issubclass(x.space.dtype, numbers.Real):
-            return NotImplemented
+        return sp.Abs(x)
 
-        if x.value >= 0.0:
-            return x
-        else:
-            return -x
-
-    @staticmethod
     @register_operation(np.negative)
     def negative(x):
         return SymbolicFloat.__neg__(x)
 
-    @staticmethod
     @register_operation(np.add)
     def add(x1, x2):
         if isinstance(x1, SymbolicFloat):
@@ -622,7 +615,6 @@ class _tlm_adjoint__OverloadedFloat(np.lib.mixins.NDArrayOperatorsMixin,  # noqa
         else:
             return SymbolicFloat.__radd__(x2, x1)
 
-    @staticmethod
     @register_operation(np.subtract)
     def subtract(x1, x2):
         if isinstance(x1, SymbolicFloat):
@@ -630,7 +622,6 @@ class _tlm_adjoint__OverloadedFloat(np.lib.mixins.NDArrayOperatorsMixin,  # noqa
         else:
             return SymbolicFloat.__rsub__(x2, x1)
 
-    @staticmethod
     @register_operation(np.multiply)
     def multiply(x1, x2):
         if isinstance(x1, SymbolicFloat):
@@ -638,7 +629,6 @@ class _tlm_adjoint__OverloadedFloat(np.lib.mixins.NDArrayOperatorsMixin,  # noqa
         else:
             return SymbolicFloat.__rmul__(x2, x1)
 
-    @staticmethod
     @register_operation(np.divide)
     def divide(x1, x2):
         if isinstance(x1, SymbolicFloat):
@@ -646,7 +636,6 @@ class _tlm_adjoint__OverloadedFloat(np.lib.mixins.NDArrayOperatorsMixin,  # noqa
         else:
             return SymbolicFloat.__rtruediv__(x2, x1)
 
-    @staticmethod
     @register_operation(np.power)
     def power(x1, x2):
         if isinstance(x1, SymbolicFloat):
@@ -654,127 +643,102 @@ class _tlm_adjoint__OverloadedFloat(np.lib.mixins.NDArrayOperatorsMixin,  # noqa
         else:
             return SymbolicFloat.__rpow__(x2, x1)
 
-    @staticmethod
     @register_operation(np.sin)
     def sin(x):
         return sp.sin(x)
 
-    @staticmethod
     @register_operation(np.cos)
     def cos(x):
         return sp.cos(x)
 
-    @staticmethod
     @register_operation(np.tan)
     def tan(x):
         return sp.tan(x)
 
-    @staticmethod
     @register_operation(np.arcsin)
     def arcsin(x):
         return sp.asin(x)
 
-    @staticmethod
     @register_operation(np.arccos)
     def arccos(x):
         return sp.acos(x)
 
-    @staticmethod
     @register_operation(np.arctan)
     def arctan(x):
         return sp.atan(x)
 
-    @staticmethod
     @register_operation(np.arctan2)
     def arctan2(x1, x2):
         return sp.atan2(x1, x2)
 
-    @staticmethod
     @register_operation(np.hypot)
     def hypot(x1, x2):
         return _tlm_adjoint__hypot(x1, x2)
 
-    @staticmethod
     @register_operation(np.sinh)
     def sinh(x):
         return sp.sinh(x)
 
-    @staticmethod
     @register_operation(np.cosh)
     def cosh(x):
         return sp.cosh(x)
 
-    @staticmethod
     @register_operation(np.tanh)
     def tanh(x):
         return sp.tanh(x)
 
-    @staticmethod
     @register_operation(np.arcsinh)
     def arcsinh(x):
         return sp.asinh(x)
 
-    @staticmethod
     @register_operation(np.arccosh)
     def arccosh(x):
         return sp.acosh(x)
 
-    @staticmethod
     @register_operation(np.arctanh)
     def arctanh(x):
         return sp.atanh(x)
 
-    @staticmethod
     @register_operation(np.exp)
     def exp(x):
         return sp.exp(x)
 
-    @staticmethod
     @register_operation(np.exp2)
     def exp2(x):
         return 2 ** x
 
-    @staticmethod
     @register_operation(np.expm1)
     def expm1(x):
         return _tlm_adjoint__expm1(x)
 
-    @staticmethod
     @register_operation(np.log)
     def log(x):
         return sp.log(x)
 
-    @staticmethod
     @register_operation(np.log2)
     def log2(x):
         return sp.log(x, 2)
 
-    @staticmethod
     @register_operation(np.log10)
     def log10(x):
         return sp.log(x, 10)
 
-    @staticmethod
     @register_operation(np.log1p)
     def log1p(x):
         return _tlm_adjoint__log1p(x)
 
-    @staticmethod
     @register_operation(np.sqrt)
     def sqrt(x):
         return sp.sqrt(x)
 
-    @staticmethod
     @register_operation(np.square)
     def square(x):
         return x ** 2
 
-    @staticmethod
     @register_operation(np.cbrt)
     def cbrt(x):
         return x ** sp.Rational(1, 3)
 
-    @staticmethod
     @register_operation(np.reciprocal)
     def reciprocal(x):
         return sp.Integer(1) / x
@@ -799,24 +763,13 @@ class Float(_tlm_adjoint__Float):
 
 Float = _tlm_adjoint__Float  # noqa: F811
 
-_x = sp.Symbol(new_symbol_name())
-_F = sp.utilities.lambdify(_x, _x, modules=["numpy"])
-global_vars = _F.__globals__
-del _x, _F
-
 
 @no_float_overloading
 def lambdify(expr, deps):
     printer = NumPyPrinter(
-        settings={"fully_qualified_modules": False,
+        settings={"fully_qualified_modules": True,
                   "user_functions": _op_fns})
-    code = lambdastr(deps, expr, printer=printer)
-    assert "\n" not in code
-    local_vars = {}
-    exec(f"_tlm_adjoint__F = {code:s}", dict(global_vars), local_vars)
-    F = local_vars["_tlm_adjoint__F"]
-    F._tlm_adjoint__code = code
-    return F
+    return sp.lambdify(deps, expr, modules=["numpy"], printer=printer)
 
 
 class FloatEquation(Equation):
@@ -854,7 +807,7 @@ class FloatEquation(Equation):
         dF_expr = {}
         nl_deps = {}
         for dep_index, dep in enumerate(deps):
-            dF = dF_expr[dep_index] = F.diff(dep)
+            dF = dF_expr[dep_index] = sp.simplify(F.diff(dep))
             for dep2 in expr_dependencies(dF):
                 nl_deps.setdefault(var_id(dep2), dep2)
         nl_deps = sorted(nl_deps.values(), key=var_id)
