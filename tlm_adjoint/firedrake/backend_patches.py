@@ -28,6 +28,7 @@ from .variables import (
     constant_space, define_var_alias)
 
 from collections.abc import Iterable
+import inspect
 import numbers
 import operator
 import ufl
@@ -94,6 +95,10 @@ def linear_equation_new_x(eq, x):
 @patch_method(BaseFormAssembler, "base_form_assembly_visitor")
 def BaseFormAssembler_base_form_assembly_visitor(
         self, orig, orig_args, expr, tensor, *args):
+    # Backwards compatibility
+    if "bcs" in inspect.signature(BaseFormAssembler.base_form_assembly_visitor).parameters:  # noqa: E501
+        bcs, args = args[0], args[1:]  # noqa: F841
+
     annotate = annotation_enabled()
     tlm = tlm_enabled()
     if annotate or tlm:
