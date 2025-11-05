@@ -27,6 +27,7 @@ from .variables import (
     ConstantSpaceInterface, FunctionInterface, FunctionSpaceInterface,
     constant_space, define_var_alias)
 
+from collections.abc import Iterable
 import numbers
 import operator
 import ufl
@@ -237,14 +238,20 @@ def Constant_assign(self, orig, orig_args, value):
 
 
 def new_space_id_cached(space):
-    mesh = space.mesh()
-    if not hasattr(mesh, "_tlm_adjoint__space_ids"):
-        mesh._tlm_adjoint__space_ids = {}
-    space_ids = mesh._tlm_adjoint__space_ids
-
-    if space not in space_ids:
-        space_ids[space] = new_space_id()
-    return space_ids[space]
+    meshes = space.mesh()
+    if not isinstance(meshes, Iterable):  # Backwards compatibility
+        meshes = (meshes,)
+    for mesh in meshes:
+        if not hasattr(mesh, "_tlm_adjoint__space_ids"):
+            mesh._tlm_adjoint__space_ids = {}
+        if space in mesh._tlm_adjoint__space_ids:
+            space_id = mesh._tlm_adjoint__space_ids[space]
+            break
+    else:
+        space_id = new_space_id()
+    for mesh in meshes:
+        mesh._tlm_adjoint__space_ids[space] = space_id
+    return space_id
 
 
 def space_local_indices_cached(space, cls):
