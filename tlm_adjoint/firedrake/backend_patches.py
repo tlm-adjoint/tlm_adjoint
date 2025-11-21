@@ -683,40 +683,76 @@ def SameMeshInterpolator__init__(
 
 def SameMeshInterpolator_interpolate_post_call(
         self, return_value, *args, **kwargs):
-    var_update_state(return_value)
+    if is_var(return_value):
+        var_update_state(return_value)
     return return_value
 
 
-@manager_method(SameMeshInterpolator, "_interpolate",
-                post_call=SameMeshInterpolator_interpolate_post_call)
-def SameMeshInterpolator_interpolate(
-        self, orig, orig_args, *function, output=None,
-        transpose=None, adjoint=False, default_missing_val=None, **kwargs):
-    if len(function) > 0:
-        raise NotImplementedError("function not supported")
-    if default_missing_val is not None:
-        raise NotImplementedError("default_missing_val not supported")
+if hasattr(SameMeshInterpolator, "_interpolate"):
+    # Backwards compatibility
 
-    return_value = orig_args()
+    @manager_method(SameMeshInterpolator, "_interpolate",
+                    post_call=SameMeshInterpolator_interpolate_post_call)
+    def SameMeshInterpolator_interpolate(
+            self, orig, orig_args, *function, output=None,
+            transpose=None, adjoint=False, default_missing_val=None, **kwargs):
+        if len(function) > 0:
+            raise NotImplementedError("function not supported")
+        if default_missing_val is not None:
+            raise NotImplementedError("default_missing_val not supported")
 
-    expr = self._tlm_adjoint__expr
-    if isinstance(expr, ufl.classes.Interpolate):
-        if isinstance(return_value, backend_Function):
-            arg, expr = expr.argument_slots()
-            if not isinstance(arg, ufl.classes.Coargument):
+        return_value = orig_args()
+
+        expr = self._tlm_adjoint__expr
+        if isinstance(expr, ufl.classes.Interpolate):
+            if isinstance(return_value, backend_Function):
+                arg, expr = expr.argument_slots()
+                if not isinstance(arg, ufl.classes.Coargument):
+                    raise NotImplementedError("Interpolation case not "
+                                              "supported")
+            elif isinstance(return_value, backend_Cofunction):
+                expr, arg = expr.argument_slots()
+                if not isinstance(arg, ufl.classes.Argument):
+                    raise NotImplementedError("Interpolation case not "
+                                              "supported")
+            else:
                 raise NotImplementedError("Interpolation case not supported")
-        elif isinstance(return_value, backend_Cofunction):
-            expr, arg = expr.argument_slots()
-            if not isinstance(arg, ufl.classes.Argument):
-                raise NotImplementedError("Interpolation case not supported")
-        else:
-            raise NotImplementedError("Interpolation case not supported")
-    expr = expr_new_x(expr, return_value)
-    eq = ExprInterpolation(return_value, expr)
+        expr = expr_new_x(expr, return_value)
+        eq = ExprInterpolation(return_value, expr)
 
-    assert not eq._pre_process_required
-    eq._post_process()
-    return return_value
+        assert not eq._pre_process_required
+        eq._post_process()
+        return return_value
+else:
+    @manager_method(SameMeshInterpolator, "assemble",
+                    post_call=SameMeshInterpolator_interpolate_post_call)
+    def SameMeshInterpolator_assemble(
+            self, orig, orig_args, tensor=None, bcs=None):
+        if bcs is not None and len(bcs) > 0:
+            raise NotImplementedError("bcs not supported")
+
+        return_value = orig_args()
+
+        expr = self._tlm_adjoint__expr
+        if isinstance(expr, ufl.classes.Interpolate):
+            if isinstance(return_value, backend_Function):
+                arg, expr = expr.argument_slots()
+                if not isinstance(arg, ufl.classes.Coargument):
+                    raise NotImplementedError("Interpolation case not "
+                                              "supported")
+            elif isinstance(return_value, backend_Cofunction):
+                expr, arg = expr.argument_slots()
+                if not isinstance(arg, ufl.classes.Argument):
+                    raise NotImplementedError("Interpolation case not "
+                                              "supported")
+            else:
+                raise NotImplementedError("Interpolation case not supported")
+        expr = expr_new_x(expr, return_value)
+        eq = ExprInterpolation(return_value, expr)
+
+        assert not eq._pre_process_required
+        eq._post_process()
+        return return_value
 
 
 assemble = add_manager_controls(backend_assemble)

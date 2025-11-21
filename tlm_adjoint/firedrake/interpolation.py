@@ -2,8 +2,8 @@
 """
 
 from .backend import (
-    Interpolator, backend_Cofunction, backend_Constant, backend_Function,
-    TrialFunction)
+    TrialFunction, action, adjoint, backend_Cofunction, backend_Constant,
+    backend_Function, backend_assemble, interpolate)
 from ..interface import (
     check_space_types, var_assign, var_axpy, var_id, var_inner, var_new,
     var_new_conjugate_dual, var_replacement, var_space, var_zero)
@@ -49,8 +49,8 @@ def interpolate_expression(x, expr, *, adj_x=None):
         interpolate_expression(expr_val, expr)
         var_assign(x, var_inner(adj_x, expr_val))
     elif isinstance(x, backend_Cofunction):
-        Interpolator(expr, adj_x.function_space().dual())._interpolate(
-            adj_x, adjoint=True, output=x)
+        Pi = interpolate(expr, adj_x.function_space().dual())
+        backend_assemble(action(adjoint(Pi), adj_x), tensor=x)
     elif isinstance(x, backend_Function):
         (weight, expr), = iter_expr(expr)
         if weight != 1.0 or not isinstance(expr, ufl.classes.Coargument):
