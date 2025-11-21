@@ -2,6 +2,7 @@ from firedrake import *
 from firedrake.assemble import \
     BaseFormAssembler, ExplicitMatrixAssembler as TwoFormAssembler, \
     OneFormAssembler  # noqa: F401
+from firedrake.interpolation import SameMeshInterpolator  # noqa: F401
 from firedrake.petsc import _extract_comm  # noqa: F401
 from firedrake.projection import ProjectorBase  # noqa: F401
 from firedrake.utils import complex_mode  # noqa: F401
