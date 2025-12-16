@@ -727,7 +727,7 @@ else:
     @manager_method(SameMeshInterpolator, "assemble",
                     post_call=SameMeshInterpolator_interpolate_post_call)
     def SameMeshInterpolator_assemble(
-            self, orig, orig_args, tensor=None, bcs=None):
+            self, orig, orig_args, tensor=None, bcs=None, *args, **kwargs):
         if bcs is not None and len(bcs) > 0:
             raise NotImplementedError("bcs not supported")
 
