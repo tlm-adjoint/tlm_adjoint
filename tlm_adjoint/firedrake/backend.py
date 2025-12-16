@@ -7,6 +7,7 @@ from firedrake.petsc import _extract_comm  # noqa: F401
 from firedrake.projection import ProjectorBase  # noqa: F401
 from firedrake.utils import complex_mode  # noqa: F401
 import firedrake
+import numpy as np
 
 backend = "Firedrake"
 
