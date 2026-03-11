@@ -1338,7 +1338,7 @@ def var_get_values(x):
     """
 
     values = x._tlm_adjoint__var_interface_get_values()
-    if not np.can_cast(values, var_dtype(x)):
+    if not np.can_cast(values.dtype, var_dtype(x)):
         raise ValueError("Invalid dtype")
     if values.shape != (var_local_size(x),):
         raise ValueError("Invalid shape")
@@ -1355,7 +1355,7 @@ def var_set_values(x, values):
         values.
     """
 
-    if not np.can_cast(values, var_dtype(x)):
+    if not np.can_cast(values.dtype, var_dtype(x)):
         raise ValueError("Invalid dtype")
     if values.shape != (var_local_size(x),):
         raise ValueError("Invalid shape")
