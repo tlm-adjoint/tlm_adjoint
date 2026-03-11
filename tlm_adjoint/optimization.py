@@ -214,7 +214,7 @@ def minimize_scipy(forward, M0, *,
             x = np.full(N[-1], np.nan, dtype=np.double)
             for i, f in enumerate(F):
                 f_vals = var_get_values(f)
-                if not np.can_cast(f_vals, x.dtype):
+                if not np.can_cast(f_vals.dtype, x.dtype):
                     raise ValueError("Invalid dtype")
                 x[N[i]:N[i + 1]] = f_vals
 

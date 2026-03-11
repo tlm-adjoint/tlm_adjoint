@@ -19,6 +19,7 @@ pytestmark = pytest.mark.skipif(
 @pytest.mark.example
 @seed_test
 def test_0_getting_started(setup_test, tmp_path):  # noqa: F811
+    set_default_float_dtype(np.double)
     run_example_notebook("0_getting_started.ipynb", tmp_path)
 
 

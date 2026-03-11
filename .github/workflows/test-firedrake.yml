@@ -17,14 +17,14 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 60
     container:
-      image: firedrakeproject/firedrake-vanilla-default:2025.10.2
+      image: firedrakeproject/firedrake-vanilla-default:2025.10.3
       options: --user root
     env:
       OMP_NUM_THREADS: 1
       OPENBLAS_NUM_THREADS: 1
     steps:
       - name: Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
         with:
           path: 'tlm_adjoint'
       - name: Install dependencies
@@ -50,14 +50,14 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 60
     container:
-      image: firedrakeproject/firedrake-vanilla-complex:2025.10.2
+      image: firedrakeproject/firedrake-vanilla-complex:2025.10.3
       options: --user root
     env:
       OMP_NUM_THREADS: 1
       OPENBLAS_NUM_THREADS: 1
     steps:
       - name: Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
         with:
           path: 'tlm_adjoint'
       - name: Install dependencies
