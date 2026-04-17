@@ -14,10 +14,10 @@ concurrency:
 
 jobs:
   test-real:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 60
     container:
-      image: firedrakeproject/firedrake-vanilla-default:2025.10.3
+      image: firedrakeproject/firedrake-vanilla-default:2025.10.4
       options: --user root
     env:
       OMP_NUM_THREADS: 1
@@ -47,10 +47,10 @@ jobs:
           cd tlm_adjoint
           python3 -m pytest -v tests/base tests/checkpoint_schedules tests/firedrake -n 4 --timeout=300 --timeout-method=thread
   test-complex:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 60
     container:
-      image: firedrakeproject/firedrake-vanilla-complex:2025.10.3
+      image: firedrakeproject/firedrake-vanilla-complex:2025.10.4
       options: --user root
     env:
       OMP_NUM_THREADS: 1
